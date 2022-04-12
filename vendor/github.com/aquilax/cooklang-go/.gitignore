@@ -1,12 +1,3 @@
-/cook-docs
-/cmd/cook-docs/cook-docs
-dist
-.idea/
-*.iml
-
-.env # ignore local environment variable file
-bin/ # ingore built executables
-
 # Binaries for programs and plugins
 *.exe
 *.exe~

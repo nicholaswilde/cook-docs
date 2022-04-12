@@ -1,0 +1,36 @@
+---
+version: '3'
+
+tasks:
+  clean:
+    desc: Clean
+    cmds:
+      - rm -f cook-docs
+  dist:
+    desc: Create go releases
+    cmds:
+      - goreleaser release --rm-dist --snapshot --skip-sign
+  get-deps:
+    desc: Download dependencies
+    cmds:
+      - go get -d ./...
+  fmt:
+    desc: Print the names of the files that are modified.
+    cmds:
+      - go fmt ./...
+  run:
+    desc: Run go program
+    cmds:
+      - go run -v ./... --recipe-search-root cmd/cook-docs/testdata
+  test:
+    desc: Run go tests
+    cmds:
+      - go test -v ./...
+  vet:
+    desc: Vet
+    cmds:
+      - go vet ./...
+  default:
+    cmds:
+      - task -a
+    silent: true
