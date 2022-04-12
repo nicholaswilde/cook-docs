@@ -10,7 +10,7 @@ tasks:
     desc: Create go releases
     cmds:
       - goreleaser release --rm-dist --snapshot --skip-sign
-  get-deps:
+  deps:
     desc: Download dependencies
     cmds:
       - go get -d ./...
@@ -30,7 +30,12 @@ tasks:
     desc: Vet
     cmds:
       - go vet ./...
+  vendor:
+    desc: Generate vendor
+    cmds:
+      - go mod vendor
   default:
+    desc: Lists tasks with or without a description
     cmds:
       - task -a
     silent: true
