@@ -34,6 +34,7 @@ tasks:
     desc: Generate vendor
     cmds:
       - go mod vendor
+      - go mod tidy
   default:
     desc: Lists tasks with or without a description
     cmds:
