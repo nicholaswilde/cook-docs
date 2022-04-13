@@ -4,6 +4,7 @@ dist
 .idea/
 *.iml
 *.swp
+*.save
 
 .env # ignore local environment variable file
 bin/ # ingore built executables
