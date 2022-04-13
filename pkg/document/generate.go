@@ -8,11 +8,12 @@ import (
 
   //"github.com/Masterminds/sprig/v3"
   "github.com/aquilax/cooklang-go"
+  "github.com/nicholaswilde/cook-docs/pkg/cook"
 	log "github.com/sirupsen/logrus"
 )
 
-func PrintDocumentation(recipePath string, r *cooklang.Recipe) {
-  log.Infof("Generating markdown file for recipe %s", recipePath)
+func PrintDocumentation(r *cooklang.Recipe, recipeInfo cook.RecipeDocumentationInfo, templateFiles []string) {
+  log.Infof("Generating markdown file for recipe %s", recipeInfo.RecipePath)
   j, err := json.MarshalIndent(r, "", "  ")
   if err != nil {
     log.Fatal(err)
@@ -61,7 +62,10 @@ https://k8s-at-home.com/charts/
 - {{.Metadata.source}}
 {{- end}}
 `
-  t := newRecipeDocumentationTemplate(recipe, recipePath)
+  t, err := newRecipeDocumentationTemplate(recipe, recipeInfo, templateFiles)
+  if err != nil {
+    log.Println("executing template:", err)
+  }
   err = t.Execute(os.Stdout, r)
   if err != nil {
     log.Println("executing template:", err)

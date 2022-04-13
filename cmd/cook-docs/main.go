@@ -14,15 +14,19 @@ import (
   "github.com/nicholaswilde/cook-docs/pkg/document"
 )
 
-func retrieveInfoAndPrintDocumentation(recipePath string, waitGroup *sync.WaitGroup) {
+func retrieveInfoAndPrintDocumentation(recipePath string, templateFiles []string, waitGroup *sync.WaitGroup) {
   defer waitGroup.Done()
-  _, _ = cook.ParseRecipeInformation(recipePath)
-	r, err := cooklang.ParseFile(recipePath)
-	if err != nil {
+  recipeInfo, err := cook.ParseRecipeInformation(recipePath)
+  if err != nil {
     log.Warnf("Error parsing information for recipe %s, skipping: %s", recipePath, err)
+    return
+  }
+	r, err := cooklang.ParseFile(recipeInfo.RecipePath)
+	if err != nil {
+    log.Warnf("Error parsing file for recipe %s, skipping: %s", recipeInfo.RecipePath, err)
 		return
 	}
-  document.PrintDocumentation(recipePath, r)
+  document.PrintDocumentation(r, recipeInfo, templateFiles)
 }
 
 func cookDocs(_ *cobra.Command, _ []string) {
@@ -45,11 +49,15 @@ func cookDocs(_ *cobra.Command, _ []string) {
 		os.Exit(1)
 	}
   log.Infof("Found recipes [%s]", strings.Join(recipeDirs, ", "))
+
+  templateFiles := viper.GetStringSlice("template-files")
+	log.Debugf("Rendering from optional template files [%s]", strings.Join(templateFiles, ", "))
+
   waitGroup := sync.WaitGroup{}
 
   for _, r := range recipeDirs {
     waitGroup.Add(1)
-    retrieveInfoAndPrintDocumentation(r, &waitGroup)
+    retrieveInfoAndPrintDocumentation(r, templateFiles, &waitGroup)
   }
   waitGroup.Wait()
 }

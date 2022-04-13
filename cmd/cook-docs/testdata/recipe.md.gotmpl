@@ -1,0 +1,40 @@
+{{- define "custom.helm.url" -}}
+https://k8s-at-home.com/charts/
+{{- end -}}
+# Test Recipe
+
+![](../assets/images/crispy-chicken-less-sliders.png)
+
+| :fork_and_knife_with_plate: Serves | :timer_clock: Total Time |
+|:------:|:----------:|
+| {{.Metadata.servings}} | 25 minutes |
+
+## :salt: Ingredients
+{{ range .Steps }}
+{{- range .Ingredients }}
+- {{.Amount.Quantity}} {{.Amount.Unit}} {{.Name}}
+{{- end }}
+{{- end }}
+
+{{ range .Steps }}
+{{- if .Cookware }}
+{{- range .Cookware }}
+- {{.Name}}
+{{- end }}
+{{- end }}
+{{- end }}
+
+## :pencil: Instructions
+
+{{- range $i, $a := .Steps }}
+
+### Step {{add1 $i}}
+
+{{ .Directions }}
+
+{{- end }}
+
+{{ if .Metadata.source -}}
+## Source
+- {{.Metadata.source}}
+{{- end}}
