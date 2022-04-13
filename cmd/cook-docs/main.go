@@ -18,7 +18,7 @@ func retrieveInfoAndPrintDocumentation(recipePath string, templateFiles []string
   defer waitGroup.Done()
   recipeInfo, err := cook.ParseRecipeInformation(recipePath)
   if err != nil {
-    log.Warnf("Error parsing information for recipe %s, skipping: %s", recipePath, err)
+    log.Warnf("Error parsing information for recipe %s, skipping: %s", recipeInfo.RecipePath, err)
     return
   }
 	r, err := cooklang.ParseFile(recipeInfo.RecipePath)
