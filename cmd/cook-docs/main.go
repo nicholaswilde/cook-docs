@@ -14,7 +14,7 @@ import (
   "github.com/nicholaswilde/cook-docs/pkg/document"
 )
 
-func retrieveInfoAndPrintDocumentation(recipePath string, templateFiles []string, waitGroup *sync.WaitGroup) {
+func retrieveInfoAndPrintDocumentation(recipeSearchRoot string, recipePath string, templateFiles []string, waitGroup *sync.WaitGroup) {
   defer waitGroup.Done()
   recipeInfo := cook.ParseRecipeInformation(recipePath)
 	r, err := cooklang.ParseFile(recipeInfo.RecipePath)
@@ -22,7 +22,7 @@ func retrieveInfoAndPrintDocumentation(recipePath string, templateFiles []string
     log.Warnf("Error parsing file for recipe %s, skipping: %s", recipeInfo.RecipePath, err)
 		return
 	}
-  document.PrintDocumentation(r, recipeInfo, templateFiles)
+  document.PrintDocumentation(recipeSearchRoot, r, recipeInfo, templateFiles)
 }
 
 func cookDocs(_ *cobra.Command, _ []string) {
@@ -53,7 +53,7 @@ func cookDocs(_ *cobra.Command, _ []string) {
 
   for _, r := range recipeDirs {
     waitGroup.Add(1)
-    retrieveInfoAndPrintDocumentation(r, templateFiles, &waitGroup)
+    retrieveInfoAndPrintDocumentation(fullRecipeSearchRoot, r, templateFiles, &waitGroup)
   }
   waitGroup.Wait()
 }

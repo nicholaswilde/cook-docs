@@ -1,7 +1,6 @@
 package cook
 
 import (
-  "fmt"
   "os"
   "errors"
   "strings"
@@ -47,15 +46,12 @@ func GetImagePath (recipeDocInfo RecipeDocumentationInfo)(string, error) {
 
 func ParseRecipeInformation(recipePath string) (RecipeDocumentationInfo) {
   var recipeDocInfo RecipeDocumentationInfo
-  //var err error
 
   recipeDocInfo.RecipePath = recipePath
 
   recipeDocInfo.RecipeName = GetRecipeName(recipePath)
 
   recipeDocInfo.NewFileName = GetNewFileName(recipeDocInfo)
-
-  fmt.Println(recipeDocInfo.NewFileName)
 
   imagePath, err := GetImagePath(recipeDocInfo)
 

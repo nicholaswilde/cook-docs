@@ -18,6 +18,10 @@ tasks:
     desc: Print the names of the files that are modified.
     cmds:
       - go fmt ./...
+  debug:
+    desc: Run go program
+    cmds:
+      - go run -v ./... --recipe-search-root cmd/cook-docs/testdata --template-files cmd/cook-docs/testdata/recipe.md.gotmpl --log-level debug
   run:
     desc: Run go program
     cmds:
