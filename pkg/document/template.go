@@ -14,16 +14,97 @@ import(
   log "github.com/sirupsen/logrus"
 )
 
-const defaultDocumentationTemplate =`{{ template "recipe.header" . }}
+const defaultDocumentationTemplate =`{{ template "recipe.headerSection" . }}
+
+{{ template "recipe.imageSection" . }}
+
+{{ template "recipe.tableSection" . }}
+
+{{ template "recipe.ingredientsSection" . }}
+
+{{ template "recipe.cookwareSection" . }}
+
+{{ template "recipe.stepsSection" . }}
+
+{{ template "recipe.sourceSection" . }}
 `
 
 func getHeaderTemplate() string {
 	headerTemplateBuilder := strings.Builder{}
-	headerTemplateBuilder.WriteString(`{{ define "recipe.header" }}`)
-	headerTemplateBuilder.WriteString("# Test Recipe\n")
+
+	headerTemplateBuilder.WriteString(`{{ define "recipe.headerSection" }}`)
+	headerTemplateBuilder.WriteString("# Test Recipe")
 	headerTemplateBuilder.WriteString("{{ end }}")
 
 	return headerTemplateBuilder.String()
+}
+
+func getImageTemplate() string {
+  imageTemplateBuilder := strings.Builder{}
+
+	imageTemplateBuilder.WriteString(`{{ define "recipe.imageSection" }}`)
+	imageTemplateBuilder.WriteString("![](../assets/images/crispy-chicken-less-sliders.png)")
+	imageTemplateBuilder.WriteString("{{ end }}")
+
+  return imageTemplateBuilder.String()
+}
+
+func getTableTemplate() string {
+  tableTemplateBuilder := strings.Builder{}
+
+  tableTemplateBuilder.WriteString(`{{ define "recipe.tableSection" }}`)
+  tableTemplateBuilder.WriteString("| :fork_and_knife_with_plate: Serves | :timer_clock: Total Time |\n")
+  tableTemplateBuilder.WriteString("|:----------------------------------:|:-----------------------: |\n")
+  tableTemplateBuilder.WriteString("| {{.Metadata.servings}} | 25 minutes |")
+  tableTemplateBuilder.WriteString("{{ end }}")
+
+  return tableTemplateBuilder.String()
+}
+
+func getIngredientsTemplate() string {
+  ingredientsTemplateBuilder := strings.Builder{}
+
+  ingredientsTemplateBuilder.WriteString(`{{ define "recipe.ingredientsSection" }}`)
+  ingredientsTemplateBuilder.WriteString("## :salt: Ingredients\n")
+  ingredientsTemplateBuilder.WriteString("{{ range .Steps }}{{- range .Ingredients }}\n- {{.Amount.Quantity}} {{.Amount.Unit}} {{.Name}}{{- end }}{{- end }}")
+  ingredientsTemplateBuilder.WriteString("{{ end }}")
+
+  return ingredientsTemplateBuilder.String()
+}
+
+func getCookwareTemplate() string {
+  cookwareTemplateBuilder := strings.Builder{}
+
+	cookwareTemplateBuilder.WriteString(`{{ define "recipe.cookwareSection" }}`)
+	cookwareTemplateBuilder.WriteString("## Cookware\n")
+  cookwareTemplateBuilder.WriteString("{{ range .Steps }}{{- range .Cookware }}\n- {{.Name}}{{- end }}{{- end }}")
+	cookwareTemplateBuilder.WriteString("{{ end }}")
+
+  return cookwareTemplateBuilder.String()
+}
+
+func getStepsTemplate() string {
+  stepsTemplateBuilder := strings.Builder{}
+
+	stepsTemplateBuilder.WriteString(`{{ define "recipe.stepsSection" }}`)
+	stepsTemplateBuilder.WriteString("## :pencil: Instructions")
+  stepsTemplateBuilder.WriteString("{{ range $i, $a := .Steps }}\n\n### Step {{add1 $i}}\n\n{{ .Directions }}{{ end }}")
+	stepsTemplateBuilder.WriteString("{{ end }}")
+
+  return stepsTemplateBuilder.String()
+}
+
+func getSourceTemplate() string {
+  sourceTemplateBuilder := strings.Builder{}
+
+	sourceTemplateBuilder.WriteString(`{{ define "recipe.sourceSection" }}`)
+  sourceTemplateBuilder.WriteString("{{ if .Metadata.source }}")
+	sourceTemplateBuilder.WriteString("## :link: Source\n")
+  sourceTemplateBuilder.WriteString("- {{ .Metadata.source }}")
+	sourceTemplateBuilder.WriteString("{{ end }}")
+	sourceTemplateBuilder.WriteString("{{ end }}")
+
+  return sourceTemplateBuilder.String()
 }
 
 func getDocumentationTemplate(recipeSearchRoot string, recipePath string, templateFiles []string) (string, error){
@@ -80,6 +161,12 @@ func getDocumentationTemplates(recipeSearchRoot string, recipePath string, templ
 
   return []string{
     getHeaderTemplate(),
+    getImageTemplate(),
+    getTableTemplate(),
+    getIngredientsTemplate(),
+    getCookwareTemplate(),
+    getStepsTemplate(),
+    getSourceTemplate(),
     documentationTemplate,
   }, nil
 }
