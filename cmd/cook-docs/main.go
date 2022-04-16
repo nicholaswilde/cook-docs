@@ -1,28 +1,34 @@
 package main
 
 import (
-	"os"
-	"path"
+  "os"
+  "path"
   "sync"
   "strings"
 
-	"github.com/aquilax/cooklang-go"
-	log "github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
+  "github.com/aquilax/cooklang-go"
+  log "github.com/sirupsen/logrus"
+  "github.com/spf13/cobra"
+  "github.com/spf13/viper"
   "github.com/nicholaswilde/cook-docs/pkg/cook"
   "github.com/nicholaswilde/cook-docs/pkg/document"
 )
 
 func retrieveInfoAndPrintDocumentation(recipeSearchRoot string, recipePath string, templateFiles []string, waitGroup *sync.WaitGroup) {
   defer waitGroup.Done()
+
   recipeInfo := cook.ParseRecipeInformation(recipePath)
-	r, err := cooklang.ParseFile(recipeInfo.RecipePath)
+
+	recipeData, err := cooklang.ParseFile(recipeInfo.RecipePath)
+
 	if err != nil {
     log.Warnf("Error parsing file for recipe %s, skipping: %s", recipeInfo.RecipePath, err)
 		return
 	}
-  document.PrintDocumentation(recipeSearchRoot, r, recipeInfo, templateFiles)
+
+  recipeData = cook.MergeRecipeData(recipeInfo, recipeData)
+
+  document.PrintDocumentation(recipeSearchRoot, recipeData, recipeInfo, templateFiles)
 }
 
 func cookDocs(_ *cobra.Command, _ []string) {
@@ -59,13 +65,13 @@ func cookDocs(_ *cobra.Command, _ []string) {
 }
 
 func main() {
-	command, err := newCookDocsCommand(cookDocs)
-	if err != nil {
-		log.Errorf("Failed to create the CLI commander: %s", err)
-		os.Exit(1)
-	}
-	if err := command.Execute(); err != nil {
-		log.Errorf("Failed to start the CLI: %s", err)
-		os.Exit(1)
-	}
+  command, err := newCookDocsCommand(cookDocs)
+  if err != nil {
+    log.Errorf("Failed to create the CLI commander: %s", err)
+    os.Exit(1)
+  }
+  if err := command.Execute(); err != nil {
+    log.Errorf("Failed to start the CLI: %s", err)
+    os.Exit(1)
+  }
 }

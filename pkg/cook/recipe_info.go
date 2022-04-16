@@ -7,6 +7,7 @@ import (
   "path/filepath"
 
   log "github.com/sirupsen/logrus"
+  "github.com/aquilax/cooklang-go"
 )
 
 type RecipeDocumentationInfo struct {
@@ -60,4 +61,13 @@ func ParseRecipeInformation(recipePath string) (RecipeDocumentationInfo) {
   }
 
   return recipeDocInfo
+}
+
+func MergeRecipeData(recipeInfo RecipeDocumentationInfo, recipeData *cooklang.Recipe) (*cooklang.Recipe) {
+
+  recipeData.Metadata["title"] = recipeInfo.RecipeName
+
+  recipeData.Metadata["ImageName"] = filepath.Base(recipeInfo.ImagePath)
+
+  return recipeData
 }
