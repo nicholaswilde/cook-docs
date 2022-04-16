@@ -14,7 +14,7 @@ import (
   "github.com/nicholaswilde/cook-docs/pkg/document"
 )
 
-func retrieveInfoAndPrintDocumentation(recipeSearchRoot string, recipePath string, templateFiles []string, waitGroup *sync.WaitGroup) {
+func retrieveInfoAndPrintDocumentation(recipeSearchRoot string, recipePath string, templateFiles []string, waitGroup *sync.WaitGroup, dryRun bool) {
   defer waitGroup.Done()
 
   recipeInfo := cook.ParseRecipeInformation(recipePath)
@@ -28,7 +28,7 @@ func retrieveInfoAndPrintDocumentation(recipeSearchRoot string, recipePath strin
 
   recipeData = cook.MergeRecipeData(recipeInfo, recipeData)
 
-  document.PrintDocumentation(recipeSearchRoot, recipeData, recipeInfo, templateFiles)
+  document.PrintDocumentation(recipeSearchRoot, recipeData, recipeInfo, templateFiles, dryRun)
 }
 
 func cookDocs(_ *cobra.Command, _ []string) {
@@ -55,11 +55,18 @@ func cookDocs(_ *cobra.Command, _ []string) {
   templateFiles := viper.GetStringSlice("template-files")
 	log.Debugf("Rendering from optional template files [%s]", strings.Join(templateFiles, ", "))
 
+  dryRun := viper.GetBool("dry-run")
   waitGroup := sync.WaitGroup{}
 
   for _, r := range recipeDirs {
     waitGroup.Add(1)
-    retrieveInfoAndPrintDocumentation(fullRecipeSearchRoot, r, templateFiles, &waitGroup)
+
+    // On dry runs all output goes to stdout, and so as to not jumble things, generate serially
+		if dryRun {
+      retrieveInfoAndPrintDocumentation(fullRecipeSearchRoot, r, templateFiles, &waitGroup, dryRun)
+    } else {
+      go retrieveInfoAndPrintDocumentation(fullRecipeSearchRoot, r, templateFiles, &waitGroup, dryRun)
+    }
   }
   waitGroup.Wait()
 }

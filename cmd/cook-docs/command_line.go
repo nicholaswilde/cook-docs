@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+  //"path/filepath"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -42,6 +43,7 @@ func newCookDocsCommand(run func(cmd *cobra.Command, args []string)) (*cobra.Com
 		Run:     run,
 	}
 	logLevelUsage := fmt.Sprintf("Level of logs that should printed, one of (%s)", strings.Join(possibleLogLevels(), ", "))
+  command.PersistentFlags().BoolP("dry-run", "d", false, "don't actually render any markdown files just print to stdout passed")
 	command.PersistentFlags().StringP("recipe-search-root", "c", ".", "directory to search recursively within for recipes")
 	command.PersistentFlags().StringP("log-level", "l", "info", logLevelUsage)
   command.PersistentFlags().StringSliceP("template-files", "t", []string{"recipe.md.gotmpl"}, "gotemplate file paths relative to each recipe directory from which documentation will be generated")
