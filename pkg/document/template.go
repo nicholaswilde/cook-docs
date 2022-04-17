@@ -16,25 +16,25 @@ import(
   log "github.com/sirupsen/logrus"
 )
 
-const defaultDocumentationTemplate =`{{ template "recipe.headerSection" . }}
+const defaultDocumentationTemplate =`{{ template "cook.headerSection" . }}
 
-{{ template "recipe.imageSection" . }}
+{{ template "cook.imageSection" . }}
 
-{{ template "recipe.tableSection" . }}
+{{ template "cook.tableSection" . }}
 
-{{ template "recipe.ingredientsSection" . }}
+{{ template "cook.ingredientsSection" . }}
 
-{{ template "recipe.cookwareSection" . }}
+{{ template "cook.cookwareSection" . }}
 
-{{ template "recipe.stepsSection" . }}
+{{ template "cook.stepsSection" . }}
 
-{{ template "recipe.sourceSection" . }}
+{{ template "cook.sourceSection" . }}
 `
 
 func getHeaderTemplate() string {
   templateBuilder := strings.Builder{}
 
-  templateBuilder.WriteString(`{{ define "recipe.headerSection" }}`)
+  templateBuilder.WriteString(`{{ define "cook.headerSection" }}`)
   templateBuilder.WriteString("# {{ .Metadata.title }}")
   templateBuilder.WriteString("{{ end }}")
 
@@ -44,7 +44,7 @@ func getHeaderTemplate() string {
 func getImageTemplate() string {
   templateBuilder := strings.Builder{}
 
-  templateBuilder.WriteString(`{{ define "recipe.imageSection" }}`)
+  templateBuilder.WriteString(`{{ define "cook.imageSection" }}`)
   templateBuilder.WriteString("{{ if .Metadata.ImageName }}")
   templateBuilder.WriteString(`![](../assets/images/{{ lower .Metadata.ImageName | replace " " "-" }})`)
   templateBuilder.WriteString("{{ end }}")
@@ -56,7 +56,7 @@ func getImageTemplate() string {
 func getTableTemplate() string {
   templateBuilder := strings.Builder{}
 
-  templateBuilder.WriteString(`{{ define "recipe.tableSection" }}`)
+  templateBuilder.WriteString(`{{ define "cook.tableSection" }}`)
   templateBuilder.WriteString("{{ if or .Metadata.servings .Metadata.serves }}")
   templateBuilder.WriteString("| :fork_and_knife_with_plate: Serves | :timer_clock: Total Time |\n")
   templateBuilder.WriteString("|:----------------------------------:|:-----------------------: |\n")
@@ -74,18 +74,18 @@ func getTableTemplate() string {
 func getIngredientsTemplate() string {
   templateBuilder := strings.Builder{}
 
-  templateBuilder.WriteString(`{{ define "recipe.ingredientsHeader" }}`)
+  templateBuilder.WriteString(`{{ define "cook.ingredientsHeader" }}`)
   templateBuilder.WriteString("## :salt: Ingredients")
   templateBuilder.WriteString("{{ end }}")
 
-  templateBuilder.WriteString(`{{ define "recipe.ingredients" }}`)
+  templateBuilder.WriteString(`{{ define "cook.ingredients" }}`)
   templateBuilder.WriteString("{{ range .Steps }}{{- range .Ingredients }}\n- {{.Amount.Quantity}} {{.Amount.Unit}} {{.Name}}{{- end }}{{- end }}")
   templateBuilder.WriteString("{{ end }}")
 
-  templateBuilder.WriteString(`{{ define "recipe.ingredientsSection" }}`)
-  templateBuilder.WriteString(`{{ template "recipe.ingredientsHeader" . }}`)
+  templateBuilder.WriteString(`{{ define "cook.ingredientsSection" }}`)
+  templateBuilder.WriteString(`{{ template "cook.ingredientsHeader" . }}`)
   templateBuilder.WriteString("\n")
-  templateBuilder.WriteString(`{{ template "recipe.ingredients" . }}`)
+  templateBuilder.WriteString(`{{ template "cook.ingredients" . }}`)
   templateBuilder.WriteString("{{ end }}")
 
   return templateBuilder.String()
@@ -94,18 +94,18 @@ func getIngredientsTemplate() string {
 func getCookwareTemplate() string {
   templateBuilder := strings.Builder{}
 
-  templateBuilder.WriteString(`{{ define "recipe.cookwareHeader" }}`)
+  templateBuilder.WriteString(`{{ define "cook.cookwareHeader" }}`)
   templateBuilder.WriteString("## :cooking: Cookware")
   templateBuilder.WriteString("{{ end }}")
 
-  templateBuilder.WriteString(`{{ define "recipe.cookware" }}`)
+  templateBuilder.WriteString(`{{ define "cook.cookware" }}`)
   templateBuilder.WriteString("{{ range .Steps }}{{- range .Cookware }}\n- {{.Name}}{{- end }}{{- end }}")
   templateBuilder.WriteString("{{ end }}")
 
-  templateBuilder.WriteString(`{{ define "recipe.cookwareSection" }}`)
-  templateBuilder.WriteString(`{{ template "recipe.cookwareHeader" . }}`)
+  templateBuilder.WriteString(`{{ define "cook.cookwareSection" }}`)
+  templateBuilder.WriteString(`{{ template "cook.cookwareHeader" . }}`)
   templateBuilder.WriteString("\n")
-  templateBuilder.WriteString(`{{ template "recipe.cookware" . }}`)
+  templateBuilder.WriteString(`{{ template "cook.cookware" . }}`)
   templateBuilder.WriteString("{{ end }}")
 
   return templateBuilder.String()
@@ -114,17 +114,17 @@ func getCookwareTemplate() string {
 func getStepsTemplate() string {
   templateBuilder := strings.Builder{}
 
-  templateBuilder.WriteString(`{{ define "recipe.stepsHeader" }}`)
+  templateBuilder.WriteString(`{{ define "cook.stepsHeader" }}`)
   templateBuilder.WriteString("## :pencil: Instructions")
   templateBuilder.WriteString("{{ end }}")
 
-  templateBuilder.WriteString(`{{ define "recipe.steps" }}`)
+  templateBuilder.WriteString(`{{ define "cook.steps" }}`)
   templateBuilder.WriteString("{{ range $i, $a := .Steps }}\n\n### Step {{add1 $i}}\n\n{{ .Directions }}{{- end }}")
   templateBuilder.WriteString("{{ end }}")
 
-  templateBuilder.WriteString(`{{ define "recipe.stepsSection" }}`)
-  templateBuilder.WriteString(`{{ template "recipe.stepsHeader" . }}`)
-  templateBuilder.WriteString(`{{ template "recipe.steps" . }}`)
+  templateBuilder.WriteString(`{{ define "cook.stepsSection" }}`)
+  templateBuilder.WriteString(`{{ template "cook.stepsHeader" . }}`)
+  templateBuilder.WriteString(`{{ template "cook.steps" . }}`)
   templateBuilder.WriteString("{{ end }}")
 
   return templateBuilder.String()
@@ -133,19 +133,19 @@ func getStepsTemplate() string {
 func getSourceTemplate() string {
   templateBuilder := strings.Builder{}
 
-  templateBuilder.WriteString(`{{ define "recipe.sourceHeader" }}`)
+  templateBuilder.WriteString(`{{ define "cook.sourceHeader" }}`)
   templateBuilder.WriteString("## :link: Source")
   templateBuilder.WriteString("{{ end }}")
 
-  templateBuilder.WriteString(`{{ define "recipe.source" }}`)
+  templateBuilder.WriteString(`{{ define "cook.source" }}`)
   templateBuilder.WriteString("- {{ .Metadata.source }}")
   templateBuilder.WriteString("{{ end }}")
 
-  templateBuilder.WriteString(`{{ define "recipe.sourceSection" }}`)
+  templateBuilder.WriteString(`{{ define "cook.sourceSection" }}`)
   templateBuilder.WriteString("{{ if .Metadata.source }}")
-  templateBuilder.WriteString(`{{ template "recipe.sourceHeader" . }}`)
+  templateBuilder.WriteString(`{{ template "cook.sourceHeader" . }}`)
   templateBuilder.WriteString("\n")
-  templateBuilder.WriteString(`{{ template "recipe.source" . }}`)
+  templateBuilder.WriteString(`{{ template "cook.source" . }}`)
   templateBuilder.WriteString("{{ end }}")
   templateBuilder.WriteString("{{ end }}")
 
@@ -155,18 +155,18 @@ func getSourceTemplate() string {
 func getMetadataTemplate() string {
   templateBuilder := strings.Builder{}
 
-  templateBuilder.WriteString(`{{ define "recipe.metadataHeader" }}`)
+  templateBuilder.WriteString(`{{ define "cook.metadataHeader" }}`)
   templateBuilder.WriteString("## Metadata")
   templateBuilder.WriteString("{{ end }}")
 
-  templateBuilder.WriteString(`{{ define "recipe.metadata" }}`)
+  templateBuilder.WriteString(`{{ define "cook.metadata" }}`)
   templateBuilder.WriteString(`{{ range $key, $value := .Metadata }}\n- {{ $key }}: {{ $value }}{{ end }}`)
   templateBuilder.WriteString("{{ end }}")
 
-  templateBuilder.WriteString(`{{ define "recipe.metadataSection" }}`)
-  templateBuilder.WriteString(`{{ template "recipe.metadataHeader" . }}`)
+  templateBuilder.WriteString(`{{ define "cook.metadataSection" }}`)
+  templateBuilder.WriteString(`{{ template "cook.metadataHeader" . }}`)
   templateBuilder.WriteString("\n")
-  templateBuilder.WriteString(`{{ template "recipe.metadata" . }}`)
+  templateBuilder.WriteString(`{{ template "cook.metadata" . }}`)
   templateBuilder.WriteString("{{ end }}")
 
   return templateBuilder.String()
@@ -175,20 +175,20 @@ func getMetadataTemplate() string {
 func getCommentsTemplate() string {
   templateBuilder := strings.Builder{}
 
-  templateBuilder.WriteString(`{{ define "recipe.commentsHeader" }}`)
+  templateBuilder.WriteString(`{{ define "cook.commentsHeader" }}`)
   templateBuilder.WriteString("## Comments")
   templateBuilder.WriteString("{{ end }}")
 
-  templateBuilder.WriteString(`{{ define "recipe.comments" }}`)
+  templateBuilder.WriteString(`{{ define "cook.comments" }}`)
   //templateBuilder.WriteString("{{ range .Steps }}{{- range .Comments }}\n- {{.}}{{- end }}{{- end }}")
   templateBuilder.WriteString("{{ end }}")
 
-  templateBuilder.WriteString(`{{ define "recipe.commentsSection" }}`)
+  templateBuilder.WriteString(`{{ define "cook.commentsSection" }}`)
   templateBuilder.WriteString("{{ range .Steps }}")
   templateBuilder.WriteString("{{ if .Comments }}")
-  templateBuilder.WriteString(`{{ template "recipe.commentsHeader" . }}`)
+  templateBuilder.WriteString(`{{ template "cook.commentsHeader" . }}`)
   templateBuilder.WriteString("\n")
-  templateBuilder.WriteString(`{{ template "recipe.comments" . }}`)
+  templateBuilder.WriteString(`{{ template "cook.comments" . }}`)
   templateBuilder.WriteString("{{ end }}")
   templateBuilder.WriteString("{{ end }}")
   templateBuilder.WriteString("{{ end }}")
