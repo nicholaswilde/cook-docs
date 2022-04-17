@@ -10,5 +10,5 @@ import (
 func TestFindRecipeDirectories(t *testing.T){
   recipeDirs, err := FindRecipeDirectories(".")
   require.NoError(t, err)
-  assert.Equal(t, "testdata/recipe.cook", recipeDirs[0])
+  assert.Equal(t, "testdata/Recipe.cook", recipeDirs[0])
 }
