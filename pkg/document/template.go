@@ -244,8 +244,8 @@ func getDocumentationTemplates(recipeSearchRoot string, recipePath string, templ
   documentationTemplate, err := getDocumentationTemplate(recipeSearchRoot, recipePath, templateFiles)
 
   if err != nil {
-		log.Errorf("Failed to read documentation template for recipe %s: %s", recipePath, err)
-		return nil, err
+    log.Errorf("Failed to read documentation template for recipe %s: %s", recipePath, err)
+    return nil, err
 	}
 
   return []string{
