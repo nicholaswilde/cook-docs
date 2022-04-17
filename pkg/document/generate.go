@@ -1,10 +1,10 @@
 package document
 
 import (
-  "encoding/json"
   "os"
   "bytes"
-  "path/filepath"
+  "regexp"
+  "encoding/json"
 
   "github.com/aquilax/cooklang-go"
   "github.com/nicholaswilde/cook-docs/pkg/cook"
@@ -15,14 +15,14 @@ func getOutputFile(recipeInfo cook.RecipeDocumentationInfo, dryRun bool) (*os.Fi
 	if dryRun {
 		return os.Stdout, nil
 	}
-  path := filepath.Dir(recipeInfo.RecipePath)
-	f, err := os.Create(filepath.Join(path, recipeInfo.NewFileName))
+  log.Debug(recipeInfo.NewFileName)
+	f, err := os.Create(recipeInfo.NewFileName)
 
 	if err != nil {
 		return nil, err
 	}
 
-	return f, err
+	return f, nil
 }
 
 func applyMarkDownFormat(output bytes.Buffer) bytes.Buffer {
@@ -39,7 +39,7 @@ func applyMarkDownFormat(output bytes.Buffer) bytes.Buffer {
 }
 
 func PrintDocumentation(recipeSearchRoot string, recipeData *cooklang.Recipe, recipeInfo cook.RecipeDocumentationInfo, templateFiles []string, dryRun bool) {
-  log.Infof("Generating markdown file for recipe %s", recipeInfo.RecipePath)
+  log.Infof("Generating markdown file for recipe %s", recipeInfo.NewFileName)
   j, err := json.MarshalIndent(recipeData, "", "  ")
   if err != nil {
     log.Fatal(err)
@@ -54,7 +54,7 @@ func PrintDocumentation(recipeSearchRoot string, recipeData *cooklang.Recipe, re
 
   outputFile, err := getOutputFile(recipeInfo, dryRun)
 	if err != nil {
-		log.Warnf("Could not open recipe markdown file %s, skipping recipe", recipeInfo.NewFileName)
+		log.Warnf("Could not open recipe markdown file %s, skipping recipe: %s", recipeInfo.NewFileName, err)
 		return
 	}
 
@@ -71,6 +71,6 @@ func PrintDocumentation(recipeSearchRoot string, recipeData *cooklang.Recipe, re
   output = applyMarkDownFormat(output)
 	_, err = output.WriteTo(outputFile)
 	if err != nil {
-		log.Warnf("Error generating documentation file for chart %s: %s", chartDocumentationInfo.ChartDirectory, err)
+		log.Warnf("Error generating documentation file for recipe %s: %s", recipeInfo.NewFileName, err)
 	}
 }
