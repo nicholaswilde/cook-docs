@@ -8,7 +8,6 @@ import(
   "path/filepath"
   "io/ioutil"
   "fmt"
-  //"strconv"
 
   "github.com/aquilax/cooklang-go"
   "github.com/Masterminds/sprig/v3"
@@ -33,23 +32,23 @@ const defaultDocumentationTemplate =`{{ template "recipe.headerSection" . }}
 `
 
 func getHeaderTemplate() string {
-	templateBuilder := strings.Builder{}
+  templateBuilder := strings.Builder{}
 
-	templateBuilder.WriteString(`{{ define "recipe.headerSection" }}`)
-	templateBuilder.WriteString("# {{ .Metadata.title }}")
-	templateBuilder.WriteString("{{ end }}")
+  templateBuilder.WriteString(`{{ define "recipe.headerSection" }}`)
+  templateBuilder.WriteString("# {{ .Metadata.title }}")
+  templateBuilder.WriteString("{{ end }}")
 
-	return templateBuilder.String()
+  return templateBuilder.String()
 }
 
 func getImageTemplate() string {
   templateBuilder := strings.Builder{}
 
-	templateBuilder.WriteString(`{{ define "recipe.imageSection" }}`)
-	templateBuilder.WriteString("{{ if .Metadata.ImageName }}")
-	templateBuilder.WriteString(`![](../assets/images/{{ lower .Metadata.ImageName | replace " " "-" }})`)
-	templateBuilder.WriteString("{{ end }}")
-	templateBuilder.WriteString("{{ end }}")
+  templateBuilder.WriteString(`{{ define "recipe.imageSection" }}`)
+  templateBuilder.WriteString("{{ if .Metadata.ImageName }}")
+  templateBuilder.WriteString(`![](../assets/images/{{ lower .Metadata.ImageName | replace " " "-" }})`)
+  templateBuilder.WriteString("{{ end }}")
+  templateBuilder.WriteString("{{ end }}")
 
   return templateBuilder.String()
 }
@@ -95,19 +94,19 @@ func getIngredientsTemplate() string {
 func getCookwareTemplate() string {
   templateBuilder := strings.Builder{}
 
-	templateBuilder.WriteString(`{{ define "recipe.cookwareHeader" }}`)
-	templateBuilder.WriteString("## :cooking: Cookware")
-	templateBuilder.WriteString("{{ end }}")
+  templateBuilder.WriteString(`{{ define "recipe.cookwareHeader" }}`)
+  templateBuilder.WriteString("## :cooking: Cookware")
+  templateBuilder.WriteString("{{ end }}")
 
-	templateBuilder.WriteString(`{{ define "recipe.cookware" }}`)
+  templateBuilder.WriteString(`{{ define "recipe.cookware" }}`)
   templateBuilder.WriteString("{{ range .Steps }}{{- range .Cookware }}\n- {{.Name}}{{- end }}{{- end }}")
-	templateBuilder.WriteString("{{ end }}")
+  templateBuilder.WriteString("{{ end }}")
 
-	templateBuilder.WriteString(`{{ define "recipe.cookwareSection" }}`)
-	templateBuilder.WriteString(`{{ template "recipe.cookwareHeader" . }}`)
-	templateBuilder.WriteString("\n")
-	templateBuilder.WriteString(`{{ template "recipe.cookware" . }}`)
-	templateBuilder.WriteString("{{ end }}")
+  templateBuilder.WriteString(`{{ define "recipe.cookwareSection" }}`)
+  templateBuilder.WriteString(`{{ template "recipe.cookwareHeader" . }}`)
+  templateBuilder.WriteString("\n")
+  templateBuilder.WriteString(`{{ template "recipe.cookware" . }}`)
+  templateBuilder.WriteString("{{ end }}")
 
   return templateBuilder.String()
 }
@@ -115,18 +114,18 @@ func getCookwareTemplate() string {
 func getStepsTemplate() string {
   templateBuilder := strings.Builder{}
 
-	templateBuilder.WriteString(`{{ define "recipe.stepsHeader" }}`)
-	templateBuilder.WriteString("## :pencil: Instructions")
-	templateBuilder.WriteString("{{ end }}")
+  templateBuilder.WriteString(`{{ define "recipe.stepsHeader" }}`)
+  templateBuilder.WriteString("## :pencil: Instructions")
+  templateBuilder.WriteString("{{ end }}")
 
-	templateBuilder.WriteString(`{{ define "recipe.steps" }}`)
+  templateBuilder.WriteString(`{{ define "recipe.steps" }}`)
   templateBuilder.WriteString("{{ range $i, $a := .Steps }}\n\n### Step {{add1 $i}}\n\n{{ .Directions }}{{- end }}")
-	templateBuilder.WriteString("{{ end }}")
+  templateBuilder.WriteString("{{ end }}")
 
-	templateBuilder.WriteString(`{{ define "recipe.stepsSection" }}`)
-	templateBuilder.WriteString(`{{ template "recipe.stepsHeader" . }}`)
-	templateBuilder.WriteString(`{{ template "recipe.steps" . }}`)
-	templateBuilder.WriteString("{{ end }}")
+  templateBuilder.WriteString(`{{ define "recipe.stepsSection" }}`)
+  templateBuilder.WriteString(`{{ template "recipe.stepsHeader" . }}`)
+  templateBuilder.WriteString(`{{ template "recipe.steps" . }}`)
+  templateBuilder.WriteString("{{ end }}")
 
   return templateBuilder.String()
 }
@@ -134,21 +133,21 @@ func getStepsTemplate() string {
 func getSourceTemplate() string {
   templateBuilder := strings.Builder{}
 
-	templateBuilder.WriteString(`{{ define "recipe.sourceHeader" }}`)
-	templateBuilder.WriteString("## :link: Source")
-	templateBuilder.WriteString("{{ end }}")
+  templateBuilder.WriteString(`{{ define "recipe.sourceHeader" }}`)
+  templateBuilder.WriteString("## :link: Source")
+  templateBuilder.WriteString("{{ end }}")
 
-	templateBuilder.WriteString(`{{ define "recipe.source" }}`)
+  templateBuilder.WriteString(`{{ define "recipe.source" }}`)
   templateBuilder.WriteString("- {{ .Metadata.source }}")
-	templateBuilder.WriteString("{{ end }}")
+  templateBuilder.WriteString("{{ end }}")
 
-	templateBuilder.WriteString(`{{ define "recipe.sourceSection" }}`)
+  templateBuilder.WriteString(`{{ define "recipe.sourceSection" }}`)
   templateBuilder.WriteString("{{ if .Metadata.source }}")
-	templateBuilder.WriteString(`{{ template "recipe.sourceHeader" . }}`)
-	templateBuilder.WriteString("\n")
-	templateBuilder.WriteString(`{{ template "recipe.source" . }}`)
-	templateBuilder.WriteString("{{ end }}")
-	templateBuilder.WriteString("{{ end }}")
+  templateBuilder.WriteString(`{{ template "recipe.sourceHeader" . }}`)
+  templateBuilder.WriteString("\n")
+  templateBuilder.WriteString(`{{ template "recipe.source" . }}`)
+  templateBuilder.WriteString("{{ end }}")
+  templateBuilder.WriteString("{{ end }}")
 
   return templateBuilder.String()
 }
@@ -216,8 +215,8 @@ func getDocumentationTemplate(recipeSearchRoot string, recipePath string, templa
     if errors.Is(err, os.ErrNotExist) {
       log.Debugf("Did not find template file %s for recipe %s, using default template", fullTemplatePath, recipePath)
 
-			templateNotFound = true
-			continue
+      templateNotFound = true
+      continue
     }
 
     templateFilesForRecipe = append(templateFilesForRecipe, fullTemplatePath)
@@ -227,16 +226,16 @@ func getDocumentationTemplate(recipeSearchRoot string, recipePath string, templa
   allTemplateContents := make([]byte, 0)
 
   for _, templateFileForRecipe := range templateFilesForRecipe {
-		templateContents, err := ioutil.ReadFile(templateFileForRecipe)
-		if err != nil {
-			return "", err
-		}
-		allTemplateContents = append(allTemplateContents, templateContents...)
-	}
+    templateContents, err := ioutil.ReadFile(templateFileForRecipe)
+    if err != nil {
+      return "", err
+    }
+    allTemplateContents = append(allTemplateContents, templateContents...)
+  }
 
   if templateNotFound {
-		allTemplateContents = append(allTemplateContents, []byte(defaultDocumentationTemplate)...)
-	}
+    allTemplateContents = append(allTemplateContents, []byte(defaultDocumentationTemplate)...)
+  }
 
   return string(allTemplateContents), nil
 }
