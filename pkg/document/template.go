@@ -262,18 +262,6 @@ func getDocumentationTemplates(recipeSearchRoot string, recipePath string, templ
   }, nil
 }
 
-func sum2(steps []cooklang.Step) float64 {
-    var sum float64
-    var v float64
-    for _, s := range steps {
-      for _, t := range s.Timers {
-        v = t.Duration
-        sum += v
-      }
-    }
-    return sum
-}
-
 func newRecipeDocumentationTemplate(recipeSearchRoot string, recipeInfo cook.RecipeDocumentationInfo, templateFiles []string) (*template.Template, error) {
   documentationTemplate := template.New(recipeInfo.RecipePath)
   documentationTemplate.Funcs(sprig.TxtFuncMap())
