@@ -246,7 +246,7 @@ func getDocumentationTemplates(recipeSearchRoot string, recipePath string, templ
   if err != nil {
     log.Errorf("Failed to read documentation template for recipe %s: %s", recipePath, err)
     return nil, err
-	}
+  }
 
   return []string{
     getHeaderTemplate(),
