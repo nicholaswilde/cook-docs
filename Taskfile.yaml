@@ -6,6 +6,10 @@ tasks:
     desc: Clean
     cmds:
       - rm -f cook-docs
+  coverage:
+    desc: Go test coverage
+    cmds:
+      - go test -coverprofile=coverage.out ./...
   dist:
     desc: Create go releases
     cmds:
