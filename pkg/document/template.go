@@ -201,16 +201,17 @@ func getDocumentationTemplate(recipeSearchRoot string, recipePath string, templa
 
   var templateNotFound bool
 
-  path := filepath.Dir(recipePath)
-
   for _, templateFile := range templateFiles {
     var fullTemplatePath string
 
     if util.IsRelativePath(templateFile) {
       fullTemplatePath = filepath.Join(recipeSearchRoot, templateFile)
     } else if util.IsBaseFilename(templateFile) {
-      fullTemplatePath = filepath.Join(path, templateFile)
+      fullTemplatePath = filepath.Join(filepath.Dir(recipePath), templateFile)
+    } else {
+      fullTemplatePath = templateFile
     }
+    log.Debugf("fullTemplatePath: %s", fullTemplatePath)
     _, err := os.Stat(fullTemplatePath);
     if errors.Is(err, os.ErrNotExist) {
       log.Debugf("Did not find template file %s for recipe %s, using default template", fullTemplatePath, recipePath)
