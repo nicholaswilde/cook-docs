@@ -23,6 +23,12 @@ Documentation can be found [here](http://nicholaswilde.io/cook-docs).
 
 ---
 
+## :bulb: Inspiration
+
+Inspiration for this repository has been taken from [helm-docs](https://github.com/norwoodj/helm-docs)
+
+---
+
 ## ​:balance_scale:​&nbsp;​ License
 
 ​[​Apache 2.0 License​](./LICENSE)
