@@ -1,5 +1,5 @@
 # cook-docs
-A tool for automatically generating markdown documentation for [cooklang][1] recipes
+A tool for automatically generating markdown documentation for [cooklang][1] recipes.
 
 ---
 
@@ -25,7 +25,7 @@ Documentation can be found [here](http://nicholaswilde.io/cook-docs).
 
 ## :bulb:&nbsp; Inspiration
 
-Inspiration for this repository has been taken from [helm-docs](https://github.com/norwoodj/helm-docs)
+Inspiration for this repository has been taken from [helm-docs](https://github.com/norwoodj/helm-docs).
 
 ---
 
