@@ -12,6 +12,9 @@ A tool for automatically generating markdown documentation for [cooklang][1] rec
 
 ### Usage
 
+```
+```
+
 ---
 
 ## :book:&nbsp; Documentation
