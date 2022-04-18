@@ -33,6 +33,7 @@ nav:
   - Home: index.md
   - About: about.md
   - Configuration: configuration.md
+  - Templates: templates.md
 
 extra:
   social:
