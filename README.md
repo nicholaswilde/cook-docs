@@ -8,6 +8,9 @@ A tool for automatically generating markdown documentation for [cooklang][1] rec
 ### :floppy_disk:&nbsp; Installation
 
 ```
+# Build from source
+cd cmd/cook-docs
+go build
 ```
 
 ### :gear:&nbsp; Usage
