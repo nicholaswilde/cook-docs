@@ -13,6 +13,11 @@ cd cmd/cook-docs
 go build
 ```
 
+```
+# Install from source
+GO111MODULE=on go get github.com/nicholaswilde/cook-docs/cmd/cook-docs
+```
+
 ### :gear:&nbsp; Usage
 
 ```
