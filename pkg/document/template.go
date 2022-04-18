@@ -211,7 +211,7 @@ func getDocumentationTemplate(recipeSearchRoot string, recipePath string, templa
 		} else {
 			fullTemplatePath = templateFile
 		}
-		log.Debugf("fullTemplatePath: %s", fullTemplatePath)
+
 		_, err := os.Stat(fullTemplatePath)
 		if errors.Is(err, os.ErrNotExist) {
 			log.Debugf("Did not find template file %s for recipe %s, using default template", fullTemplatePath, recipePath)
@@ -298,7 +298,7 @@ func newRecipeDocumentationTemplate(recipeSearchRoot string, recipeInfo cook.Rec
 	for _, t := range goTemplateList {
 		_, err := documentationTemplate.Parse(t)
 
-		if err != nil {
+z	z		if err != nil {
 			return nil, err
 		}
 	}
