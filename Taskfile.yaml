@@ -18,6 +18,10 @@ tasks:
     desc: Download dependencies
     cmds:
       - go get -d ./...
+  dry-run:
+    desc: Perform a dry run
+    cmds:
+      - go run -v ./... --recipe-search-root cmd/cook-docs/testdata --dry-run
   fmt:
     desc: Print the names of the files that are modified.
     cmds:
