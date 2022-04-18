@@ -32,6 +32,7 @@ theme:
 nav:
   - Home: index.md
   - About: about.md
+  - Installation: installation.md
   - Configuration: configuration.md
   - Templates: templates.md
 
