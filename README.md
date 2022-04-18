@@ -21,6 +21,9 @@ GO111MODULE=on go get github.com/nicholaswilde/cook-docs/cmd/cook-docs
 ### :gear:&nbsp; Usage
 
 ```
+cook-docs
+# OR
+cook-docs --dry-run # prints generated documentation to stdout rather than modifying markdown files.
 ```
 
 ---
