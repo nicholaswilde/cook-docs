@@ -2,6 +2,10 @@
 
 A tool for automatically generating markdown documentation for cooklang recipes
 
+## :bulb:&nbsp; Inspiration
+
+Inspiration for this repository has been taken from [helm-docs](https://github.com/norwoodj/helm-docs).
+
 ## :scales: License
 
 [Apache 2.0 License](../LICENSE)
