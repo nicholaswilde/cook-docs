@@ -5,7 +5,7 @@ A tool for automatically generating markdown documentation for [cooklang][1] rec
 
 ## :rocket:&nbsp; TL;DR
 
-### Installation
+### :floppy_disk:&nbsp; Installation
 
 ```
 ```
