@@ -10,7 +10,7 @@ A tool for automatically generating markdown documentation for [cooklang][1] rec
 ```
 ```
 
-### Usage
+### :gear:&nbsp; Usage
 
 ```
 ```
@@ -23,7 +23,7 @@ Documentation can be found [here](http://nicholaswilde.io/cook-docs).
 
 ---
 
-## :bulb: Inspiration
+## :bulb:&nbsp; Inspiration
 
 Inspiration for this repository has been taken from [helm-docs](https://github.com/norwoodj/helm-docs)
 
