@@ -31,6 +31,8 @@ theme:
 
 nav:
   - Home: index.md
+  - About: about.md
+  - Configuration: configuration.md
 
 extra:
   social:
