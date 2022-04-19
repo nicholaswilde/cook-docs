@@ -33,6 +33,7 @@ nav:
   - Home: index.md
   - About: about.md
   - Installation: installation.md
+	- Usage: usage.md
   - Configuration: configuration.md
   - Templates: templates.md
 
