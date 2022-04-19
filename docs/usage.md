@@ -1,6 +1,6 @@
 # Usage
 
-!!! warn
+!!! warning
       The mode of operation of `cook-docs` is to process all recipes in the
       working directory and sub folders. See [Mode of Operation][1] for
       details.
