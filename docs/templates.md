@@ -1,20 +1,14 @@
 # Templates
 
-The default template may be overwritten adding `recipe.md.gotmpl` files to the recipe directories.
+The default template may be overwritten adding `recipe.md.gotmpl` files to the
+recipe directories.
 
-There are two important parameters to be aware of when running cook-docs. `--recipe-search-root` specifies the directory
-under which the tool will recursively search for recipes to render documentation for. `--template-files` specifies the list
-of gotemplate files that should be used in rendering the resulting markdown file for each chart found. By default
-`--recipe-search-root=.` and `--template-files=recipe.md.gotmpl`.
+If any of the specified template files is not found for a recipe (you'll notice
+most of the example recipe do not have a `recipe.md.gotmpl`) file, then the
+internal default template is used instead.
 
-If a template file is specified as a filename only as with the default above, the file is interpreted as being _relative to each chart directory found_.
-If, however, a template file is specified as a relative path, e.g. the first of `--template-files=./_templates.gotmpl --template-files=recipe.md.gotmpl`
-then the file is interpreted as being relative to the `recipe-search-root`.
-
-If any of the specified template files is not found for a recipe (you'll notice most of the example recipe do not have a recipe.md.gotmpl)
-file, then the internal default template is used instead.
-
-The default internal template mentioned above uses many of these and looks like this:
+The default internal template mentioned above uses many of these and looks like
+this:
 
 ```go title="recipe.md.gotmpl"
 {{ template "cook.headerSection" . }}
@@ -32,37 +26,43 @@ The default internal template mentioned above uses many of these and looks like 
 {{ template "cook.sourceSection" . }}
 ```
 
-The tool also includes the [sprig templating library][5], so those functions can be used
-in the templates you supply.
+The tool also includes the [sprig templating library][5], so those functions
+can be used in the templates you supply.
 
 ## Built-in Templates
 
 ### Sections
 
-|Name       | Description  |
-|---------|------------|
-| cook.headerSection | |
-| cook.imageSection  | |
-| cook.tableSection  | |
+| Name                    | Description |
+|-------------------------|-------------|
+| cook.headerSection      | |
+| cook.imageSection       | |
+| cook.tableSection       | |
 | cook.ingredientsSection | |
-| cook.cookwareSection | |
-| cook.stepsSection | |
-| cook.sourceSection | |
-| cook.commentsSection | |
-| cook.metadataSection | |
+| cook.cookwareSection    | |
+| cook.stepsSection       | |
+| cook.sourceSection      | |
+| cook.commentsSection    | |
+| cook.metadataSection    | |
 
 ### Components
 
-|Name    | Description |
-|--------|-------------|
+| Name                   | Description |
+|------------------------|-------------|
 | cook.ingredientsHeader | |
 | cook.ingredients       | |
 | cook.cookwareHeader    | |
 | cook.cookware          | |
 | cook.stepsHeader       | |
 | cook.steps						 | |
+| cook.sourceHeader      | |
+| cook.source            | |
+| cook.metadataHeader    | |
+| cook.metadata          | |
+| cook.commentsHeader    | |
+| cook.comments          | |
 
-Check [template.go][https://github.com/nicholaswilde/cook-docs/blob/main/pkg/document/template.go] for how each section is defined.
+See [template.go][6] for how each key is defined.
 
 ## Custom Sections
 
@@ -88,8 +88,9 @@ Then use it later in the template.
 
 ## Cooklang Parser
 
-cook-docs uses [aquilax's][1] [cooklang-go][2] parser to parse cooklang recipes. The data output may then be directly
-used inside of the cook-docs template files.
+`cook-docs` uses [aquilax's][1] [cooklang-go][2] parser to parse `cooklang`
+recipes. The data output may then be directly used inside of the `cook-docs`
+template files.
 
 See [`parser.go`][3] for the structure latyout.
 
@@ -280,8 +281,9 @@ See [`parser.go`][3] for the structure latyout.
 
 ## Metadata
 
-cook-docs uses the `Metadata.title` and `Metadata.ImageName` keys for the recipe title and name of the formatted image name.
-If the parsed recipe uses these keys, they will be overwritten by cook-docs.
+`cook-docs` uses the `Metadata.title` and `Metadata.ImageName` keys for the
+recipe title and name of the formatted image name. If the parsed recipe
+uses these keys, they will be overwritten by cook-docs.
 
 ```title="Overwritten Recipe Metadata"
 >> title: My recipe title
@@ -291,10 +293,12 @@ If the parsed recipe uses these keys, they will be overwritten by cook-docs.
 
 ## Spacing
 
-Spacing for the templates is controlled by the minus signs inside of the delimiters. See [Text and spaces][4].
+Spacing for the templates is controlled by the minus signs inside of the
+delimiters. See [Text and spaces][4].
 
 [1]: https://github.com/aquilax
 [2]: https://github.com/aquilax/cooklang-go
 [3]: https://github.com/aquilax/cooklang-go/blob/490a595d639b679a4f2053a309647882db37e569/parser.go
 [4]: https://pkg.go.dev/text/template#hdr-Text_and_spaces
 [5]: https://github.com/Masterminds/sprig
+[6]: https://github.com/nicholaswilde/cook-docs/blob/main/pkg/document/template.go
