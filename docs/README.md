@@ -39,6 +39,18 @@ Documentation can be found [here](http://nicholaswilde.io/cook-docs).
 
 ---
 
+## :star:&nbsp; Contributing
+
+See [Contributing](https://nicholaswilde.io/cook-docs/CONTRIBUTING/)
+
+---
+
+## :sparkles:&nbsp; Code of Conduct
+
+See [Code of Conduct](https://nicholaswilde.io/cook-docs/CODE_OF_CONDUCT/)
+
+---
+
 ## :bulb:&nbsp; Inspiration
 
 Inspiration for this repository has been taken from [helm-docs](https://github.com/norwoodj/helm-docs).

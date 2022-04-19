@@ -6,9 +6,9 @@
 
 A tool for automatically generating markdown documentation for [cooklang][1] recipes
 
-## :rocket:&nbsp; TL;DR
+## :rocket: TL;DR
 
-### :floppy_disk:&nbsp; Installation
+### :floppy_disk: Installation
 
 ```bash title="Build from source"
 cd cmd/helm-docs
@@ -19,7 +19,7 @@ go build
 GO111MODULE=on go get github.com/nicholaswilde/cook-docs/cmd/cook-docs
 ```
 
-### :gear:&nbsp; Usage
+### :gear: Usage
 
 ```bash title="Run binary directly"
 cook-docs
@@ -27,18 +27,27 @@ cook-docs
 cook-docs --dry-run # prints generated documentation to stdout rather than modifying markdown files.
 ```
 
-## :bulb:&nbsp; Inspiration
+## :star: Contributing
 
-Inspiration for this repository has been taken from [helm-docs](https://github.com/norwoodj/helm-docs).
+See [Contributing](./CONTRIBUTING/)
+
+## :sparkles: Code of Conduct
+
+See [Code of Conduct](./CODE_OF_CONDUCT)
+
+## :bulb: Inspiration
+
+Inspiration for this repository has been taken from [helm-docs][2].
 
 ## :scales: License
 
-[Apache 2.0 License](../LICENSE)
+[Apache 2.0 License][3]
 
 ## :pencil: Author
 
 This project was started in 2022 by [Nicholas Wilde].
 
 [Nicholas Wilde]: https://github.com/nicholaswilde/
-
 [1]: https://cooklang.org/
+[2]: https://github.com/norwoodj/helm-docs
+[3]: https://github.com/nicholaswilde/cook-docs/main/LICENSE
