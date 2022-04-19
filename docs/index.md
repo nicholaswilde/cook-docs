@@ -11,7 +11,7 @@ A tool for automatically generating markdown documentation for [cooklang][1] rec
 ### :floppy_disk: Installation
 
 ```bash title="Build from source"
-cd cmd/helm-docs
+cd cmd/cook-docs
 go build
 ```
 
