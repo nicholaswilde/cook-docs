@@ -34,6 +34,10 @@ tasks:
     desc: Run go program
     cmds:
       - go run -v ./... --recipe-search-root cmd/cook-docs/testdata
+  serve:
+    desc: Serve a mkdocs server
+    cmds:
+      - mkdocs serve
   test:
     desc: Run go tests
     cmds:
