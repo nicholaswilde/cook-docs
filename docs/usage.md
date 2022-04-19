@@ -1,6 +1,11 @@
 # Usage
 
-## Running the binary directly
+!!! warn
+      The mode of operation of `cook-docs` is to process all recipes in the
+      working directory and sub folders. See [Mode of Operation][1] for
+      details.
+
+## Running the Binary Directly
 
 To run and generate documentation into markdown files for all cooklang recipes within or recursively contained by a directory:
 
@@ -19,3 +24,5 @@ cook-docs supports a `.cookdocsignore` file, exactly like a `.gitignore` file in
 when searching for recipes. Directories specified need not be charts themselves, so parent directories containing potentially
 many recipes can be ignored and none of the recipes underneath them will be processed. You may also directly reference the
 `<Recipe Name>.cook` file for a chart to skip processing for it.
+
+[1]: ../about#mode-of-operation
