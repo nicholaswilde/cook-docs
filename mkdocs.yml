@@ -36,7 +36,7 @@ nav:
   - Usage: usage.md
   - Configuration: configuration.md
   - Templates: templates.md
-
+  - Contributing: CONTRIBUTING.md
 extra:
   social:
     - icon: fontawesome/solid/house
