@@ -63,6 +63,8 @@ plugins:
       minify_html: true
 
 markdown_extensions:
+  - toc:
+      permalink: true
   - attr_list
   - md_in_html
   - admonition
