@@ -35,43 +35,59 @@ can be used in the templates you supply.
 
 | Name                    | Description                                                        |
 |-------------------------|--------------------------------------------------------------------|
-| cook.headerSection      | The main heading of the generated markdown file                    |
-| cook.imageSection       | The image section                                                  |
-| cook.tableSection       | The table section that consists of the serving size and total time |
-| cook.ingredientsSection | The ingredients section                                            |
-| cook.cookwareSection    | The cookware section                                               |
-| cook.stepsSection       | The steps section                                                  |
-| cook.sourceSection      | The source section if `source` exists in Metadata                  |
-| cook.commentsSection    | The comments section                                               |
-| cook.metadataSection    | The metadata section. This prints all values in `Metadata`         |
+| `cook.headerSection`      | The main heading of the generated markdown file                    |
+| `cook.imageSection`       | The image section                                                  |
+| `cook.tableSection`       | The table section that consists of the serving size and total time |
+| `cook.ingredientsSection` | The ingredients section                                            |
+| `cook.cookwareSection`    | The cookware section                                               |
+| `cook.stepsSection`       | The steps section                                                  |
+| `cook.sourceSection`      | The source section if `source` exists in Metadata                  |
+| `cook.commentsSection`    | The comments section                                               |
+| `cook.metadataSection`    | The metadata section. This prints all values in `Metadata`         |
 
 ### Components
 
 | Name                   | Description                                                               |
 |------------------------|---------------------------------------------------------------------------|
-| cook.ingredientsHeader | The ingredients header                                                    |
-| cook.ingredients       | An unordered list of the ingredients                                      |
-| cook.cookwareHeader    | The cookware header                                                       |
-| cook.cookware          | An unordered list of cookware                                             |
-| cook.stepsHeader       | The steps header                                                          |
-| cook.steps						 | A list of steps. Each step has its own sub heading labeled as `Step #`    |
-| cook.sourceHeader      | Source header                                                             |
-| cook.source            | The `source` as a single unordered list item                              |
-| cook.metadataHeader    | `Metadata` header                                                         |
-| cook.metadata          | An unordered list of the `Metadata`. `ImageName` and `title` are included |
-| cook.commentsHeader    | The comments header                                                       |
-| cook.comments          | An unordered list of the comments                                         |
+| `cook.ingredientsHeader` | The ingredients header                                                    |
+| `cook.ingredients`       | An unordered list of the ingredients                                      |
+| `cook.cookwareHeader`    | The cookware header                                                       |
+| `cook.cookware`          | An unordered list of cookware                                             |
+| `cook.stepsHeader`       | The steps header                                                          |
+| `cook.steps`						 | A list of steps. Each step has its own sub heading labeled as `Step #`    |
+| `cook.sourceHeader`      | Source header                                                             |
+| `cook.source`            | The `source` as a single unordered list item                              |
+| `cook.metadataHeader`    | `Metadata` header                                                         |
+| `cook.metadata`          | An unordered list of the `Metadata`. `ImageName` and `title` are included |
+| `cook.commentsHeader`    | The comments header                                                       |
+| `cook.comments`          | An unordered list of the comments                                         |
 
 See [template.go][6] for how each key is defined.
 
 !!! note
       The `cook.commentsSection` does not print the comments properly [(#3)][7]
 
+## Metadata
+
+`cook-docs` uses the `Metadata.title` and `Metadata.ImageName` keys for the
+recipe title, taken from the `*.cook` filename and name of the formatted image
+name. If the parsed recipe uses these keys, they will be overwritten by
+`cook-docs`.
+
+```title="Overwritten Recipe Metadata"
+>> title: My recipe title
+>> ImageName: My image name
+...
+```
+
+The names of the markdown and image files are made lowercase and the spaces are replaced
+by dashes. E.g. `My Recipe Name.cook -> my-recipe-name.md`
+
 ## Custom Sections
 
 Custom sections may be specified in the template by using the `define` parameter.
 
-```go
+```go title="recipe.md.gotmpl"
 {{- define "custom.section" -}}
 # My custom section
 {{- end -}}
@@ -80,7 +96,7 @@ Custom sections may be specified in the template by using the `define` parameter
 
 Then use it later in the template.
 
-```go
+```go title="recipe.md.gotmpl"
 ...
 {{ template "custom.section" . }}
 ```
@@ -282,26 +298,15 @@ See [`parser.go`][3] for the structure latyout.
 	}
 ```
 
-## Metadata
-
-`cook-docs` uses the `Metadata.title` and `Metadata.ImageName` keys for the
-recipe title, taken from the `*.cook` filename and name of the formatted image
-name. If the parsed recipe uses these keys, they will be overwritten by
-`cook-docs`.
-
-```title="Overwritten Recipe Metadata"
->> title: My recipe title
->> ImageName: My image name
-...
-```
-
-The names of the markdown and image files are made lowercase and the spaces are replaced
-by dashes. E.g. `My Recipe Name.cook -> my-recipe-name.md`
-
 ## Spacing
 
 Spacing for the templates is controlled by the minus signs inside of the
 delimiters. See [Text and spaces][4].
+
+```go title="example"
+{{- define "custom.section" . -}}
+{{- end -}}
+```
 
 [1]: https://github.com/aquilax
 [2]: https://github.com/aquilax/cooklang-go
