@@ -10,7 +10,7 @@ cook-docs
 cook-docs --dry-run # prints generated documentation to stdout rather than modifying markdown files.
 ```
 
-The tool searches recursively through subdirectories of the current directory for `<Recipe name>.cook` files and generates documentation
+The tool searches recursively through subdirectories of the current directory for `<Recipe Name>.cook` files and generates documentation
 for every recipe that it finds.
 
 ## Ignoring Recipe Directories
