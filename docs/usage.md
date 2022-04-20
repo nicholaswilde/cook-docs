@@ -59,4 +59,14 @@ Run `task` for a list of tasks:
 task
 ```
 
+## pre-commit
+
+[pre-commit][2] may also be used on this project.
+
+```bash
+pre-commit install
+pre-commit install-hooks
+```
+
 [1]: https://taskfile.dev/#/
+[2]: https://pre-commit.com/
