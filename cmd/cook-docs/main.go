@@ -33,7 +33,9 @@ func retrieveInfoAndPrintDocumentation(recipeSearchRoot string, recipePath strin
 
 func cookDocs(_ *cobra.Command, _ []string) {
 	initializeCli()
+
 	recipeSearchRoot := viper.GetString("recipe-search-root")
+
 	var fullRecipeSearchRoot string
 	if path.IsAbs(recipeSearchRoot) {
 		fullRecipeSearchRoot = recipeSearchRoot
@@ -45,12 +47,13 @@ func cookDocs(_ *cobra.Command, _ []string) {
 		}
 		fullRecipeSearchRoot = path.Join(cwd, recipeSearchRoot)
 	}
-	recipeDirs, err := cook.FindRecipeDirectories(fullRecipeSearchRoot)
+
+	recipePaths, err := cook.FindRecipePaths(fullRecipeSearchRoot)
 	if err != nil {
-		log.Errorf("Error finding recipe directories: %s", err)
+		log.Errorf("Error finding recipe paths: %s", err)
 		os.Exit(1)
 	}
-	log.Infof("Found recipes [%s]", strings.Join(recipeDirs, ", "))
+	log.Infof("Found recipes [%s]", strings.Join(recipePaths, ", "))
 
 	templateFiles := viper.GetStringSlice("template-files")
 	log.Debugf("Rendering from optional template files [%s]", strings.Join(templateFiles, ", "))
@@ -58,7 +61,7 @@ func cookDocs(_ *cobra.Command, _ []string) {
 	dryRun := viper.GetBool("dry-run")
 	waitGroup := sync.WaitGroup{}
 
-	for _, r := range recipeDirs {
+	for _, r := range recipePaths {
 		waitGroup.Add(1)
 
 		// On dry runs all output goes to stdout, and so as to not jumble things, generate serially
