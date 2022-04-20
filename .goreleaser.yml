@@ -37,5 +37,17 @@ changelog:
       - "^test:"
 
 signs:
-- artifacts: checksum
-  args: ["-u", "{{ .Env.GPG_FINGERPRINT }}", "--output", "${signature}", "--detach-sign", "${artifact}"]
+  - artifacts: checksum
+    args: ["-u", "{{ .Env.GPG_FINGERPRINT }}", "--output", "${signature}", "--detach-sign", "${artifact}"]
+
+brews:
+  - tap:
+      owner: nicholaswilde
+      name: homebrew-tap
+    folder: Formula
+    homepage: https://nicholaswilde.io/cook-docs
+    description: A tool for automatically generating markdown documentation for cooklang recipes
+    install: |
+      bin.install "cook-docs"
+    test: |
+      system "#{bin}/cook-docs --version"
