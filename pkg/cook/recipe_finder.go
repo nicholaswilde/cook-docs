@@ -4,9 +4,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/nicholaswilde/cook-docs/pkg/util"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
-	"github.com/nicholaswilde/cook-docs/pkg/util"
 )
 
 func FindRecipePaths(recipeSearchRoot string) ([]string, error) {

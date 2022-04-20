@@ -298,7 +298,7 @@ func newRecipeDocumentationTemplate(recipeSearchRoot string, recipeInfo cook.Rec
 	for _, t := range goTemplateList {
 		_, err := documentationTemplate.Parse(t)
 
-	if err != nil {
+		if err != nil {
 			return nil, err
 		}
 	}
