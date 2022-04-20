@@ -18,7 +18,7 @@ however, a template file is specified as a relative path, e.g. the first of
 `--template-files=./_templates.gotmpl --template-files=recipe.md.gotmpl` then
 the file is interpreted as being relative to the `recipe-search-root`.
 
-## :running: Running the Binary Directly
+## :runner: Running the Binary Directly
 
 To run and generate documentation into markdown files for all cooklang recipes within or recursively contained by a directory:
 
