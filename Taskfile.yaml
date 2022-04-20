@@ -6,6 +6,7 @@ tasks:
     desc: Clean
     cmds:
       - rm -f cook-docs
+      - rm -f dist
   coverage:
     desc: Go test coverage
     cmds:
