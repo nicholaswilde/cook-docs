@@ -33,8 +33,8 @@ can be used in the templates you supply.
 
 ### Sections
 
-| Name                    | Description                                                        |
-|-------------------------|--------------------------------------------------------------------|
+| Name                      | Description                                                        |
+|---------------------------|--------------------------------------------------------------------|
 | `cook.headerSection`      | The main heading of the generated markdown file                    |
 | `cook.imageSection`       | The image section                                                  |
 | `cook.tableSection`       | The table section that consists of the serving size and total time |
@@ -47,8 +47,8 @@ can be used in the templates you supply.
 
 ### Components
 
-| Name                   | Description                                                               |
-|------------------------|---------------------------------------------------------------------------|
+| Name                     | Description                                                               |
+|--------------------------|---------------------------------------------------------------------------|
 | `cook.ingredientsHeader` | The ingredients header                                                    |
 | `cook.ingredients`       | An unordered list of the ingredients                                      |
 | `cook.cookwareHeader`    | The cookware header                                                       |
@@ -61,6 +61,8 @@ can be used in the templates you supply.
 | `cook.metadata`          | An unordered list of the `Metadata`. `ImageName` and `title` are included |
 | `cook.commentsHeader`    | The comments header                                                       |
 | `cook.comments`          | An unordered list of the comments                                         |
+| `.Metadata.title`        | The title of the recipe taken fromt the recipe file name.                 |
+| `.Metadata.ImageName`    | The new image name if an image file is found                              |
 
 See [template.go][6] for how each key is defined.
 
