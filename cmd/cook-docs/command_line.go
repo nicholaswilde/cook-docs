@@ -48,10 +48,10 @@ func newCookDocsCommand(run func(cmd *cobra.Command, args []string)) (*cobra.Com
 	command.PersistentFlags().StringP("log-level", "l", "info", logLevelUsage)
 	command.PersistentFlags().StringSliceP("template-files", "t", []string{"recipe.md.gotmpl"}, "gotemplate file paths relative to each recipe directory from which documentation will be generated")
 
-	viper.SetConfigName("config")
+	viper.SetConfigName(".cookdocs")
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath("/etc/cook-docs/")
-	viper.AddConfigPath("$HOME/.config/cook-docs/")
+	viper.AddConfigPath("$HOME/.config/")
 	viper.AddConfigPath(".")
 	err := viper.ReadInConfig()
 	if err != nil {

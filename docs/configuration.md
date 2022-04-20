@@ -18,14 +18,14 @@ Here is a list of the current supported parameters:
 
 Configuration files may be used to set the default app settings.
 
-The config file name is `config.yaml` or `config.yml` and can be located in
+The config file name is `.cookdocs.yaml` or `.cookdocs.yml` and can be located in
 any of the following locations:
 
 - `/etc/cook-docs/`
-- `~/.config/cook-docs/`
+- `~/.config/`
 - `./`
 
-```yaml title="config.yaml"
+```yaml title=".cookdocs.yaml"
 ---
 dry-run: false
 ignore-file: .cookdocsignore
