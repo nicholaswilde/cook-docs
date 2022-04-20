@@ -1,3 +1,5 @@
+**/testdata/*.md
+
 /site
 /cook-docs
 /cmd/cook-docs/cook-docs
