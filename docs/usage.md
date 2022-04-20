@@ -48,3 +48,15 @@ Use the `--help` parameter for help on using `cook-docs`.
 ```bash
 cook-docs --help
 ```
+
+## :robot: Task
+
+[go-task][1] may be used to automate `cook-docs` tasks.
+
+Run `task` for a list of tasks:
+
+```bash
+task
+```
+
+[1]: https://taskfile.dev/#/
