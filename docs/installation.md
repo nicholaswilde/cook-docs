@@ -1,7 +1,7 @@
 # Installation
 
 ```bash title="brew"
-WIP
+brew install nicholaswilde/tap/cook-docs
 ```
 
 ```bash title="Scoop"
