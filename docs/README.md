@@ -19,6 +19,11 @@ go build
 ```
 
 ```
+# brew
+brew install nicholaswilde/tap/cook-docs
+```
+
+```
 # Install from source
 GO111MODULE=on go get github.com/nicholaswilde/cook-docs/cmd/cook-docs
 ```

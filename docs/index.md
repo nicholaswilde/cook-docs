@@ -10,6 +10,10 @@ A tool for automatically generating markdown documentation for [cooklang][1] rec
 
 ### :floppy_disk: Installation
 
+```bash title="brew"
+brew install nicholaswilde/tap/cook-docs
+```
+
 ```bash title="Build from source"
 cd cmd/cook-docs
 go build
