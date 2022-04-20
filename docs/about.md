@@ -8,14 +8,14 @@ I knew from my experience with [k8s-at-home helm charts][3] that [helm-docs][4]
 existed as a tool that automatically generates markdown files from template and
 value files and I thought that I could make something similar for `cooklang`.
 
-## Workflow
+## :water_wave: Workflow
 
 My ideal workflow consists of me using [cook-import][5] to parse a website from
 a recipe, commit it to my [recipes repo][6], and have GitHub Actions generate
 the markdown files using `cook-docs` and publish them to my
 [recipes mkdocs-material website][7].
 
-## Mode of Operation
+## :tram: Mode of Operation
 
 The way that `cook-docs` works is similar to `helm-docs` where it crawls through
 the working directory and its sub folders and looks for any `*.cook` files and
