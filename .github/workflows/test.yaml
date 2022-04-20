@@ -4,8 +4,8 @@ on:  # yamllint disable-line rule:truthy
   pull_request:
     branches: [ '**' ]
   workflow_dispatch:
-    branches: [ '**' ]
-  paths:
+  push:
+    paths:
       - '**.go'
 
 jobs:
