@@ -1,11 +1,11 @@
 # Contributing Guide
 
-helm-charts accepts change requests using [GitHub pull requests][1]. This
+cook-docs accepts change requests using [GitHub pull requests][1]. This
 document outlines the process so you know what to expect.
 
 ## Developer Certificate of Origin
 
-helm-charts uses a [Developers Certificate of Origin (DCO)][2] to sign-off that
+cook-docs uses a [Developers Certificate of Origin (DCO)][2] to sign-off that
 you have the right to contribute the code being contributed. The full text of
 the DCO reads:
 
