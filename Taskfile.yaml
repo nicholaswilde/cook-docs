@@ -23,14 +23,18 @@ tasks:
     desc: Perform a dry run
     cmds:
       - go run -v ./... --recipe-search-root cmd/cook-docs/testdata --dry-run
-  fmt:
-    desc: Print the names of the files that are modified.
-    cmds:
-      - go fmt ./...
   debug:
     desc: Run go program
     cmds:
       - go run -v ./... --recipe-search-root cmd/cook-docs/testdata --template-files cmd/cook-docs/testdata/recipe.md.gotmpl --log-level debug --dry-run
+  fmt:
+    desc: Print the names of the files that are modified.
+    cmds:
+      - go fmt ./...
+  help:
+    desc: Show app help
+    cmds:
+      - go run ./... --help
   run:
     desc: Run go program
     cmds:
