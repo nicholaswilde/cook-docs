@@ -9,6 +9,7 @@ import (
 	"github.com/aquilax/cooklang-go"
 	"github.com/nicholaswilde/cook-docs/pkg/cook"
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 )
 
 func getOutputFile(recipeInfo cook.RecipeDocumentationInfo, dryRun bool) (*os.File, error) {
@@ -33,12 +34,19 @@ func applyMarkDownFormat(output bytes.Buffer) bytes.Buffer {
 }
 
 func PrintDocumentation(recipeSearchRoot string, recipeData *cooklang.Recipe, recipeInfo cook.RecipeDocumentationInfo, templateFiles []string, dryRun bool) {
-	log.Infof("Generating markdown file for recipe %s", recipeInfo.NewFileName)
-	j, err := json.MarshalIndent(recipeData, "", "  ")
-	if err != nil {
-		log.Fatal(err)
+	jsonify := viper.GetBool("jsonify")
+
+	if jsonify {
+		log.Infof("Printing json output for recipe %s", recipeInfo.NewFileName)
+		j, err := json.MarshalIndent(recipeData, "", "  ")
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Info(string(j))
+		return
 	}
-	log.Debug(string(j))
+
+	log.Infof("Generating markdown file for recipe %s", recipeInfo.NewFileName)
 
 	t, err := newRecipeDocumentationTemplate(recipeSearchRoot, recipeInfo, templateFiles)
 	if err != nil {
