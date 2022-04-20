@@ -26,7 +26,10 @@ tasks:
   debug:
     desc: Run go program
     cmds:
-      - go run -v ./... --recipe-search-root cmd/cook-docs/testdata --template-files cmd/cook-docs/testdata/recipe.md.gotmpl --log-level debug --dry-run
+      - >
+        go run -v ./... --recipe-search-root cmd/cook-docs/testdata \
+        --template-files cmd/cook-docs/testdata/recipe.md.gotmpl \
+        --log-level debug --dry-run
   fmt:
     desc: Print the names of the files that are modified.
     cmds:
@@ -35,6 +38,10 @@ tasks:
     desc: Show app help
     cmds:
       - go run ./... --help
+  lint:
+    desc: Lint the project
+    cmds:
+      - yamllint .
   run:
     desc: Run go program
     cmds:
