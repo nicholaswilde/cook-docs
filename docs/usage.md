@@ -2,7 +2,7 @@
 
 !!! warning
       The mode of operation of `cook-docs` is to process all recipes in the
-      working directory and sub folders. See [Mode of Operation][1] for
+      working directory and sub folders. See [Mode of Operation][3] for
       details.
 
 There are two important parameters to be aware of when running `cook-docs`.
@@ -39,7 +39,6 @@ when searching for recipes. Directories specified need not be charts themselves,
 many recipes can be ignored and none of the recipes underneath them will be processed. You may also directly reference the
 `<Recipe Name>.cook` file for a chart to skip processing for it.
 
-[1]: ../about#mode-of-operation
 
 ## :grey_question: Help
 
@@ -70,3 +69,4 @@ pre-commit install-hooks
 
 [1]: https://taskfile.dev/#/
 [2]: https://pre-commit.com/
+[3]: ./about#mode-of-operation

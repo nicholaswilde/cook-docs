@@ -25,6 +25,11 @@ GO111MODULE=on go get github.com/nicholaswilde/cook-docs/cmd/cook-docs
 
 ### :gear: Usage
 
+!!! warning
+      The mode of operation of `cook-docs` is to process all recipes in the
+      working directory and sub folders. See [Mode of Operation][4] for
+      details.
+
 ```bash title="Run binary directly"
 cook-docs
 # OR
@@ -55,3 +60,4 @@ This project was started in 2022 by [Nicholas Wilde].
 [1]: https://cooklang.org/
 [2]: https://github.com/norwoodj/helm-docs
 [3]: https://github.com/nicholaswilde/cook-docs/main/LICENSE
+[4]: ./about#mode-of-operation
