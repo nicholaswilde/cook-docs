@@ -287,7 +287,7 @@ func newRecipeDocumentationTemplate(recipeSearchRoot string, recipeInfo cook.Rec
 			sum = sum / 60
 			return fmt.Sprintf("%.2f hours", sum)
 		} else {
-			return fmt.Sprintf("%f minutes", sum)
+			return fmt.Sprintf("%.0f minutes", sum)
 		}
 	}})
 
