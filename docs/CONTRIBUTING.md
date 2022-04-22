@@ -99,5 +99,15 @@ maintainers prior to starting to make the change.
 You can find the existing pull requests at
 https://github.com/nicholaswilde/cook-docs/pulls
 
+## Versioning
+
+Versioning is done per [Semantic Versioning 2.0.0 (semver)][3] principles.
+
+## Formatting
+
+Formatting is done per [Gofmt][4] principles.
+
 [1]: https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/about-pull-requests
 [2]: https://developercertificate.org/
+[3]: https://semver.org/spec/v2.0.0.html
+[4]: https://go.dev/src/cmd/gofmt/doc.go
