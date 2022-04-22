@@ -7,7 +7,7 @@ github.com/Masterminds/semver/v3
 # github.com/Masterminds/sprig/v3 v3.2.2
 ## explicit; go 1.13
 github.com/Masterminds/sprig/v3
-# github.com/aquilax/cooklang-go v0.1.5
+# github.com/aquilax/cooklang-go v0.1.6
 ## explicit; go 1.17
 github.com/aquilax/cooklang-go
 # github.com/davecgh/go-spew v1.1.1

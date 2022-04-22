@@ -99,7 +99,7 @@ func getCookwareTemplate() string {
 	templateBuilder.WriteString("{{ end }}")
 
 	templateBuilder.WriteString(`{{ define "cook.cookware" }}`)
-	templateBuilder.WriteString("{{ range .Steps }}{{- range .Cookware }}\n- {{.Name}}{{- end }}{{- end }}")
+	templateBuilder.WriteString("{{ range .Steps }}{{- range .Cookware }}\n- {{.Quantity}} {{.Name}}{{- end }}{{- end }}")
 	templateBuilder.WriteString("{{ end }}")
 
 	templateBuilder.WriteString(`{{ define "cook.cookwareSection" }}`)

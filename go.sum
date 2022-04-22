@@ -46,6 +46,8 @@ github.com/Masterminds/sprig/v3 v3.2.2 h1:17jRggJu518dr3QaafizSXOjKYp94wKfABxUmy
 github.com/Masterminds/sprig/v3 v3.2.2/go.mod h1:UoaO7Yp8KlPnJIYWTFkMaqPUYKTfGFPhxNuwnnxkKlk=
 github.com/aquilax/cooklang-go v0.1.5 h1:OWcwIdn5jr9WJLIh4HsYL2DSbjXL+GsPAo9wPYDU5dg=
 github.com/aquilax/cooklang-go v0.1.5/go.mod h1:1/65y8LN2Nhr6WNVh64ZqggvZmeymQHKavxUONeJmTk=
+github.com/aquilax/cooklang-go v0.1.6 h1:s+agNHXXM6PoJE5MHkcW/pFryHu3R2h81Rl2yECqXRA=
+github.com/aquilax/cooklang-go v0.1.6/go.mod h1:1/65y8LN2Nhr6WNVh64ZqggvZmeymQHKavxUONeJmTk=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
 github.com/chzyer/logex v1.1.10/go.mod h1:+Ywpsq7O8HXn0nuIou7OrIPyXbp3wmkHB+jjWRnGsAI=
 github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e/go.mod h1:nSuG5e5PlCu98SY8svDHJxuZscDgtXS6KTTbou5AhLI=
