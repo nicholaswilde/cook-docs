@@ -37,7 +37,7 @@ func TestGetImagePath(t *testing.T) {
 
 	recipeInfo.RecipePath = "testdata/Recipe3.cook"
 	recipeInfo.RecipeName = "Recipe3"
-	imagePath, err = GetImagePath(recipeInfo)
+	_, err = GetImagePath(recipeInfo)
 	require.Error(t, err)
 }
 
