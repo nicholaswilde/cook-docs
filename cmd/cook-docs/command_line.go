@@ -60,7 +60,7 @@ func newCookDocsCommand(run func(cmd *cobra.Command, args []string)) (*cobra.Com
 			// Config file not found; ignore error if desired
 			log.Debug(err)
 		} else {
-			log.Debugf("Error occured while reading config file: %s \n", err)
+			log.Debugf("Error occurred while reading config file: %s \n", err)
 		}
 	} else {
 		log.Debugf("Using config file %s", viper.ConfigFileUsed())
