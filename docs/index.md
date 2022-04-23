@@ -51,7 +51,7 @@ Inspiration for this repository has been taken from [helm-docs][2].
 
 ## :scales: License
 
-[Apache 2.0 License][3]
+[Apache License 2.0][3]
 
 ## :pencil: Author
 
@@ -60,5 +60,5 @@ This project was started in 2022 by [Nicholas Wilde].
 [Nicholas Wilde]: https://github.com/nicholaswilde/
 [1]: https://cooklang.org/
 [2]: https://github.com/norwoodj/helm-docs
-[3]: https://github.com/nicholaswilde/cook-docs/main/LICENSE
+[3]: https://github.com/nicholaswilde/cook-docs/blob/main/LICENSE
 [4]: ./about#mode-of-operation
