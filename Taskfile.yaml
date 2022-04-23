@@ -34,14 +34,36 @@ tasks:
     desc: Print the names of the files that are modified.
     cmds:
       - go fmt ./...
+  gocyclo:
+    desc: Run gocyclo
+    cmds:
+      - cmd: gocyclo -over 15 cmd/ pkg/
+        ignore_error: true
+  goreport:
+    desc: Run goreport commands
+    cmds:
+      - task: ineffassign
+      - task: misspell
+      - task: gocyclo
+      - task: vet
   help:
     desc: Show app help
     cmds:
       - go run ./... --help
+  ineffassign:
+    desc: ineffassign
+    cmds:
+      - cmd: ineffassign ./...
+        ignore_error: true
   lint:
     desc: Lint the project
     cmds:
       - yamllint .
+  misspell:
+    desc: Run misspell
+    cmds:
+      - cmd: misspell cmd/ pkg/
+        ignore_error: true
   run:
     desc: Run go program
     cmds:
@@ -57,7 +79,8 @@ tasks:
   vet:
     desc: Vet
     cmds:
-      - go vet ./...
+      - cmd: go vet ./...
+        ignore_error: true
   vendor:
     desc: Generate vendor
     cmds:
