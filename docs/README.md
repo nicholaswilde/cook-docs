@@ -69,7 +69,7 @@ Inspiration for this repository has been taken from [helm-docs](https://github.c
 
 ## ​:balance_scale:​&nbsp;​ License
 
-​[​Apache 2.0 License​](./LICENSE)
+​[​Apache License 2.0](../LICENSE)
 
 ---
 
