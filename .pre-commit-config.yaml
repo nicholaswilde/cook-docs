@@ -6,3 +6,20 @@ repos:
       - id: yamllint
         args:
           - -c=.yamllint
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.2.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+  - repo: https://github.com/dnephin/pre-commit-golang
+    rev: v0.5.0
+    hooks:
+      - id: go-cyclo
+  - repo: https://github.com/TekWizely/pre-commit-golang
+    rev: v1.0.0-beta.5
+    hooks:
+      - id: go-mod-tidy
+      - id: go-test-pkg
+      - id: go-fumpt
+      - id: go-vet
