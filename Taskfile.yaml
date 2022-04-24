@@ -55,6 +55,10 @@ tasks:
     cmds:
       - cmd: ineffassign ./...
         ignore_error: true
+  jsonify:
+    desc: Jsonify the recipe
+    cmds:
+      - go run ./... --jsonify
   lint:
     desc: Lint the project
     cmds:

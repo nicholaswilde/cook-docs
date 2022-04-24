@@ -7,7 +7,7 @@ github.com/Masterminds/semver/v3
 # github.com/Masterminds/sprig/v3 v3.2.2
 ## explicit; go 1.13
 github.com/Masterminds/sprig/v3
-# github.com/aquilax/cooklang-go v0.1.6
+# github.com/aquilax/cooklang-go v0.1.7
 ## explicit; go 1.17
 github.com/aquilax/cooklang-go
 # github.com/davecgh/go-spew v1.1.1
@@ -19,8 +19,6 @@ github.com/fsnotify/fsnotify
 # github.com/google/uuid v1.1.2
 ## explicit
 github.com/google/uuid
-# github.com/gordonklaus/ineffassign v0.0.0-20210914165742-4cc7213b9bc8
-## explicit; go 1.14
 # github.com/hashicorp/hcl v1.0.0
 ## explicit
 github.com/hashicorp/hcl
@@ -103,8 +101,6 @@ golang.org/x/crypto/bcrypt
 golang.org/x/crypto/blowfish
 golang.org/x/crypto/pbkdf2
 golang.org/x/crypto/scrypt
-# golang.org/x/mod v0.6.0-dev.0.20220106191415-9b9b3d81d5e3
-## explicit; go 1.17
 # golang.org/x/sys v0.0.0-20220422013727-9388b58f7150
 ## explicit; go 1.17
 golang.org/x/sys/internal/unsafeheader
@@ -114,10 +110,6 @@ golang.org/x/sys/windows
 ## explicit; go 1.17
 golang.org/x/text/transform
 golang.org/x/text/unicode/norm
-# golang.org/x/tools v0.1.10
-## explicit; go 1.17
-# golang.org/x/xerrors v0.0.0-20220411194840-2f41105eb62f
-## explicit; go 1.11
 # gopkg.in/ini.v1 v1.66.4
 ## explicit
 gopkg.in/ini.v1
