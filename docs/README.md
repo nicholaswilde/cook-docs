@@ -19,14 +19,9 @@ brew install nicholaswilde/tap/cook-docs
 ```
 
 ```
-# Build from source
-cd cmd/cook-docs
-go build
-```
-
-```
-# Install from source
-GO111MODULE=on go get github.com/nicholaswilde/cook-docs/cmd/cook-docs
+# scoop
+scoop bucket add nicholaswilde https://github.com/nicholaswilde/scoop-bucket.git
+scoop install nicholaswilde/cook-docs
 ```
 
 ### :gear:&nbsp; Usage

@@ -5,7 +5,8 @@ brew install nicholaswilde/tap/cook-docs
 ```
 
 ```bash title="Scoop"
-WIP
+scoop bucket add nicholaswilde https://github.com/nicholaswilde/scoop-bucket.git
+scoop install nicholaswilde/cook-docs
 ```
 
 ```bash title="winget"
