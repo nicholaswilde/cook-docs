@@ -180,17 +180,13 @@ func getCommentsTemplate() string {
 	templateBuilder.WriteString("{{ end }}")
 
 	templateBuilder.WriteString(`{{ define "cook.comments" }}`)
-	//templateBuilder.WriteString("{{ range .Steps }}{{- range .Comments }}\n- {{.}}{{- end }}{{- end }}")
+	templateBuilder.WriteString("{{ range .Steps }}{{ range .Comments }}\n- {{.}}{{- end }}{{- end }}")
 	templateBuilder.WriteString("{{ end }}")
 
 	templateBuilder.WriteString(`{{ define "cook.commentsSection" }}`)
-	templateBuilder.WriteString("{{ range .Steps }}")
-	templateBuilder.WriteString("{{ if .Comments }}")
 	templateBuilder.WriteString(`{{ template "cook.commentsHeader" . }}`)
 	templateBuilder.WriteString("\n")
 	templateBuilder.WriteString(`{{ template "cook.comments" . }}`)
-	templateBuilder.WriteString("{{ end }}")
-	templateBuilder.WriteString("{{ end }}")
 	templateBuilder.WriteString("{{ end }}")
 
 	return templateBuilder.String()

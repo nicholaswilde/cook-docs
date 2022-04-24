@@ -7,10 +7,6 @@ github.com/Masterminds/semver/v3
 # github.com/Masterminds/sprig/v3 v3.2.2
 ## explicit; go 1.13
 github.com/Masterminds/sprig/v3
-# github.com/alecthomas/gometalinter v3.0.0+incompatible
-## explicit
-# github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137
-## explicit; go 1.15
 # github.com/aquilax/cooklang-go v0.1.6
 ## explicit; go 1.17
 github.com/aquilax/cooklang-go
@@ -20,8 +16,6 @@ github.com/davecgh/go-spew/spew
 # github.com/fsnotify/fsnotify v1.5.1
 ## explicit; go 1.13
 github.com/fsnotify/fsnotify
-# github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
-## explicit; go 1.13
 # github.com/google/uuid v1.1.2
 ## explicit
 github.com/google/uuid
@@ -60,8 +54,6 @@ github.com/mitchellh/mapstructure
 # github.com/mitchellh/reflectwalk v1.0.0
 ## explicit
 github.com/mitchellh/reflectwalk
-# github.com/nicksnyder/go-i18n v1.10.1
-## explicit
 # github.com/pelletier/go-toml v1.9.5
 ## explicit; go 1.12
 github.com/pelletier/go-toml
@@ -126,8 +118,6 @@ golang.org/x/text/unicode/norm
 ## explicit; go 1.17
 # golang.org/x/xerrors v0.0.0-20220411194840-2f41105eb62f
 ## explicit; go 1.11
-# gopkg.in/alecthomas/kingpin.v3-unstable v3.0.0-20191105091915-95d230a53780
-## explicit
 # gopkg.in/ini.v1 v1.66.4
 ## explicit
 gopkg.in/ini.v1
