@@ -51,13 +51,13 @@ brews:
       bin.install "cook-docs"
     test: |
       system "#{bin}/cook-docs --version"
-    license: Apache License 2.0
+    license: Apache-2.0
 
 scoop:
   bucket:
     owner: nicholaswilde
     name: scoop-bucket
-  folder: Scoops
+  folder: bucket
   homepage: https://nicholaswilde.io/cook-docs
   description: A tool for automatically generating markdown documentation for cooklang recipes
-  license: Apache License 2.0
+  license: Apache-2.0
