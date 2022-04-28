@@ -79,7 +79,13 @@ func getIngredientsTemplate() string {
 	templateBuilder.WriteString("{{ end }}")
 
 	templateBuilder.WriteString(`{{ define "cook.ingredients" }}`)
-	templateBuilder.WriteString("{{ range .Steps }}{{- range .Ingredients }}\n- {{.Amount.Quantity}} {{.Amount.Unit}} {{.Name}}{{- end }}{{- end }}")
+	templateBuilder.WriteString("{{ range .Steps }}")
+	templateBuilder.WriteString("{{- range .Ingredients }}")
+	templateBuilder.WriteString("\n")
+	templateBuilder.WriteString("- {{ if .Amount.Quantity }}{{ round .Amount.Quantity 2 }} {{ .Amount.Unit }}{{ else }}some{{ end }}")
+	templateBuilder.WriteString(" {{ .Name }}")
+	templateBuilder.WriteString("{{- end }}")
+	templateBuilder.WriteString("{{- end }}")
 	templateBuilder.WriteString("{{ end }}")
 
 	templateBuilder.WriteString(`{{ define "cook.ingredientsSection" }}`)
@@ -99,9 +105,10 @@ func getCookwareTemplate() string {
 	templateBuilder.WriteString("{{ end }}")
 
 	templateBuilder.WriteString(`{{ define "cook.cookware" }}`)
-	templateBuilder.WriteString("{{ range .Steps }}{{- range .Cookware }}\n- {{.Quantity}} {{.Name}}{{- end }}{{- end }}")
+	templateBuilder.WriteString("{{ range .Steps }}{{- range .Cookware }}")
+	templateBuilder.WriteString("\n")
+	templateBuilder.WriteString("- {{.Quantity}} {{.Name}}{{- end }}{{- end }}")
 	templateBuilder.WriteString("{{ end }}")
-
 	templateBuilder.WriteString(`{{ define "cook.cookwareSection" }}`)
 	templateBuilder.WriteString(`{{ template "cook.cookwareHeader" . }}`)
 	templateBuilder.WriteString("\n")
@@ -125,6 +132,55 @@ func getStepsTemplate() string {
 	templateBuilder.WriteString(`{{ define "cook.stepsSection" }}`)
 	templateBuilder.WriteString(`{{ template "cook.stepsHeader" . }}`)
 	templateBuilder.WriteString(`{{ template "cook.steps" . }}`)
+	templateBuilder.WriteString("{{ end }}")
+
+	return templateBuilder.String()
+}
+
+func getStepsWithQuotedCommentsTemplate() string {
+	templateBuilder := strings.Builder{}
+
+	templateBuilder.WriteString(`{{ define "cook.stepsWithQuotedCommentsHeader" }}`)
+	templateBuilder.WriteString("## :pencil: Instructions")
+	templateBuilder.WriteString("{{ end }}")
+
+	templateBuilder.WriteString(`{{ define "cook.stepsWithQuotedComments" }}`)
+	templateBuilder.WriteString("{{ range $i, $a := .Steps }}")
+	templateBuilder.WriteString("\n\n### Step {{add1 $i}}")
+	templateBuilder.WriteString("\n\n{{ .Directions }}")
+	templateBuilder.WriteString("\n\n{{ range .Comments }}\n> {{.}}{{- end }}")
+	templateBuilder.WriteString("{{- end }}")
+	templateBuilder.WriteString("{{ end }}")
+
+	templateBuilder.WriteString(`{{ define "cook.stepsWithQuotedCommentsSection" }}`)
+	templateBuilder.WriteString(`{{ template "cook.stepsWithQuotedCommentsHeader" . }}`)
+	templateBuilder.WriteString(`{{ template "cook.stepsWithQuotedComments" . }}`)
+	templateBuilder.WriteString("{{ end }}")
+
+	return templateBuilder.String()
+}
+
+func getStepsWithAdmonishedCommentsTemplate() string {
+	templateBuilder := strings.Builder{}
+
+	templateBuilder.WriteString(`{{ define "cook.stepsWithAdmonishedCommentsHeader" }}`)
+	templateBuilder.WriteString("## :pencil: Instructions")
+	templateBuilder.WriteString("{{ end }}")
+
+	templateBuilder.WriteString(`{{ define "cook.stepsWithAdmonishedComments" }}`)
+	templateBuilder.WriteString("{{ range $i, $a := .Steps }}")
+	templateBuilder.WriteString("\n\n### Step {{add1 $i}}")
+	templateBuilder.WriteString("\n\n{{ .Directions }}")
+	templateBuilder.WriteString("\n\n{{ range .Comments }}")
+	templateBuilder.WriteString("\n!!! note")
+	templateBuilder.WriteString("\n{{ indent 6 . }}")
+	templateBuilder.WriteString("{{- end }}")
+	templateBuilder.WriteString("{{- end }}")
+	templateBuilder.WriteString("{{ end }}")
+
+	templateBuilder.WriteString(`{{ define "cook.stepsWithAdmonishedCommentsSection" }}`)
+	templateBuilder.WriteString(`{{ template "cook.stepsWithAdmonishedCommentsHeader" . }}`)
+	templateBuilder.WriteString(`{{ template "cook.stepsWithAdmonishedComments" . }}`)
 	templateBuilder.WriteString("{{ end }}")
 
 	return templateBuilder.String()
@@ -252,6 +308,8 @@ func getDocumentationTemplates(recipeSearchRoot string, recipePath string, templ
 		getIngredientsTemplate(),
 		getCookwareTemplate(),
 		getStepsTemplate(),
+		getStepsWithQuotedCommentsTemplate(),
+		getStepsWithAdmonishedCommentsTemplate(),
 		getSourceTemplate(),
 		getMetadataTemplate(),
 		getCommentsTemplate(),
