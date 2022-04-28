@@ -44,8 +44,8 @@ func TestGetImagePath(t *testing.T) {
 func TestMergeRecipeData(t *testing.T) {
 	var recipeInfo RecipeDocumentationInfo
 	var recipeData = cooklang.Recipe{
-		make([]cooklang.Step, 0),
-		make(map[string]string),
+		Steps:    make([]cooklang.Step, 0),
+		Metadata: make(map[string]string),
 	}
 	recipeInfo.RecipeName = "Recipe"
 	recipeInfo.ImagePath = "testdata/recipe.jpg"

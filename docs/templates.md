@@ -33,36 +33,42 @@ can be used in the templates you supply.
 
 ### Sections
 
-| Name                      | Description                                                        |
-|---------------------------|--------------------------------------------------------------------|
-| `cook.headerSection`      | The main heading of the generated markdown file                    |
-| `cook.imageSection`       | The image section                                                  |
-| `cook.tableSection`       | The table section that consists of the serving size and total time |
-| `cook.ingredientsSection` | The ingredients section                                            |
-| `cook.cookwareSection`    | The cookware section                                               |
-| `cook.stepsSection`       | The steps section                                                  |
-| `cook.sourceSection`      | The source section if `source` exists in Metadata                  |
-| `cook.commentsSection`    | The comments section                                               |
-| `cook.metadataSection`    | The metadata section. This prints all values in `Metadata`         |
+| Name                                     | Description                                                        |
+|------------------------------------------|--------------------------------------------------------------------|
+| `cook.headerSection`                     | The main heading of the generated markdown file                    |
+| `cook.imageSection`                      | The image section                                                  |
+| `cook.tableSection`                      | The table section that consists of the serving size and total time |
+| `cook.ingredientsSection`                | The ingredients section                                            |
+| `cook.cookwareSection`                   | The cookware section                                               |
+| `cook.stepsSection`                      | The steps section                                                  |
+| `cook.stepsWithQuotedCommentsSection`    | The steps section with comments in [block quotes][8]               |
+| `cook.stepsWithAdmonishedCommentsHeader` | The steps section with comments in [admonitions][9]                |
+| `cook.sourceSection`                     | The source section if `source` exists in Metadata                  |
+| `cook.commentsSection`                   | The comments section                                               |
+| `cook.metadataSection`                   | The metadata section. This prints all values in `Metadata`         |
 
 ### Components
 
-| Name                     | Description                                                               |
-|--------------------------|---------------------------------------------------------------------------|
-| `cook.ingredientsHeader` | The ingredients header                                                    |
-| `cook.ingredients`       | An unordered list of the ingredients                                      |
-| `cook.cookwareHeader`    | The cookware header                                                       |
-| `cook.cookware`          | An unordered list of cookware                                             |
-| `cook.stepsHeader`       | The steps header                                                          |
-| `cook.steps`						 | A list of steps. Each step has its own sub heading labeled as `Step #`    |
-| `cook.sourceHeader`      | Source header                                                             |
-| `cook.source`            | The `source` as a single unordered list item                              |
-| `cook.metadataHeader`    | `Metadata` header                                                         |
-| `cook.metadata`          | An unordered list of the `Metadata`. `ImageName` and `title` are included |
-| `cook.commentsHeader`    | The comments header                                                       |
-| `cook.comments`          | An unordered list of the comments                                         |
-| `.Metadata.title`        | The title of the recipe taken fromt the recipe file name.                 |
-| `.Metadata.ImageName`    | The new image name if an image file is found                              |
+| Name                                     | Description                                                               |
+|------------------------------------------|---------------------------------------------------------------------------|
+| `cook.ingredientsHeader`                 | The ingredients header                                                    |
+| `cook.ingredients`                       | An unordered list of the ingredients                                      |
+| `cook.cookwareHeader`                    | The cookware header                                                       |
+| `cook.cookware`                          | An unordered list of cookware                                             |
+| `cook.stepsHeader`                       | The steps header                                                          |
+| `cook.steps`                             | A list of steps. Each step has its own sub heading labeled as `Step #`    |
+| `cook.stepsWithQuotedCommentsHeader`     | The steps with block quotes header                                        |
+| `cook.stepsWithQuotedComments`           | A list of steps with block quoted comments in between                     |
+| `cook.stepsWithAdmonishedCommentsHeader` | The steps with admonitions headder                                        |
+| `cook.stepsWithAdmonishedComments`       | A list of steps with comments as admonitions in between                   |
+| `cook.sourceHeader`                      | Source header                                                             |
+| `cook.source`                            | The `source` as a single unordered list item                              |
+| `cook.metadataHeader`                    | The `Metadata` header                                                     |
+| `cook.metadata`                          | An unordered list of the `Metadata`. `ImageName` and `title` are included |
+| `cook.commentsHeader`                    | The comments header                                                       |
+| `cook.comments`                          | An unordered list of the comments                                         |
+| `.Metadata.title`                        | The title of the recipe taken fromt the recipe file name.                 |
+| `.Metadata.ImageName`                    | The new image name if an image file is found                              |
 
 See [template.go][6] for how each key is defined.
 
@@ -317,3 +323,5 @@ delimiters. See [Text and spaces][4].
 [5]: https://github.com/Masterminds/sprig
 [6]: https://github.com/nicholaswilde/cook-docs/blob/main/pkg/document/template.go
 [7]: https://github.com/nicholaswilde/cook-docs/issues/3
+[8]: https://github.github.com/gfm/#block-quotes
+[9]: https://squidfunk.github.io/mkdocs-material/reference/admonitions/
