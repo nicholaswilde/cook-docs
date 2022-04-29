@@ -58,7 +58,7 @@ Run `task` for a list of tasks:
 task
 ```
 
-## pre-commit
+## :material-git: pre-commit
 
 [pre-commit][2] may also be used on this project.
 
