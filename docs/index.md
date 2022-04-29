@@ -11,14 +11,16 @@ A tool for automatically generating markdown documentation for [cooklang][1] rec
 
 ### :floppy_disk: Installation
 
-```bash title="brew"
-brew install nicholaswilde/tap/cook-docs
-```
+=== "brew"
+    ```bash
+    brew install nicholaswilde/tap/cook-docs
+    ```
 
-```bash title="scoop"
-scoop bucket add nicholaswilde https://github.com/nicholaswilde/scoop-bucket.git
-scoop install nicholaswilde/cook-docs
-```
+=== "scoop"
+    ```bash
+    scoop bucket add nicholaswilde https://github.com/nicholaswilde/scoop-bucket.git
+    scoop install nicholaswilde/cook-docs
+    ```
 
 ### :gear: Usage
 
