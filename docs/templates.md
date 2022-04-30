@@ -122,188 +122,208 @@ template files.
 See [`parser.go`][3] for the structure latyout.
 
 ```json title="Example parsed output"
-	{
-	  "Steps": [
-	    {
-	      "Directions": "Make 6 pizza balls using tipo zero flour, water, salt and fresh yeast. Put in a fridge for 2 days.",
-	      "Timers": [
-	        {
-	          "Name": "",
-	          "Duration": 2,
-	          "Unit": "days"
-	        }
-	      ],
-	      "Ingredients": [
-	        {
-	          "Name": "tipo zero flour",
-	          "Amount": {
-	            "IsNumeric": true,
-	            "Quantity": 820,
-	            "QuantityRaw": "820",
-	            "Unit": "g"
-	          }
-	        },
-	        {
-	          "Name": "water",
-	          "Amount": {
-	            "IsNumeric": true,
-	            "Quantity": 533,
-	            "QuantityRaw": "533",
-	            "Unit": "ml"
-	          }
-	        },
-	        {
-	          "Name": "salt",
-	          "Amount": {
-	            "IsNumeric": true,
-	            "Quantity": 24.6,
-	            "QuantityRaw": "24.6",
-	            "Unit": "g"
-	          }
-	        },
-	        {
-	          "Name": "fresh yeast",
-	          "Amount": {
-	            "IsNumeric": true,
-	            "Quantity": 1.6,
-	            "QuantityRaw": "1.6",
-	            "Unit": "g"
-	          }
-	        }
-	      ],
-	      "Cookware": [
-	        {
-	          "Name": "fridge"
-	        }
-	      ],
-	      "Comments": null
-	    },
-	    {
-	      "Directions": "Set oven to max temperature and heat pizza stone for about 40 minutes.",
-	      "Timers": [
-	        {
-	          "Name": "",
-	          "Duration": 40,
-	          "Unit": "minutes"
-	        }
-	      ],
-	      "Ingredients": [],
-	      "Cookware": [
-	        {
-	          "Name": "oven"
-	        },
-	        {
-	          "Name": "pizza stone"
-	        }
-	      ],
-	      "Comments": null
-	    },
-	    {
-	      "Directions": "Make some tomato sauce with chopped tomato and garlic and dried oregano. Put on a pan and leave for 15 minutes occasionally stirring.",
-	      "Timers": [
-	        {
-	          "Name": "",
-	          "Duration": 15,
-	          "Unit": "minutes"
-	        }
-	      ],
-	      "Ingredients": [
-	        {
-	          "Name": "chopped tomato",
-	          "Amount": {
-	            "IsNumeric": true,
-	            "Quantity": 3,
-	            "QuantityRaw": "3",
-	            "Unit": "cans"
-	          }
-	        },
-	        {
-	          "Name": "garlic",
-	          "Amount": {
-	            "IsNumeric": true,
-	            "Quantity": 3,
-	            "QuantityRaw": "3",
-	            "Unit": "cloves"
-	          }
-	        },
-	        {
-	          "Name": "dried oregano",
-	          "Amount": {
-	            "IsNumeric": true,
-	            "Quantity": 3,
-	            "QuantityRaw": "3",
-	            "Unit": "tbsp"
-	          }
-	        }
-	      ],
-	      "Cookware": [
-	        {
-	          "Name": "pan"
-	        }
-	      ],
-	      "Comments": null
-	    },
-	    {
-	      "Directions": "Make pizzas putting some tomato sauce with spoon on top of flattened dough. Add fresh basil, parma ham and mozzarella.",
-	      "Timers": [],
-	      "Ingredients": [
-	        {
-	          "Name": "fresh basil",
-	          "Amount": {
-	            "IsNumeric": true,
-	            "Quantity": 18,
-	            "QuantityRaw": "18",
-	            "Unit": "leaves"
-	          }
-	        },
-	        {
-	          "Name": "parma ham",
-	          "Amount": {
-	            "IsNumeric": true,
-	            "Quantity": 3,
-	            "QuantityRaw": "3",
-	            "Unit": "packs"
-	          }
-	        },
-	        {
-	          "Name": "mozzarella",
-	          "Amount": {
-	            "IsNumeric": true,
-	            "Quantity": 3,
-	            "QuantityRaw": "3",
-	            "Unit": "packs"
-	          }
-	        }
-	      ],
-	      "Cookware": [
-	        {
-	          "Name": "spoon"
-	        }
-	      ],
-	      "Comments": null
-	    },
-	    {
-	      "Directions": "Put in an oven for 4 minutes.",
-	      "Timers": [
-	        {
-	          "Name": "",
-	          "Duration": 4,
-	          "Unit": "minutes"
-	        }
-	      ],
-	      "Ingredients": [],
-	      "Cookware": [
-	        {
-	          "Name": "oven"
-	        }
-	      ],
-	      "Comments": null
-	    }
-	  ],
-	  "Metadata": {
-	    "servings": "6"
-	  }
-	}
+ Output:
+ {
+   "Steps": [
+     {
+       "Directions": "Make 6 pizza balls using tipo zero flour, water, salt and fresh yeast. Put in a fridge for 2 days.",
+       "Timers": [
+         {
+           "Name": "",
+           "Duration": 2,
+           "Unit": "days"
+         }
+       ],
+       "Ingredients": [
+         {
+           "Name": "tipo zero flour",
+           "Amount": {
+             "IsNumeric": true,
+             "Quantity": 820,
+             "QuantityRaw": "820",
+             "Unit": "g"
+           }
+         },
+         {
+           "Name": "water",
+           "Amount": {
+             "IsNumeric": true,
+             "Quantity": 533,
+             "QuantityRaw": "533",
+             "Unit": "ml"
+           }
+         },
+         {
+           "Name": "salt",
+           "Amount": {
+             "IsNumeric": true,
+             "Quantity": 24.6,
+             "QuantityRaw": "24.6",
+             "Unit": "g"
+           }
+         },
+         {
+           "Name": "fresh yeast",
+           "Amount": {
+             "IsNumeric": true,
+             "Quantity": 1.6,
+             "QuantityRaw": "1.6",
+             "Unit": "g"
+           }
+         }
+       ],
+       "Cookware": [
+         {
+           "IsNumeric": false,
+           "Name": "fridge",
+           "Quantity": 1,
+           "QuantityRaw": ""
+         }
+       ],
+       "Comments": null
+     },
+     {
+       "Directions": "Set oven to max temperature and heat pizza stone for about 40 minutes.",
+       "Timers": [
+         {
+           "Name": "",
+           "Duration": 40,
+           "Unit": "minutes"
+         }
+       ],
+       "Ingredients": [],
+       "Cookware": [
+         {
+           "IsNumeric": false,
+           "Name": "oven",
+           "Quantity": 1,
+           "QuantityRaw": ""
+         },
+         {
+           "IsNumeric": false,
+           "Name": "pizza stone",
+           "Quantity": 1,
+           "QuantityRaw": ""
+         }
+       ],
+       "Comments": null
+     },
+     {
+       "Directions": "Make some tomato sauce with chopped tomato and garlic and dried oregano. Put on a pan and leave for 15 minutes occasionally stirring.",
+       "Timers": [
+         {
+           "Name": "",
+           "Duration": 15,
+           "Unit": "minutes"
+         }
+       ],
+       "Ingredients": [
+         {
+           "Name": "chopped tomato",
+           "Amount": {
+             "IsNumeric": true,
+             "Quantity": 3,
+             "QuantityRaw": "3",
+             "Unit": "cans"
+           }
+         },
+         {
+           "Name": "garlic",
+           "Amount": {
+             "IsNumeric": true,
+             "Quantity": 3,
+             "QuantityRaw": "3",
+             "Unit": "cloves"
+           }
+         },
+         {
+           "Name": "dried oregano",
+           "Amount": {
+             "IsNumeric": true,
+             "Quantity": 3,
+             "QuantityRaw": "3",
+             "Unit": "tbsp"
+           }
+         }
+       ],
+       "Cookware": [
+         {
+           "IsNumeric": false,
+           "Name": "pan",
+           "Quantity": 1,
+           "QuantityRaw": ""
+         }
+       ],
+       "Comments": null
+     },
+     {
+       "Directions": "Make pizzas putting some tomato sauce with spoon on top of flattened dough. Add fresh basil, parma ham and mozzarella.",
+       "Timers": [],
+       "Ingredients": [
+         {
+           "Name": "fresh basil",
+           "Amount": {
+             "IsNumeric": true,
+             "Quantity": 18,
+             "QuantityRaw": "18",
+             "Unit": "leaves"
+           }
+         },
+         {
+           "Name": "parma ham",
+           "Amount": {
+             "IsNumeric": true,
+             "Quantity": 3,
+             "QuantityRaw": "3",
+             "Unit": "packs"
+           }
+         },
+         {
+           "Name": "mozzarella",
+           "Amount": {
+             "IsNumeric": true,
+             "Quantity": 3,
+             "QuantityRaw": "3",
+             "Unit": "packs"
+           }
+         }
+       ],
+       "Cookware": [
+         {
+           "IsNumeric": false,
+           "Name": "spoon",
+           "Quantity": 1,
+           "QuantityRaw": ""
+         }
+       ],
+       "Comments": null
+     },
+     {
+       "Directions": "Put in an oven for 4 minutes.",
+       "Timers": [
+         {
+           "Name": "",
+           "Duration": 4,
+           "Unit": "minutes"
+         }
+       ],
+       "Ingredients": [],
+       "Cookware": [
+         {
+           "IsNumeric": false,
+           "Name": "oven",
+           "Quantity": 1,
+           "QuantityRaw": ""
+         }
+       ],
+       "Comments": null
+     }
+   ],
+   "Metadata": {
+     "servings": "6"
+   }
+ }
+}
 ```
 
 ## Spacing
@@ -315,7 +335,6 @@ delimiters. See [Text and spaces][4].
 {{- define "custom.section" . -}}
 {{- end -}}
 ```
-
 [1]: https://github.com/aquilax
 [2]: https://github.com/aquilax/cooklang-go
 [3]: https://github.com/aquilax/cooklang-go/blob/490a595d639b679a4f2053a309647882db37e569/parser.go
