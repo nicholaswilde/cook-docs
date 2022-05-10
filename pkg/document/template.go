@@ -46,7 +46,7 @@ func getImageTemplate() string {
 
 	templateBuilder.WriteString(`{{ define "cook.imageSection" }}`)
 	templateBuilder.WriteString("{{ if .Metadata.ImageName }}")
-	templateBuilder.WriteString(`![](../assets/images/{{ lower .Metadata.ImageName | replace " " "-" }})`)
+	templateBuilder.WriteString(`![{{ .Metadata.title }}](../assets/images/{{ lower .Metadata.ImageName | replace " " "-" }})`)
 	templateBuilder.WriteString("{{ end }}")
 	templateBuilder.WriteString("{{ end }}")
 
@@ -82,7 +82,7 @@ func getIngredientsTemplate() string {
 	templateBuilder.WriteString("{{ range .Steps }}")
 	templateBuilder.WriteString("{{- range .Ingredients }}")
 	templateBuilder.WriteString("\n")
-	templateBuilder.WriteString("- {{ if .Amount.Quantity }}{{ round .Amount.Quantity 2 }} {{ .Amount.Unit }}{{ else }}some{{ end }}")
+	templateBuilder.WriteString("- {{ if .Amount.Quantity }}{{ round .Amount.Quantity 2 }}{{ if .Amount.Unit }} {{ .Amount.Unit }}{{ end }}{{ else }}some{{ end }}")
 	templateBuilder.WriteString(" {{ .Name }}")
 	templateBuilder.WriteString("{{- end }}")
 	templateBuilder.WriteString("{{- end }}")
@@ -194,13 +194,13 @@ func getSourceTemplate() string {
 	templateBuilder.WriteString("{{ end }}")
 
 	templateBuilder.WriteString(`{{ define "cook.source" }}`)
-	templateBuilder.WriteString("- {{ .Metadata.source }}")
+	templateBuilder.WriteString("- <{{ .Metadata.source }}>")
 	templateBuilder.WriteString("{{ end }}")
 
 	templateBuilder.WriteString(`{{ define "cook.sourceSection" }}`)
 	templateBuilder.WriteString("{{ if .Metadata.source }}")
 	templateBuilder.WriteString(`{{ template "cook.sourceHeader" . }}`)
-	templateBuilder.WriteString("\n")
+	templateBuilder.WriteString("\n\n")
 	templateBuilder.WriteString(`{{ template "cook.source" . }}`)
 	templateBuilder.WriteString("{{ end }}")
 	templateBuilder.WriteString("{{ end }}")
