@@ -35,6 +35,7 @@ changelog:
     exclude:
       - "^docs:"
       - "^test:"
+      - "[ci-skip]"
 
 signs:
   - artifacts: checksum
