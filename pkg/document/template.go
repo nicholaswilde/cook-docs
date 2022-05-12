@@ -126,7 +126,7 @@ func getStepsTemplate() string {
 	templateBuilder.WriteString("{{ end }}")
 
 	templateBuilder.WriteString(`{{ define "cook.steps" }}`)
-	templateBuilder.WriteString("{{ range $i, $a := .Steps }}\n\n### Step {{add1 $i}}\n\n{{ .Directions }}{{- end }}")
+	templateBuilder.WriteString("{{ range $i, $a := .Steps }}\n\n### Step {{add1 $i}}\n\n{{ wrap 120 .Directions }}{{- end }}")
 	templateBuilder.WriteString("{{ end }}")
 
 	templateBuilder.WriteString(`{{ define "cook.stepsSection" }}`)
@@ -147,7 +147,7 @@ func getStepsWithQuotedCommentsTemplate() string {
 	templateBuilder.WriteString(`{{ define "cook.stepsWithQuotedComments" }}`)
 	templateBuilder.WriteString("{{ range $i, $a := .Steps }}")
 	templateBuilder.WriteString("\n\n### Step {{add1 $i}}")
-	templateBuilder.WriteString("\n\n{{ .Directions }}")
+	templateBuilder.WriteString("\n\n{{ wrap 120 .Directions }}")
 	templateBuilder.WriteString("\n\n{{ range .Comments }}\n> {{.}}{{- end }}")
 	templateBuilder.WriteString("{{- end }}")
 	templateBuilder.WriteString("{{ end }}")
@@ -170,7 +170,7 @@ func getStepsWithAdmonishedCommentsTemplate() string {
 	templateBuilder.WriteString(`{{ define "cook.stepsWithAdmonishedComments" }}`)
 	templateBuilder.WriteString("{{ range $i, $a := .Steps }}")
 	templateBuilder.WriteString("\n\n### Step {{add1 $i}}")
-	templateBuilder.WriteString("\n\n{{ .Directions }}")
+	templateBuilder.WriteString("\n\n{{ wrap 120 .Directions }}")
 	templateBuilder.WriteString("\n\n{{ range .Comments }}")
 	templateBuilder.WriteString("\n!!! note")
 	templateBuilder.WriteString("\n{{ indent 6 . }}")
