@@ -9,12 +9,13 @@ import (
 	"github.com/aquilax/cooklang-go"
 	"github.com/nicholaswilde/cook-docs/pkg/cook"
 	"github.com/nicholaswilde/cook-docs/pkg/document"
+	"github.com/nicholaswilde/cook-docs/pkg/types"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
-func retrieveInfoAndPrintDocumentation(recipeSearchRoot string, recipePath string, templateFiles []string, waitGroup *sync.WaitGroup, dryRun bool) {
+func retrieveInfoAndPrintDocumentation(recipeSearchRoot string, recipePath string, templateFiles []string, waitGroup *sync.WaitGroup, config *types.Config) {
 	defer waitGroup.Done()
 
 	recipeInfo := cook.ParseRecipeInformation(recipePath)
@@ -28,14 +29,18 @@ func retrieveInfoAndPrintDocumentation(recipeSearchRoot string, recipePath strin
 
 	recipeData = cook.MergeRecipeData(recipeInfo, recipeData)
 
-	document.PrintDocumentation(recipeSearchRoot, recipeData, recipeInfo, templateFiles, dryRun)
+	document.PrintDocumentation(recipeSearchRoot, recipeData, recipeInfo, templateFiles, config)
 }
 
 func cookDocs(_ *cobra.Command, _ []string) {
-	initializeCli()
+	var config types.Config
+	viper.Unmarshal(&config)
+	log.Println(config)
+	
+	initializeCli(&config)
 
-	recipeSearchRoot := viper.GetString("recipe-search-root")
-
+	recipeSearchRoot := config.RecipeSearchRoot
+	
 	var fullRecipeSearchRoot string
 	if path.IsAbs(recipeSearchRoot) {
 		fullRecipeSearchRoot = recipeSearchRoot
@@ -55,20 +60,19 @@ func cookDocs(_ *cobra.Command, _ []string) {
 	}
 	log.Infof("Found recipes [%s]", strings.Join(recipePaths, ", "))
 
-	templateFiles := viper.GetStringSlice("template-files")
+	templateFiles := config.TemplateFiles
 	log.Debugf("Rendering from optional template files [%s]", strings.Join(templateFiles, ", "))
 
-	dryRun := viper.GetBool("dry-run")
 	waitGroup := sync.WaitGroup{}
 
 	for _, r := range recipePaths {
 		waitGroup.Add(1)
 
 		// On dry runs all output goes to stdout, and so as to not jumble things, generate serially
-		if dryRun {
-			retrieveInfoAndPrintDocumentation(fullRecipeSearchRoot, r, templateFiles, &waitGroup, dryRun)
+		if config.DryRun {
+			retrieveInfoAndPrintDocumentation(fullRecipeSearchRoot, r, templateFiles, &waitGroup, &config)
 		} else {
-			go retrieveInfoAndPrintDocumentation(fullRecipeSearchRoot, r, templateFiles, &waitGroup, dryRun)
+			go retrieveInfoAndPrintDocumentation(fullRecipeSearchRoot, r, templateFiles, &waitGroup, &config)
 		}
 	}
 	waitGroup.Wait()

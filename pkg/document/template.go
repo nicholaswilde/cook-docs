@@ -13,6 +13,7 @@ import (
 	"github.com/aquilax/cooklang-go"
 	"github.com/nicholaswilde/cook-docs/pkg/cook"
 	"github.com/nicholaswilde/cook-docs/pkg/util"
+	"github.com/nicholaswilde/cook-docs/pkg/types"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -317,7 +318,7 @@ func getDocumentationTemplates(recipeSearchRoot string, recipePath string, templ
 	}, nil
 }
 
-func newRecipeDocumentationTemplate(recipeSearchRoot string, recipeInfo cook.RecipeDocumentationInfo, templateFiles []string) (*template.Template, error) {
+func newRecipeDocumentationTemplate(recipeSearchRoot string, recipeInfo cook.RecipeDocumentationInfo, templateFiles []string, config *types.Config) (*template.Template, error) {
 	documentationTemplate := template.New(recipeInfo.RecipePath)
 	documentationTemplate.Funcs(sprig.TxtFuncMap())
 	documentationTemplate.Funcs(template.FuncMap{"sumTimers": func(steps []cooklang.Step) string {

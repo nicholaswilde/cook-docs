@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/nicholaswilde/cook-docs/pkg/types"
 	"github.com/aquilax/cooklang-go"
 	log "github.com/sirupsen/logrus"
 )
@@ -16,6 +17,8 @@ type RecipeDocumentationInfo struct {
 	RecipeName  string
 	NewFileName string
 }
+
+// TODO: Replace RecipeDocumentationInfo with types.Info
 
 func GetNewFileName(recipeDocInfo RecipeDocumentationInfo) string {
 	path := filepath.Dir(recipeDocInfo.RecipePath)
@@ -64,7 +67,10 @@ func ParseRecipeInformation(recipePath string) RecipeDocumentationInfo {
 }
 
 func MergeRecipeData(recipeInfo RecipeDocumentationInfo, recipeData *cooklang.Recipe) *cooklang.Recipe {
-
+	var r types.Recipe
+	r.Steps = recipeData.Steps
+	r.Metadata = recipeData.Metadata
+	
 	recipeData.Metadata["title"] = recipeInfo.RecipeName
 
 	recipeData.Metadata["ImageName"] = filepath.Base(recipeInfo.ImagePath)

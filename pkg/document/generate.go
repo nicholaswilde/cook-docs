@@ -8,8 +8,8 @@ import (
 
 	"github.com/aquilax/cooklang-go"
 	"github.com/nicholaswilde/cook-docs/pkg/cook"
+	"github.com/nicholaswilde/cook-docs/pkg/types"
 	log "github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
 )
 
 func getOutputFile(recipeInfo cook.RecipeDocumentationInfo, dryRun bool) (*os.File, error) {
@@ -33,10 +33,9 @@ func applyMarkDownFormat(output bytes.Buffer) bytes.Buffer {
 	return output
 }
 
-func PrintDocumentation(recipeSearchRoot string, recipeData *cooklang.Recipe, recipeInfo cook.RecipeDocumentationInfo, templateFiles []string, dryRun bool) {
-	jsonify := viper.GetBool("jsonify")
-
-	if jsonify {
+func PrintDocumentation(recipeSearchRoot string, recipeData *cooklang.Recipe, recipeInfo cook.RecipeDocumentationInfo, templateFiles []string, config *types.Config) {
+	
+	if config.Jsonify {
 		log.Infof("Printing json output for recipe %s", recipeInfo.NewFileName)
 		j, err := json.MarshalIndent(recipeData, "", "  ")
 		if err != nil {
@@ -48,19 +47,19 @@ func PrintDocumentation(recipeSearchRoot string, recipeData *cooklang.Recipe, re
 
 	log.Infof("Generating markdown file for recipe %s", recipeInfo.NewFileName)
 
-	t, err := newRecipeDocumentationTemplate(recipeSearchRoot, recipeInfo, templateFiles)
+	t, err := newRecipeDocumentationTemplate(recipeSearchRoot, recipeInfo, templateFiles, config)
 	if err != nil {
 		log.Warnf("Error getting template data %s: %s", recipeInfo.RecipePath, err)
 		return
 	}
 
-	outputFile, err := getOutputFile(recipeInfo, dryRun)
+	outputFile, err := getOutputFile(recipeInfo, config.DryRun)
 	if err != nil {
 		log.Warnf("Could not open recipe markdown file %s, skipping recipe: %s", recipeInfo.NewFileName, err)
 		return
 	}
 
-	if !dryRun {
+	if !config.DryRun {
 		defer outputFile.Close()
 	}
 
