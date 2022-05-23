@@ -66,6 +66,25 @@ func ParseRecipeInformation(recipePath string) RecipeDocumentationInfo {
 	return recipeDocInfo
 }
 
+func ParseFile(recipePath string, config *types.Config) (types.Recipe, error) {
+	var info types.Info
+	var recipe types.Recipe
+
+	info.RecipePath = recipePath
+
+	info.RecipeName = GetRecipeName(recipePath)
+
+	// info.NewFileName = GetNewFileName(info)
+
+	// imagePath, err := GetImagePath(info)
+
+	// if err == nil {
+		// info.ImagePath = imagePath
+	// }
+
+	return recipe, nil
+}
+
 func MergeRecipeData(recipeInfo RecipeDocumentationInfo, recipeData *cooklang.Recipe) *cooklang.Recipe {
 	var r types.Recipe
 	r.Steps = recipeData.Steps

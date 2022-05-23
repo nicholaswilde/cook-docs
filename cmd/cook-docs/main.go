@@ -17,9 +17,9 @@ import (
 
 func retrieveInfoAndPrintDocumentation(recipeSearchRoot string, recipePath string, templateFiles []string, waitGroup *sync.WaitGroup, config *types.Config) {
 	defer waitGroup.Done()
-
+	
 	recipeInfo := cook.ParseRecipeInformation(recipePath)
-
+	_, _ = cook.ParseFile(recipePath, config)
 	recipeData, err := cooklang.ParseFile(recipeInfo.RecipePath)
 
 	if err != nil {
@@ -32,6 +32,20 @@ func retrieveInfoAndPrintDocumentation(recipeSearchRoot string, recipePath strin
 	document.PrintDocumentation(recipeSearchRoot, recipeData, recipeInfo, templateFiles, config)
 }
 
+func GetFullSearchRoot(searchRoot string) (string, error) {
+	var fullSearchRoot string
+	if path.IsAbs(searchRoot) {
+		fullSearchRoot = searchRoot
+	} else {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return "", err
+		}
+		fullSearchRoot = path.Join(cwd, searchRoot)
+	}
+	return fullSearchRoot, nil
+}
+
 func cookDocs(_ *cobra.Command, _ []string) {
 	var config types.Config
 	viper.Unmarshal(&config)
@@ -41,19 +55,13 @@ func cookDocs(_ *cobra.Command, _ []string) {
 
 	recipeSearchRoot := config.RecipeSearchRoot
 	
-	var fullRecipeSearchRoot string
-	if path.IsAbs(recipeSearchRoot) {
-		fullRecipeSearchRoot = recipeSearchRoot
-	} else {
-		cwd, err := os.Getwd()
-		if err != nil {
-			log.Warnf("Error getting working directory: %s", err)
-			return
-		}
-		fullRecipeSearchRoot = path.Join(cwd, recipeSearchRoot)
+	fullSearchRoot, err := GetFullSearchRoot(recipeSearchRoot)
+	if err != nil {
+		log.Warnf("Error getting working directory: %s", err)
+		return
 	}
 
-	recipePaths, err := cook.FindRecipePaths(fullRecipeSearchRoot)
+	recipePaths, err := cook.FindRecipePaths(fullSearchRoot)
 	if err != nil {
 		log.Errorf("Error finding recipe paths: %s", err)
 		os.Exit(1)
@@ -70,9 +78,9 @@ func cookDocs(_ *cobra.Command, _ []string) {
 
 		// On dry runs all output goes to stdout, and so as to not jumble things, generate serially
 		if config.DryRun {
-			retrieveInfoAndPrintDocumentation(fullRecipeSearchRoot, r, templateFiles, &waitGroup, &config)
+			retrieveInfoAndPrintDocumentation(fullSearchRoot, r, templateFiles, &waitGroup, &config)
 		} else {
-			go retrieveInfoAndPrintDocumentation(fullRecipeSearchRoot, r, templateFiles, &waitGroup, &config)
+			go retrieveInfoAndPrintDocumentation(fullSearchRoot, r, templateFiles, &waitGroup, &config)
 		}
 	}
 	waitGroup.Wait()
