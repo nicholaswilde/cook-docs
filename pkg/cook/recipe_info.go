@@ -89,7 +89,7 @@ func MergeRecipeData(recipeInfo RecipeDocumentationInfo, recipeData *cooklang.Re
 	var r types.Recipe
 	r.Steps = recipeData.Steps
 	r.Metadata = recipeData.Metadata
-	
+
 	recipeData.Metadata["title"] = recipeInfo.RecipeName
 
 	recipeData.Metadata["ImageName"] = filepath.Base(recipeInfo.ImagePath)

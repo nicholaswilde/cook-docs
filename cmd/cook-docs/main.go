@@ -17,7 +17,7 @@ import (
 
 func retrieveInfoAndPrintDocumentation(recipeSearchRoot string, recipePath string, templateFiles []string, waitGroup *sync.WaitGroup, config *types.Config) {
 	defer waitGroup.Done()
-	
+
 	recipeInfo := cook.ParseRecipeInformation(recipePath)
 	_, _ = cook.ParseFile(recipePath, config)
 	recipeData, err := cooklang.ParseFile(recipeInfo.RecipePath)
@@ -50,11 +50,11 @@ func cookDocs(_ *cobra.Command, _ []string) {
 	var config types.Config
 	viper.Unmarshal(&config)
 	log.Println(config)
-	
+
 	initializeCli(&config)
 
 	recipeSearchRoot := config.RecipeSearchRoot
-	
+
 	fullSearchRoot, err := GetFullSearchRoot(recipeSearchRoot)
 	if err != nil {
 		log.Warnf("Error getting working directory: %s", err)
