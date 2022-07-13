@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"text/template"
+	"net/url"
 
 	"github.com/Masterminds/sprig/v3"
 	"github.com/aquilax/cooklang-go"
@@ -26,7 +27,7 @@ const defaultDocumentationTemplate = `{{ template "cook.headerSection" . }}
 
 {{ template "cook.cookwareSection" . }}
 
-{{ template "cook.stepsSection" . }}
+{{ template "cook.stepsSection" . -}}
 
 {{ template "cook.sourceSection" . }}
 `
@@ -193,12 +194,13 @@ func getSourceTemplate() string {
 	templateBuilder.WriteString("## :link: Source")
 	templateBuilder.WriteString("{{ end }}")
 
-	templateBuilder.WriteString(`{{ define "cook.source" }}`)
-	templateBuilder.WriteString("- <{{ .Metadata.source }}>")
+	templateBuilder.WriteString(`{{- define "cook.source" }}`)
+	templateBuilder.WriteString("- {{ getSource .Metadata.source }}")
 	templateBuilder.WriteString("{{ end }}")
 
 	templateBuilder.WriteString(`{{ define "cook.sourceSection" }}`)
 	templateBuilder.WriteString("{{ if .Metadata.source }}")
+	templateBuilder.WriteString("\n\n")
 	templateBuilder.WriteString(`{{ template "cook.sourceHeader" . }}`)
 	templateBuilder.WriteString("\n\n")
 	templateBuilder.WriteString(`{{ template "cook.source" . }}`)
@@ -320,6 +322,17 @@ func getDocumentationTemplates(recipeSearchRoot string, recipePath string, templ
 func newRecipeDocumentationTemplate(recipeSearchRoot string, recipeInfo cook.RecipeDocumentationInfo, templateFiles []string) (*template.Template, error) {
 	documentationTemplate := template.New(recipeInfo.RecipePath)
 	documentationTemplate.Funcs(sprig.TxtFuncMap())
+	documentationTemplate.Funcs(template.FuncMap{"getSource": func(source string) string {
+	  _, err := url.ParseRequestURI(source)
+		if err != nil {
+			return source
+		}
+		u, err := url.Parse(source)
+		if err != nil || u.Scheme == "" || u.Host == "" {
+			return source
+	  }
+		return "<" + source + ">"
+	}})
 	documentationTemplate.Funcs(template.FuncMap{"sumTimers": func(steps []cooklang.Step) string {
 		var sum float64
 		for _, s := range steps {
