@@ -94,6 +94,7 @@ tasks:
     desc: Update vendors
     cmds:
       - go get -u ./...
+      - go mod vendor
       - go mod tidy
   default:
     desc: Lists tasks with or without a description
