@@ -4,11 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"text/template"
-	"net/url"
 
 	"github.com/Masterminds/sprig/v3"
 	"github.com/aquilax/cooklang-go"
@@ -323,14 +323,14 @@ func newRecipeDocumentationTemplate(recipeSearchRoot string, recipeInfo cook.Rec
 	documentationTemplate := template.New(recipeInfo.RecipePath)
 	documentationTemplate.Funcs(sprig.TxtFuncMap())
 	documentationTemplate.Funcs(template.FuncMap{"getSource": func(source string) string {
-	  _, err := url.ParseRequestURI(source)
+		_, err := url.ParseRequestURI(source)
 		if err != nil {
 			return source
 		}
 		u, err := url.Parse(source)
 		if err != nil || u.Scheme == "" || u.Host == "" {
 			return source
-	  }
+		}
 		return "<" + source + ">"
 	}})
 	documentationTemplate.Funcs(template.FuncMap{"sumTimers": func(steps []cooklang.Step) string {
