@@ -67,7 +67,9 @@ func MergeRecipeData(recipeInfo RecipeDocumentationInfo, recipeData *cooklang.Re
 
 	recipeData.Metadata["title"] = recipeInfo.RecipeName
 
-	recipeData.Metadata["ImageName"] = filepath.Base(recipeInfo.ImagePath)
+	if len(recipeInfo.ImagePath) > 0 {
+		recipeData.Metadata["ImageName"] = filepath.Base(recipeInfo.ImagePath)
+	}
 
 	return recipeData
 }
