@@ -1,5 +1,9 @@
 **/testdata/*.md
 
+.cookdocs
+.cookdocs.yml
+.cookdocs.yaml
+
 /site
 /cook-docs
 /cmd/cook-docs/cook-docs
