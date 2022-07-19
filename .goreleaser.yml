@@ -41,6 +41,9 @@ signs:
   - artifacts: checksum
     args: ["-u", "{{ .Env.GPG_FINGERPRINT }}", "--output", "${signature}", "--detach-sign", "${artifact}"]
 
+release:
+  draft: true
+
 brews:
   - tap:
       owner: nicholaswilde
