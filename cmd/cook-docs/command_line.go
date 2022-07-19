@@ -71,6 +71,7 @@ func newCookDocsCommand(run func(cmd *cobra.Command, args []string)) (*cobra.Com
 	viper.AutomaticEnv()
 	viper.SetEnvPrefix("COOK_DOCS")
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+	viper.RegisterAlias("wordWrap", "word-wrap")
 	viper.RegisterAlias("dryRun", "dry-run")
 	viper.RegisterAlias("ignoreFile", "ignore-file")
 	viper.RegisterAlias("recipeSearchRoot", "recipe-search-root")

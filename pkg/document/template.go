@@ -12,7 +12,6 @@ import (
 
 	"github.com/Masterminds/sprig/v3"
 	"github.com/aquilax/cooklang-go"
-	"github.com/nicholaswilde/cook-docs/pkg/cook"
 	"github.com/nicholaswilde/cook-docs/pkg/util"
 	"github.com/nicholaswilde/cook-docs/pkg/types"
 	log "github.com/sirupsen/logrus"
@@ -37,7 +36,7 @@ func getHeaderTemplate() string {
 	templateBuilder := strings.Builder{}
 
 	templateBuilder.WriteString(`{{ define "cook.headerSection" }}`)
-	templateBuilder.WriteString("# {{ .Metadata.title }}")
+	templateBuilder.WriteString("# {{ .Info.RecipeName }}")
 	templateBuilder.WriteString("{{ end }}")
 
 	return templateBuilder.String()
@@ -47,8 +46,8 @@ func getImageTemplate() string {
 	templateBuilder := strings.Builder{}
 
 	templateBuilder.WriteString(`{{ define "cook.imageSection" }}`)
-	templateBuilder.WriteString("{{ if .Metadata.ImageName }}")
-	templateBuilder.WriteString(`![{{ .Metadata.title }}](../assets/images/{{ lower .Metadata.ImageName | replace " " "-" }})`)
+	templateBuilder.WriteString("{{ if .Info.ImageFileName }}")
+	templateBuilder.WriteString(`![{{ .Info.RecipeName }}](../assets/images/{{ lower .Info.ImageFileName | replace " " "-" }})`)
 	templateBuilder.WriteString("{{ end }}")
 	templateBuilder.WriteString("{{ end }}")
 
@@ -128,7 +127,7 @@ func getStepsTemplate() string {
 	templateBuilder.WriteString("{{ end }}")
 
 	templateBuilder.WriteString(`{{ define "cook.steps" }}`)
-	templateBuilder.WriteString("{{ range $i, $a := .Steps }}\n\n### Step {{add1 $i}}\n\n{{ wrap 120 .Directions }}{{- end }}")
+	templateBuilder.WriteString("{{ range $i, $a := .Steps }}\n\n### Step {{add1 $i}}\n\n{{ wrap $.Config.WordWrap .Directions }}{{- end }}")
 	templateBuilder.WriteString("{{ end }}")
 
 	templateBuilder.WriteString(`{{ define "cook.stepsSection" }}`)
@@ -149,7 +148,7 @@ func getStepsWithQuotedCommentsTemplate() string {
 	templateBuilder.WriteString(`{{ define "cook.stepsWithQuotedComments" }}`)
 	templateBuilder.WriteString("{{ range $i, $a := .Steps }}")
 	templateBuilder.WriteString("\n\n### Step {{add1 $i}}")
-	templateBuilder.WriteString("\n\n{{ wrap 120 .Directions }}")
+	templateBuilder.WriteString("\n\n{{ wrap $.Config.WordWrap .Directions }}")
 	templateBuilder.WriteString("\n\n{{ range .Comments }}\n> {{.}}{{- end }}")
 	templateBuilder.WriteString("{{- end }}")
 	templateBuilder.WriteString("{{ end }}")
@@ -172,7 +171,7 @@ func getStepsWithAdmonishedCommentsTemplate() string {
 	templateBuilder.WriteString(`{{ define "cook.stepsWithAdmonishedComments" }}`)
 	templateBuilder.WriteString("{{ range $i, $a := .Steps }}")
 	templateBuilder.WriteString("\n\n### Step {{add1 $i}}")
-	templateBuilder.WriteString("\n\n{{ wrap 120 .Directions }}")
+	templateBuilder.WriteString("\n\n{{ wrap $.Config.WordWrap .Directions }}")
 	templateBuilder.WriteString("\n\n{{ range .Comments }}")
 	templateBuilder.WriteString("\n!!! note")
 	templateBuilder.WriteString("\n{{ indent 6 . }}")
@@ -320,8 +319,8 @@ func getDocumentationTemplates(recipeSearchRoot string, recipePath string, templ
 	}, nil
 }
 
-func newRecipeDocumentationTemplate(recipeSearchRoot string, recipeInfo cook.RecipeDocumentationInfo, templateFiles []string, config *types.Config) (*template.Template, error) {
-	documentationTemplate := template.New(recipeInfo.RecipePath)
+func newRecipeDocumentationTemplate(recipe *types.Recipe) (*template.Template, error) {
+	documentationTemplate := template.New(recipe.Info.RecipeFilePath)
 	documentationTemplate.Funcs(sprig.TxtFuncMap())
 	documentationTemplate.Funcs(template.FuncMap{"getSource": func(source string) string {
 		_, err := url.ParseRequestURI(source)
@@ -359,7 +358,7 @@ func newRecipeDocumentationTemplate(recipeSearchRoot string, recipeInfo cook.Rec
 		}
 	}})
 
-	goTemplateList, err := getDocumentationTemplates(recipeSearchRoot, recipeInfo.RecipePath, templateFiles)
+	goTemplateList, err := getDocumentationTemplates(recipe.Config.RecipeSearchRoot, recipe.Info.RecipeFilePath, recipe.Config.TemplateFiles)
 	if err != nil {
 		return nil, err
 	}

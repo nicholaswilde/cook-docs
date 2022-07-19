@@ -6,7 +6,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aquilax/cooklang-go"
 	"github.com/nicholaswilde/cook-docs/pkg/cook"
 	"github.com/nicholaswilde/cook-docs/pkg/document"
 	"github.com/nicholaswilde/cook-docs/pkg/types"
@@ -15,21 +14,16 @@ import (
 	"github.com/spf13/viper"
 )
 
-func retrieveInfoAndPrintDocumentation(recipeSearchRoot string, recipePath string, templateFiles []string, waitGroup *sync.WaitGroup, config *types.Config) {
+func retrieveInfoAndPrintDocumentation(recipePath string, waitGroup *sync.WaitGroup, config *types.Config) {
 	defer waitGroup.Done()
 
-	recipeInfo := cook.ParseRecipeInformation(recipePath)
-	_, _ = cook.ParseFile(recipePath, config)
-	recipeData, err := cooklang.ParseFile(recipeInfo.RecipePath)
-
+	recipe, err := cook.ParseFile(recipePath, config)
 	if err != nil {
-		log.Warnf("Error parsing file for recipe %s, skipping: %s", recipeInfo.RecipePath, err)
+		log.Warnf("Error parsing file for recipe %s, skipping: %s", recipePath, err)
 		return
 	}
 
-	recipeData = cook.MergeRecipeData(recipeInfo, recipeData)
-
-	document.PrintDocumentation(recipeSearchRoot, recipeData, recipeInfo, templateFiles, config)
+	document.PrintDocumentation(recipe)
 }
 
 func GetFullSearchRoot(searchRoot string) (string, error) {
@@ -49,27 +43,23 @@ func GetFullSearchRoot(searchRoot string) (string, error) {
 func cookDocs(_ *cobra.Command, _ []string) {
 	var config types.Config
 	viper.Unmarshal(&config)
-	log.Println(config)
 
 	initializeCli(&config)
 
-	recipeSearchRoot := config.RecipeSearchRoot
-
-	fullSearchRoot, err := GetFullSearchRoot(recipeSearchRoot)
+	fullSearchRoot, err := GetFullSearchRoot(config.RecipeSearchRoot)
 	if err != nil {
 		log.Warnf("Error getting working directory: %s", err)
 		return
 	}
 
-	recipePaths, err := cook.FindRecipePaths(fullSearchRoot)
+	recipePaths, err := cook.FindRecipeFilePaths(fullSearchRoot)
 	if err != nil {
 		log.Errorf("Error finding recipe paths: %s", err)
 		os.Exit(1)
 	}
 	log.Infof("Found recipes [%s]", strings.Join(recipePaths, ", "))
 
-	templateFiles := config.TemplateFiles
-	log.Debugf("Rendering from optional template files [%s]", strings.Join(templateFiles, ", "))
+	log.Debugf("Rendering from optional template files [%s]", strings.Join(config.TemplateFiles, ", "))
 
 	waitGroup := sync.WaitGroup{}
 
@@ -78,9 +68,9 @@ func cookDocs(_ *cobra.Command, _ []string) {
 
 		// On dry runs all output goes to stdout, and so as to not jumble things, generate serially
 		if config.DryRun {
-			retrieveInfoAndPrintDocumentation(fullSearchRoot, r, templateFiles, &waitGroup, &config)
+			retrieveInfoAndPrintDocumentation(r, &waitGroup, &config)
 		} else {
-			go retrieveInfoAndPrintDocumentation(fullSearchRoot, r, templateFiles, &waitGroup, &config)
+			go retrieveInfoAndPrintDocumentation(r, &waitGroup, &config)
 		}
 	}
 	waitGroup.Wait()

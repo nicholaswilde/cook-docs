@@ -21,7 +21,7 @@ this:
 
 {{ template "cook.cookwareSection" . }}
 
-{{ template "cook.stepsSection" . }}
+{{ template "cook.stepsSection" . -}}
 
 {{ template "cook.sourceSection" . }}
 ```
@@ -49,26 +49,29 @@ can be used in the templates you supply.
 
 ### Components
 
-| Name                                     | Description                                                               |
-|------------------------------------------|---------------------------------------------------------------------------|
-| `cook.ingredientsHeader`                 | The ingredients header                                                    |
-| `cook.ingredients`                       | An unordered list of the ingredients                                      |
-| `cook.cookwareHeader`                    | The cookware header                                                       |
-| `cook.cookware`                          | An unordered list of cookware                                             |
-| `cook.stepsHeader`                       | The steps header                                                          |
-| `cook.steps`                             | A list of steps. Each step has its own sub heading labeled as `Step #`    |
-| `cook.stepsWithQuotedCommentsHeader`     | The steps with block quotes header                                        |
-| `cook.stepsWithQuotedComments`           | A list of steps with block quoted comments in between                     |
-| `cook.stepsWithAdmonishedCommentsHeader` | The steps with admonitions headder                                        |
-| `cook.stepsWithAdmonishedComments`       | A list of steps with comments as admonitions in between                   |
-| `cook.sourceHeader`                      | Source header                                                             |
-| `cook.source`                            | The `source` as a single unordered list item                              |
-| `cook.metadataHeader`                    | The `Metadata` header                                                     |
-| `cook.metadata`                          | An unordered list of the `Metadata`. `ImageName` and `title` are included |
-| `cook.commentsHeader`                    | The comments header                                                       |
-| `cook.comments`                          | An unordered list of the comments                                         |
-| `.Metadata.title`                        | The title of the recipe taken fromt the recipe file name.                 |
-| `.Metadata.ImageName`                    | The new image name if an image file is found                              |
+| Name                                     | Description                                                                  |
+|------------------------------------------|------------------------------------------------------------------------------|
+| `cook.ingredientsHeader`                 | The ingredients header                                                       |
+| `cook.ingredients`                       | An unordered list of the ingredients                                         |
+| `cook.cookwareHeader`                    | The cookware header                                                          |
+| `cook.cookware`                          | An unordered list of cookware                                                |
+| `cook.stepsHeader`                       | The steps header                                                             |
+| `cook.steps`                             | A list of steps. Each step has its own sub heading labeled as `Step #`       |
+| `cook.stepsWithQuotedCommentsHeader`     | The steps with block quotes header                                           |
+| `cook.stepsWithQuotedComments`           | A list of steps with block quoted comments in between                        |
+| `cook.stepsWithAdmonishedCommentsHeader` | The steps with admonitions headder                                           |
+| `cook.stepsWithAdmonishedComments`       | A list of steps with comments as admonitions in between                      |
+| `cook.sourceHeader`                      | Source header                                                                |
+| `cook.source`                            | The `source` as a single unordered list item                                 |
+| `cook.metadataHeader`                    | The `Metadata` header                                                        |
+| `cook.metadata`                          | An unordered list of the `Metadata`.                                         |
+| `cook.commentsHeader`                    | The comments header                                                          |
+| `cook.comments`                          | An unordered list of the comments                                            |
+| `.Info.RecipeName`                       | The name of the recipe taken fromt the recipe file name                      |
+| `.Info.ImageFileName`                    | The image name if an image file is found                                     |
+| `.Info.ImageFilePath`                    | The image path if an image file is found                                     |
+| `.Info.NewRecipeFilePath`                | The new recipe file name after removal of spaces and converting to lowercase |
+| `.Info.RecipeFilePath`                   | The file path of the recipe file                                             |
 
 See [template.go][6] for how each key is defined.
 
@@ -77,19 +80,17 @@ See [template.go][6] for how each key is defined.
 
 ## Metadata
 
-`cook-docs` uses the `Metadata.title` and `Metadata.ImageName` keys for the
-recipe title, taken from the `*.cook` filename and name of the formatted image
-name. If the parsed recipe uses these keys, they will be overwritten by
-`cook-docs`.
+Any [metadata][10] from the recipe `*.cook` file will be written to the `cook.metadataSection`.
 
-```title="Overwritten Recipe Metadata"
->> title: My recipe title
->> ImageName: My image name
+```
+>> source: https://www.gimmesomeoven.com/baked-potato/
+>> time required: 1.5 hours
+>> course: dinner
 ...
 ```
 
 The names of the markdown and image files are made lowercase and the spaces are replaced
-by dashes. E.g. `My Recipe Name.cook -> my-recipe-name.md`
+by dashes. E.g. `My Recipe Name.cook -> my-recipe-name.md` and `My Recipe Name.png -> my-recipe-name.png`.
 
 ## Custom Sections
 
@@ -116,12 +117,15 @@ Then use it later in the template.
 ## Cooklang Parser
 
 `cook-docs` uses [aquilax's][1] [cooklang-go][2] parser to parse `cooklang`
-recipes. The data output may then be directly used inside of the `cook-docs`
-template files.
+recipes. The recipes are then merged with custom cook-docs data, such as
+`Info` and `Config`. The data output may then be directly used inside of
+the `cook-docs` template files.
 
-See [`parser.go`][3] for the structure latyout.
+See [`parser.go`][3] for the basic structure latyout.
 
-```json title="Example parsed output"
+The `jsonify` option may also be used to output
+
+```json title="Example parsed `cook-docs` output"
  Output:
  {
    "Steps": [
@@ -320,7 +324,26 @@ See [`parser.go`][3] for the structure latyout.
      }
    ],
    "Metadata": {
-     "servings": "6"
+     "servings": "6",
+     "source": "https://www.somewebsite.com/pizza-balls"
+   },
+   "Config": {
+     "DryRun": false,
+     "Jsonify": true,
+     "IgnoreFile": ".cookdocsignore",
+     "RecipeSearchRoot": ".",
+     "LogLevel": "info",
+     "TemplateFiles": [
+       "recipe.md.gotmpl"
+     ],
+     "WordWrap": 120
+   },
+   "Info": {
+     "ImageFilePath": "/home/nicholas/git/nicholaswilde/cook-docs/cmd/cook-docs/testdata/My Test Recipe.png",
+     "ImageFileName": "My Test Recipe.png",
+     "RecipeName": "My Test Recipe",
+     "RecipeFilePath": "/home/nicholas/git/nicholaswilde/cook-docs/cmd/cook-docs/testdata/My Test Recipe.cook",
+     "NewRecipeFilePath": "/home/nicholas/git/nicholaswilde/cook-docs/cmd/cook-docs/testdata/my-test-recipe.md"
    }
  }
 }
@@ -335,6 +358,11 @@ delimiters. See [Text and spaces][4].
 {{- define "custom.section" . -}}
 {{- end -}}
 ```
+
+!!! note
+    To remove the double EOF new lines when `.Metadata.source` is missing from the recipe file but present in the template file, double new lines is added to the beginning of `cook.sourceSection` and white space is removed from the end
+    of `cook.stepsSection`.
+
 [1]: https://github.com/aquilax
 [2]: https://github.com/aquilax/cooklang-go
 [3]: https://github.com/aquilax/cooklang-go/blob/490a595d639b679a4f2053a309647882db37e569/parser.go
@@ -344,3 +372,4 @@ delimiters. See [Text and spaces][4].
 [7]: https://github.com/nicholaswilde/cook-docs/issues/3
 [8]: https://github.github.com/gfm/#block-quotes
 [9]: https://squidfunk.github.io/mkdocs-material/reference/admonitions/
+[10]: https://cooklang.org/docs/spec/#metadata

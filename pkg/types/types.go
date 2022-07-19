@@ -21,9 +21,9 @@ type Recipe struct {
 }
 
 type Info struct {
-	ImagePath	string
-	ImageName	string
+	ImageFileName	string
+	ImageFilePath	string
+	NewRecipeFilePath	string
 	RecipeName	string
-	RecipePath	string
-	NewFileName	string
+	RecipeFilePath	string
 }
