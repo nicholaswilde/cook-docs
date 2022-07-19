@@ -6,18 +6,15 @@ import (
 	"os"
 	"regexp"
 
-	"github.com/aquilax/cooklang-go"
-	"github.com/nicholaswilde/cook-docs/pkg/cook"
+	"github.com/nicholaswilde/cook-docs/pkg/types"
 	log "github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
 )
 
-func getOutputFile(recipeInfo cook.RecipeDocumentationInfo, dryRun bool) (*os.File, error) {
+func getOutputFile(newFileName string, dryRun bool) (*os.File, error) {
 	if dryRun {
 		return os.Stdout, nil
 	}
-	log.Debug(recipeInfo.NewFileName)
-	return os.Create(recipeInfo.NewFileName)
+	return os.Create(newFileName)
 }
 
 func applyMarkDownFormat(output bytes.Buffer) bytes.Buffer {
@@ -33,12 +30,11 @@ func applyMarkDownFormat(output bytes.Buffer) bytes.Buffer {
 	return output
 }
 
-func PrintDocumentation(recipeSearchRoot string, recipeData *cooklang.Recipe, recipeInfo cook.RecipeDocumentationInfo, templateFiles []string, dryRun bool) {
-	jsonify := viper.GetBool("jsonify")
-
-	if jsonify {
-		log.Infof("Printing json output for recipe %s", recipeInfo.NewFileName)
-		j, err := json.MarshalIndent(recipeData, "", "  ")
+func PrintDocumentation(recipe *types.Recipe) {
+	
+	if recipe.Config.Jsonify {
+		log.Infof("Printing json output for recipe %s", recipe.Info.NewRecipeFilePath)
+		j, err := json.MarshalIndent(recipe, "", "  ")
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -46,33 +42,33 @@ func PrintDocumentation(recipeSearchRoot string, recipeData *cooklang.Recipe, re
 		return
 	}
 
-	log.Infof("Generating markdown file for recipe %s", recipeInfo.NewFileName)
+	log.Infof("Generating markdown file for recipe %s", recipe.Info.NewRecipeFilePath)
 
-	t, err := newRecipeDocumentationTemplate(recipeSearchRoot, recipeInfo, templateFiles)
+	t, err := newRecipeDocumentationTemplate(recipe)
 	if err != nil {
-		log.Warnf("Error getting template data %s: %s", recipeInfo.RecipePath, err)
+		log.Warnf("Error getting template data %s: %s", recipe.Info.RecipeFilePath, err)
 		return
 	}
 
-	outputFile, err := getOutputFile(recipeInfo, dryRun)
+	outputFile, err := getOutputFile(recipe.Info.NewRecipeFilePath, recipe.Config.DryRun)
 	if err != nil {
-		log.Warnf("Could not open recipe markdown file %s, skipping recipe: %s", recipeInfo.NewFileName, err)
+		log.Warnf("Could not open recipe markdown file %s, skipping recipe: %s", recipe.Info.NewRecipeFilePath, err)
 		return
 	}
 
-	if !dryRun {
+	if !recipe.Config.DryRun {
 		defer outputFile.Close()
 	}
 
 	var output bytes.Buffer
-	err = t.Execute(&output, recipeData)
+	err = t.Execute(&output, recipe)
 	if err != nil {
-		log.Warnf("Error executing template %s: %s", recipeInfo.RecipePath, err)
+		log.Warnf("Error executing template %s: %s", recipe.Info.RecipeFilePath, err)
 	}
 
 	output = applyMarkDownFormat(output)
 	_, err = output.WriteTo(outputFile)
 	if err != nil {
-		log.Warnf("Error generating documentation file for recipe %s: %s", recipeInfo.NewFileName, err)
+		log.Warnf("Error generating documentation file for recipe %s: %s", recipe.Info.NewRecipeFilePath, err)
 	}
 }

@@ -6,20 +6,21 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/nicholaswilde/cook-docs/pkg/types"
 	"github.com/aquilax/cooklang-go"
 	log "github.com/sirupsen/logrus"
 )
 
 type RecipeDocumentationInfo struct {
 	ImagePath   string
-	RecipePath  string
+	RecipeFilePath  string
 	RecipeName  string
-	NewFileName string
+	NewRecipeFilePath string
 }
 
-func GetNewFileName(recipeDocInfo RecipeDocumentationInfo) string {
-	path := filepath.Dir(recipeDocInfo.RecipePath)
-	fileName := strings.Replace(recipeDocInfo.RecipeName, " ", "-", -1)
+func GetNewRecipeFilePath(info types.Info) string {
+	path := filepath.Dir(info.RecipeFilePath)
+	fileName := strings.Replace(info.RecipeName, " ", "-", -1)
 	fileName = strings.ToLower(fileName) + ".md"
 	return filepath.Join(path, fileName)
 }
@@ -29,13 +30,13 @@ func GetRecipeName(recipePath string) string {
 	return strings.TrimSuffix(fileName, filepath.Ext(fileName))
 }
 
-func GetImagePath(recipeDocInfo RecipeDocumentationInfo) (string, error) {
+func GetImagePath(info types.Info) (string, error) {
 	var err error
-	path := filepath.Dir(recipeDocInfo.RecipePath)
-	imagePath := filepath.Join(path, recipeDocInfo.RecipeName) + ".jpg"
+	path := filepath.Dir(info.RecipeFilePath)
+	imagePath := filepath.Join(path, info.RecipeName) + ".jpg"
 	_, err = os.Stat(imagePath)
 	if errors.Is(err, os.ErrNotExist) {
-		imagePath = filepath.Join(path, recipeDocInfo.RecipeName) + ".png"
+		imagePath = filepath.Join(path, info.RecipeName) + ".png"
 	}
 	_, err = os.Stat(imagePath)
 	if errors.Is(err, os.ErrNotExist) {
@@ -45,31 +46,34 @@ func GetImagePath(recipeDocInfo RecipeDocumentationInfo) (string, error) {
 	return imagePath, nil
 }
 
-func ParseRecipeInformation(recipePath string) RecipeDocumentationInfo {
-	var recipeDocInfo RecipeDocumentationInfo
+func ParseFile(recipePath string, config *types.Config) (*types.Recipe, error) {
+	var info types.Info
+	var recipe types.Recipe
 
-	recipeDocInfo.RecipePath = recipePath
+	info.RecipeFilePath = recipePath
 
-	recipeDocInfo.RecipeName = GetRecipeName(recipePath)
+	info.RecipeName = GetRecipeName(recipePath)
 
-	recipeDocInfo.NewFileName = GetNewFileName(recipeDocInfo)
+	info.NewRecipeFilePath = GetNewRecipeFilePath(info)
 
-	imagePath, err := GetImagePath(recipeDocInfo)
+	imagePath, err := GetImagePath(info)
 
 	if err == nil {
-		recipeDocInfo.ImagePath = imagePath
+		info.ImageFilePath = imagePath
+		info.ImageFileName = filepath.Base(imagePath)
 	}
 
-	return recipeDocInfo
-}
+	recipeData, err := cooklang.ParseFile(recipePath)
 
-func MergeRecipeData(recipeInfo RecipeDocumentationInfo, recipeData *cooklang.Recipe) *cooklang.Recipe {
-
-	recipeData.Metadata["title"] = recipeInfo.RecipeName
-
-	if len(recipeInfo.ImagePath) > 0 {
-		recipeData.Metadata["ImageName"] = filepath.Base(recipeInfo.ImagePath)
+	if err != nil {
+		log.Warnf("Error parsing file for recipe %s, skipping: %s", recipePath, err)
+		return nil, err
 	}
 
-	return recipeData
+	recipe.Metadata = recipeData.Metadata
+	recipe.Steps = recipeData.Steps
+	recipe.Info = info
+	recipe.Config = *config
+
+	return &recipe, nil
 }

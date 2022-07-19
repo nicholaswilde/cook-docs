@@ -8,6 +8,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/nicholaswilde/cook-docs/pkg/types"
 )
 
 var version string
@@ -22,8 +23,8 @@ func possibleLogLevels() []string {
 	return levels
 }
 
-func initializeCli() {
-	logLevelName := viper.GetString("log-level")
+func initializeCli(config *types.Config) {
+	logLevelName := config.LogLevel
 	logLevel, err := log.ParseLevel(logLevelName)
 	if err != nil {
 		log.Errorf("Failed to parse provided log level %s: %s", logLevelName, err)
@@ -48,7 +49,8 @@ func newCookDocsCommand(run func(cmd *cobra.Command, args []string)) (*cobra.Com
 	command.PersistentFlags().StringP("recipe-search-root", "c", ".", "directory to search recursively within for recipes")
 	command.PersistentFlags().StringP("log-level", "l", "info", logLevelUsage)
 	command.PersistentFlags().StringSliceP("template-files", "t", []string{"recipe.md.gotmpl"}, "gotemplate file paths relative to each recipe directory from which documentation will be generated")
-
+	command.PersistentFlags().IntP("word-wrap", "w", 120, "word wrap line length for recipe steps section")
+	
 	viper.SetConfigName(".cookdocs")
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath("/etc/cook-docs/")
@@ -69,6 +71,12 @@ func newCookDocsCommand(run func(cmd *cobra.Command, args []string)) (*cobra.Com
 	viper.AutomaticEnv()
 	viper.SetEnvPrefix("COOK_DOCS")
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+	viper.RegisterAlias("wordWrap", "word-wrap")
+	viper.RegisterAlias("dryRun", "dry-run")
+	viper.RegisterAlias("ignoreFile", "ignore-file")
+	viper.RegisterAlias("recipeSearchRoot", "recipe-search-root")
+	viper.RegisterAlias("logLevel", "log-level")
+	viper.RegisterAlias("templateFiles", "template-files")
 	err = viper.BindPFlags(command.PersistentFlags())
 	return command, err
 }

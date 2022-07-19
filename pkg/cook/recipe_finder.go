@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-func FindRecipePaths(recipeSearchRoot string) ([]string, error) {
+func FindRecipeFilePaths(recipeSearchRoot string) ([]string, error) {
 	ignoreFilename := viper.GetString("ignore-file")
 	ignoreContext := util.NewIgnoreContext(ignoreFilename)
 	recipePaths := make([]string, 0)

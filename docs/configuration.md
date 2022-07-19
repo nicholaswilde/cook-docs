@@ -4,22 +4,23 @@
 
 Here is a list of the current supported parameters:
 
-| Command Line                    | Environmental Variable       | Config File        | Default            | Description                                                                                        |
-|---------------------------------|------------------------------|--------------------|--------------------|----------------------------------------------------------------------------------------------------|
-| -d, --dry-run                   | COOK_DOCS_DRY_RUN            | dry-run            | false              | don't actually render any markdown files just print to stdout passed                               |
-| -h, --help                      | N/A                          | N/A                | N/A                | help for cook-docs                                                                                 |
-| -i, --ignore-file string        | COOK_DOCS_IGNORE_FILE        | ignore-file        | .cookdocsignore    | filename to use as an ignore file to exclude recipe directories                                    |
-| -j, --jsonify                   | COOK_DOCS_JSONIFY            | jsonify            | false              | parse the recipe and display it in json format                                                     |
-| -l, --log-level string          | COOK_DOCS_LOG_LEVEL          | log-level          | info               | level of logs that should printed, one of (panic, fatal, error, warning, info, debug, trace)       |
-| -c, --recipe-search-root string | COOK_DOCS_RECIPE_SEARCH_ROOT | recipe-search-root | .                  | directory to search recursively within for recipes.                                                |
-| -t, --template-files strings    | COOK_DOCS_TEMPLATE_FILES     | template-files     | [recipe.md.gotmpl] | gotemplate file paths relative to each recipe directory from which documentation will be generated |
-| -v, --version                   | N/A                          | N/A                | N/A                | diplay the version of cook-docs                                                                    |
+| Command Line                    | Environmental Variable        | Config File       | Default             | Description                                                                                         |
+|---------------------------------|-------------------------------|-------------------|---------------------|-----------------------------------------------------------------------------------------------------|
+| -d, --dry-run                   | COOK_DOCS_DRY_RUN             | dryRun            | false               | don't actually render any markdown files just print to stdout passed                                |
+| -h, --help                      | N/A                           | N/A               | N/A                 | help for cook-docs                                                                                  |
+| -i, --ignore-file string        | COOK_DOCS_IGNORE_FILE         | ignoreFile        | .cookdocsignore     | filename to use as an ignore file to exclude recipe directories                                     |
+| -j, --jsonify                   | COOK_DOCS_JSONIFY             | jsonify           | false               | parse the recipe and display it in json format                                                      |
+| -l, --log-level string          | COOK_DOCS_LOG_LEVEL           | logLevel          | info                | level of logs that should printed, one of (panic, fatal, error, warning, info, debug, trace)        |
+| -c, --recipe-search-root string | COOK_DOCS_RECIPE_SEARCH_ROOT  | recipeSearchRoot  | .                   | directory to search recursively within for recipes.                                                 |
+| -t, --template-files strings    | COOK_DOCS_TEMPLATE_FILES      | templateFiles     | [recipe.md.gotmpl]  | gotemplate file paths relative to each recipe directory from which documentation will be generated  |
+| -w, --word-wrap int             | COOK_DOCS_WORD_WRAP           | wordWrap          | 120                 | word wrap line length for recipe steps section                                                      |
+| -v, --version                   | N/A                           | N/A               | N/A                 | diplay the version of cook-docs                                                                     |
 
 ## Config Files
 
 Configuration files may be used to set the default app settings.
 
-The config file name is `.cookdocs.yaml` or `.cookdocs.yml` and can be located in
+The config file name is `.cookdocs`, `.cookdocs.yaml` or `.cookdocs.yml` and can be located in
 any of the following locations:
 
 - `/etc/cook-docs/`
@@ -28,13 +29,17 @@ any of the following locations:
 
 ```yaml title=".cookdocs.yaml"
 ---
-dry-run: false
-ignore-file: .cookdocsignore
+dryRun: false
+ignoreFile: .cookdocsignore
 jsonify: false
-log-level: info
-template-files:
+logLevel: info
+templateFiles:
   - recipe.md.gotmpl
+wordWrap: 120
 ```
+
+!!! note
+    The variables in the config file can be both in the `Command Line` or `Config File` format. E.g. `dry-run` and `dryRun`.
 
 ## Environmental Variables
 

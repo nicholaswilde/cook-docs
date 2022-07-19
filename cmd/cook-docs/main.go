@@ -6,69 +6,71 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/aquilax/cooklang-go"
 	"github.com/nicholaswilde/cook-docs/pkg/cook"
 	"github.com/nicholaswilde/cook-docs/pkg/document"
+	"github.com/nicholaswilde/cook-docs/pkg/types"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
-func retrieveInfoAndPrintDocumentation(recipeSearchRoot string, recipePath string, templateFiles []string, waitGroup *sync.WaitGroup, dryRun bool) {
+func retrieveInfoAndPrintDocumentation(recipePath string, waitGroup *sync.WaitGroup, config *types.Config) {
 	defer waitGroup.Done()
 
-	recipeInfo := cook.ParseRecipeInformation(recipePath)
-
-	recipeData, err := cooklang.ParseFile(recipeInfo.RecipePath)
-
+	recipe, err := cook.ParseFile(recipePath, config)
 	if err != nil {
-		log.Warnf("Error parsing file for recipe %s, skipping: %s", recipeInfo.RecipePath, err)
+		log.Warnf("Error parsing file for recipe %s, skipping: %s", recipePath, err)
 		return
 	}
 
-	recipeData = cook.MergeRecipeData(recipeInfo, recipeData)
-
-	document.PrintDocumentation(recipeSearchRoot, recipeData, recipeInfo, templateFiles, dryRun)
+	document.PrintDocumentation(recipe)
 }
 
-func cookDocs(_ *cobra.Command, _ []string) {
-	initializeCli()
-
-	recipeSearchRoot := viper.GetString("recipe-search-root")
-
-	var fullRecipeSearchRoot string
-	if path.IsAbs(recipeSearchRoot) {
-		fullRecipeSearchRoot = recipeSearchRoot
+func GetFullSearchRoot(searchRoot string) (string, error) {
+	var fullSearchRoot string
+	if path.IsAbs(searchRoot) {
+		fullSearchRoot = searchRoot
 	} else {
 		cwd, err := os.Getwd()
 		if err != nil {
-			log.Warnf("Error getting working directory: %s", err)
-			return
+			return "", err
 		}
-		fullRecipeSearchRoot = path.Join(cwd, recipeSearchRoot)
+		fullSearchRoot = path.Join(cwd, searchRoot)
+	}
+	return fullSearchRoot, nil
+}
+
+func cookDocs(_ *cobra.Command, _ []string) {
+	var config types.Config
+	viper.Unmarshal(&config)
+
+	initializeCli(&config)
+
+	fullSearchRoot, err := GetFullSearchRoot(config.RecipeSearchRoot)
+	if err != nil {
+		log.Warnf("Error getting working directory: %s", err)
+		return
 	}
 
-	recipePaths, err := cook.FindRecipePaths(fullRecipeSearchRoot)
+	recipePaths, err := cook.FindRecipeFilePaths(fullSearchRoot)
 	if err != nil {
 		log.Errorf("Error finding recipe paths: %s", err)
 		os.Exit(1)
 	}
 	log.Infof("Found recipes [%s]", strings.Join(recipePaths, ", "))
 
-	templateFiles := viper.GetStringSlice("template-files")
-	log.Debugf("Rendering from optional template files [%s]", strings.Join(templateFiles, ", "))
+	log.Debugf("Rendering from optional template files [%s]", strings.Join(config.TemplateFiles, ", "))
 
-	dryRun := viper.GetBool("dry-run")
 	waitGroup := sync.WaitGroup{}
 
 	for _, r := range recipePaths {
 		waitGroup.Add(1)
 
 		// On dry runs all output goes to stdout, and so as to not jumble things, generate serially
-		if dryRun {
-			retrieveInfoAndPrintDocumentation(fullRecipeSearchRoot, r, templateFiles, &waitGroup, dryRun)
+		if config.DryRun {
+			retrieveInfoAndPrintDocumentation(r, &waitGroup, &config)
 		} else {
-			go retrieveInfoAndPrintDocumentation(fullRecipeSearchRoot, r, templateFiles, &waitGroup, dryRun)
+			go retrieveInfoAndPrintDocumentation(r, &waitGroup, &config)
 		}
 	}
 	waitGroup.Wait()
