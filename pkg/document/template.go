@@ -19,7 +19,7 @@ import (
 
 const defaultDocumentationTemplate = `{{ template "cook.headerSection" . }}
 
-{{ template "cook.imageSection" . }}
+{{ template "cook.lazyImageSection" . }}
 
 {{ template "cook.tableSection" . }}
 
@@ -48,6 +48,18 @@ func getImageTemplate() string {
 	templateBuilder.WriteString(`{{ define "cook.imageSection" }}`)
 	templateBuilder.WriteString("{{ if .Info.ImageFileName }}")
 	templateBuilder.WriteString(`![{{ .Info.RecipeName }}](../assets/images/{{ lower .Info.ImageFileName | replace " " "-" }})`)
+	templateBuilder.WriteString("{{ end }}")
+	templateBuilder.WriteString("{{ end }}")
+
+	return templateBuilder.String()
+}
+
+func getLazyImageTemplate() string {
+	templateBuilder := strings.Builder{}
+
+	templateBuilder.WriteString(`{{ define "cook.lazyImageSection" }}`)
+	templateBuilder.WriteString("{{ if .Info.ImageFileName }}")
+	templateBuilder.WriteString(`![{{ .Info.RecipeName }}](../assets/images/{{ lower .Info.ImageFileName | replace " " "-" }}){ loading=lazy }`)
 	templateBuilder.WriteString("{{ end }}")
 	templateBuilder.WriteString("{{ end }}")
 
@@ -306,6 +318,7 @@ func getDocumentationTemplates(recipeSearchRoot string, recipePath string, templ
 	return []string{
 		getHeaderTemplate(),
 		getImageTemplate(),
+		getLazyImageTemplate(),
 		getTableTemplate(),
 		getIngredientsTemplate(),
 		getCookwareTemplate(),
