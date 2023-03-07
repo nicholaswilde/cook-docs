@@ -76,6 +76,7 @@ can be used in the templates you supply.
 See [template.go][6] for how each key is defined.
 
 !!! note
+
       The `cook.commentsSection` does not print the comments properly [(#3)][7]
 
 ## Metadata
@@ -88,6 +89,19 @@ Any [metadata][10] from the recipe `*.cook` file will be written to the `cook.me
 >> course: dinner
 ...
 ```
+
+## Images
+
+Uses the [`loading="lazy"`][11] that is [available][12] on every modern browser. The only requirement is [`attr_list`][13]:
+
+```yml title="mkdocs.yml"
+...
+markdown_extensions:
+  - attr_list
+...
+```
+
+See [mkdocs-material][14] for reference.
 
 The names of the markdown and image files are made lowercase and the spaces are replaced
 by dashes. E.g. `My Recipe Name.cook -> my-recipe-name.md` and `My Recipe Name.png -> my-recipe-name.png`.
@@ -363,13 +377,17 @@ delimiters. See [Text and spaces][4].
     To remove the double EOF new lines when `.Metadata.source` is missing from the recipe file but present in the template file, double new lines is added to the beginning of `cook.sourceSection` and white space is removed from the end
     of `cook.stepsSection`.
 
-[1]: https://github.com/aquilax
-[2]: https://github.com/aquilax/cooklang-go
-[3]: https://github.com/aquilax/cooklang-go/blob/490a595d639b679a4f2053a309647882db37e569/parser.go
-[4]: https://pkg.go.dev/text/template#hdr-Text_and_spaces
-[5]: https://github.com/Masterminds/sprig
-[6]: https://github.com/nicholaswilde/cook-docs/blob/main/pkg/document/template.go
-[7]: https://github.com/nicholaswilde/cook-docs/issues/3
-[8]: https://github.github.com/gfm/#block-quotes
-[9]: https://squidfunk.github.io/mkdocs-material/reference/admonitions/
-[10]: https://cooklang.org/docs/spec/#metadata
+[1]: <https://github.com/aquilax>
+[2]: <https://github.com/aquilax/cooklang-go>
+[3]: <https://github.com/aquilax/cooklang-go/blob/490a595d639b679a4f2053a309647882db37e569/parser.go>
+[4]: <https://pkg.go.dev/text/template#hdr-Text_and_spaces>
+[5]: <https://github.com/Masterminds/sprig>
+[6]: <https://github.com/nicholaswilde/cook-docs/blob/main/pkg/document/template.go>
+[7]: <https://github.com/nicholaswilde/cook-docs/issues/3>
+[8]: <https://github.github.com/gfm/#block-quotes>
+[9]: <https://squidfunk.github.io/mkdocs-material/reference/admonitions/>
+[10]: <https://cooklang.org/docs/spec/#metadata>
+[11]: <https://developer.mozilla.org/en-US/docs/Web/API/HTMLImageElement/loading>
+[12]: <https://caniuse.com/loading-lazy-attr>
+[13]: <https://python-markdown.github.io/extensions/attr_list/>
+[14]: <https://squidfunk.github.io/mkdocs-material/reference/images/#image-lazy-loading>
