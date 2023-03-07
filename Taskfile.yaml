@@ -1,6 +1,11 @@
 ---
 version: '3'
 
+vars:
+  ROOT_DIR:
+    sh: git rev-parse --show-toplevel
+  PORT: 8000
+
 tasks:
   clean:
     desc: Clean
@@ -75,7 +80,10 @@ tasks:
   serve:
     desc: Serve a mkdocs server
     cmds:
-      - mkdocs serve
+      - >-
+        docker run --rm -it -p {{ .PORT }}:{{ .PORT}} -v ${PWD}:/docs
+        --platform linux/amd64 squidfunk/mkdocs-material serve
+        --dev-addr 0.0.0.0:{{ .PORT }} -f ./mkdocs.yml
   test:
     desc: Run go tests
     cmds:
