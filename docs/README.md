@@ -1,7 +1,7 @@
 # cook-docs
 ![GitHub tag (latest SemVer)](https://img.shields.io/github/v/tag/nicholaswilde/cook-docs?style=for-the-badge)
 [![Go Report Card](https://goreportcard.com/badge/github.com/nicholaswilde/cook-docs?style=for-the-badge)](https://goreportcard.com/report/github.com/nicholaswilde/cook-docs)
-[![ci](https://img.shields.io/github/workflow/status/nicholaswilde/cook-docs/ci?label=ci&style=for-the-badge)](https://github.com/nicholaswilde/cook-docs/actions/workflows/ci.yaml)
+[![ci](https://img.shields.io/github/actions/workflow/status/nicholaswilde/cook-docs/ci.yaml?label=ci&style=for-the-badge&branch=main)](https://github.com/nicholaswilde/cook-docs/actions/workflows/ci.yaml)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white&style=for-the-badge)](https://pre-commit.com/)
 [![task](https://img.shields.io/badge/task-enabled-brightgreen?logo=task&logoColor=white&style=for-the-badge)](https://taskfile.dev/#/)
 
