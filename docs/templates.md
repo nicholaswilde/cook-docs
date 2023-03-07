@@ -13,7 +13,7 @@ this:
 ```go title="recipe.md.gotmpl"
 {{ template "cook.headerSection" . }}
 
-{{ template "cook.imageSection" . }}
+{{ template "cook.lazyImageSection" . }}
 
 {{ template "cook.tableSection" . }}
 
