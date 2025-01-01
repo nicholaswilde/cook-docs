@@ -3,7 +3,7 @@ site_name: cook-docs
 site_description: A tool for automatically generating markdown documentation for cooklang recipes
 site_author: Nicholas Wilde
 site_url: https://nicholaswilde.io/cook-docs
-copyright: Copyright &copy; 2022 Nicholas Wilde
+copyright: Copyright &copy; 2025 Nicholas Wilde
 dev_addr: '0.0.0.0:8000'
 
 repo_url: https://github.com/nicholaswilde/cook-docs
