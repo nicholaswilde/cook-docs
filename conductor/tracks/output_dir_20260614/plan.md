@@ -12,8 +12,8 @@
     - [x] Modify path generation in `pkg/cook` to compute the relative path of the recipe from the search root and combine it with the configured `OutputDir`.
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Output Path Resolution Logic' (Protocol in workflow.md) [66b74c1]
 
-## Phase 3: Directory Creation & Integration
+## Phase 3: Directory Creation & Integration [checkpoint: 8f8b446]
 - [x] Task: Ensure parent directories are created before file write [ebd4a66]
     - [x] Write integration test verifying that when generating document to a non-existent subdirectory inside `OutputDir`, directories are created successfully.
     - [x] Modify `pkg/document/generate.go` to create parent directories of the target output file before writing.
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: Directory Creation & Integration' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 3: Directory Creation & Integration' (Protocol in workflow.md) [8f8b446]
