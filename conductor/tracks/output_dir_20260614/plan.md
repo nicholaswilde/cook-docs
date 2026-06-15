@@ -6,11 +6,11 @@
     - [x] Update `types.Config` struct to include `OutputDir` field and register `--output-dir` / `-o` flags.
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Setup & Configuration' (Protocol in workflow.md) [3e6f850]
 
-## Phase 2: Output Path Resolution Logic
+## Phase 2: Output Path Resolution Logic [checkpoint: 66b74c1]
 - [x] Task: Update output path resolution to handle custom output directory [9b55879]
     - [x] Write unit tests verifying output path resolution with and without `OutputDir` setting.
     - [x] Modify path generation in `pkg/cook` to compute the relative path of the recipe from the search root and combine it with the configured `OutputDir`.
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: Output Path Resolution Logic' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Output Path Resolution Logic' (Protocol in workflow.md) [66b74c1]
 
 ## Phase 3: Directory Creation & Integration
 - [ ] Task: Ensure parent directories are created before file write
