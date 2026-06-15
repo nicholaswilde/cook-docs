@@ -1,8 +1,0 @@
-{
-  "track_id": "output_dir_20260614",
-  "type": "feature",
-  "status": "new",
-  "created_at": "2026-06-15T02:47:00Z",
-  "updated_at": "2026-06-15T02:47:00Z",
-  "description": "Implement output directory configuration for generated markdown files"
-}
