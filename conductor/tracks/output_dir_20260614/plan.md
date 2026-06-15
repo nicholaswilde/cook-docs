@@ -13,7 +13,7 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Output Path Resolution Logic' (Protocol in workflow.md) [66b74c1]
 
 ## Phase 3: Directory Creation & Integration
-- [ ] Task: Ensure parent directories are created before file write
-    - [ ] Write integration test verifying that when generating document to a non-existent subdirectory inside `OutputDir`, directories are created successfully.
-    - [ ] Modify `pkg/document/generate.go` to create parent directories of the target output file before writing.
+- [x] Task: Ensure parent directories are created before file write [ebd4a66]
+    - [x] Write integration test verifying that when generating document to a non-existent subdirectory inside `OutputDir`, directories are created successfully.
+    - [x] Modify `pkg/document/generate.go` to create parent directories of the target output file before writing.
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: Directory Creation & Integration' (Protocol in workflow.md)
