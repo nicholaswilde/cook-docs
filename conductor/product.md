@@ -16,6 +16,7 @@
 5. **Configurable Behavior**: Uses Viper and Cobra to support options via YAML config files (`.cookdocs`), environment variables, or CLI flags.
 6. **Smart Exclusions**: Supports an ignore file (`.cookdocsignore`) to skip specified directories during recursive scans.
 7. **Word Wrapping**: Provides configurable line length wrapping for step-by-step cooking instructions.
+8. **Custom Output Directory**: Supports outputting generated markdown documentation to a custom folder via `--output-dir` / `-o` (or `output-dir` config setting), automatically reproducing relative subdirectory structures.
 
 ## Success Criteria
 - **Ease of Use**: A single CLI command converts a directory of recipes.
