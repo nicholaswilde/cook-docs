@@ -1,10 +1,10 @@
 # Implementation Plan: Implement Output Directory Configuration
 
-## Phase 1: Setup & Configuration
+## Phase 1: Setup & Configuration [checkpoint: 3e6f850]
 - [x] Task: Update configuration definitions and CLI flags [050d30c]
     - [x] Write tests verifying that configuration parsing correctly captures `--output-dir` flag and viper bindings.
     - [x] Update `types.Config` struct to include `OutputDir` field and register `--output-dir` / `-o` flags.
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Setup & Configuration' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Setup & Configuration' (Protocol in workflow.md) [3e6f850]
 
 ## Phase 2: Output Path Resolution Logic
 - [ ] Task: Update output path resolution to handle custom output directory
