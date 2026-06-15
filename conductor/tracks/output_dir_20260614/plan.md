@@ -1,9 +1,9 @@
 # Implementation Plan: Implement Output Directory Configuration
 
 ## Phase 1: Setup & Configuration
-- [ ] Task: Update configuration definitions and CLI flags
-    - [ ] Write tests verifying that configuration parsing correctly captures `--output-dir` flag and viper bindings.
-    - [ ] Update `types.Config` struct to include `OutputDir` field and register `--output-dir` / `-o` flags.
+- [x] Task: Update configuration definitions and CLI flags [050d30c]
+    - [x] Write tests verifying that configuration parsing correctly captures `--output-dir` flag and viper bindings.
+    - [x] Update `types.Config` struct to include `OutputDir` field and register `--output-dir` / `-o` flags.
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: Setup & Configuration' (Protocol in workflow.md)
 
 ## Phase 2: Output Path Resolution Logic
