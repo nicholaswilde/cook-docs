@@ -12,8 +12,29 @@ func TestGetNewRecipeFilePath(t *testing.T) {
 	var recipeInfo types.Info
 	recipeInfo.RecipeFilePath = "testdata/Recipe.cook"
 	recipeInfo.RecipeName = "Recipe"
-	fileName := GetNewRecipeFilePath(recipeInfo)
+	
+	// Test default behavior (no OutputDir)
+	fileName := GetNewRecipeFilePath(recipeInfo, nil)
 	assert.Equal(t, "testdata/recipe.md", fileName)
+	
+	fileName = GetNewRecipeFilePath(recipeInfo, &types.Config{})
+	assert.Equal(t, "testdata/recipe.md", fileName)
+
+	// Test with OutputDir
+	config := &types.Config{
+		OutputDir:        "/tmp/out",
+		RecipeSearchRoot: "testdata",
+	}
+	fileName = GetNewRecipeFilePath(recipeInfo, config)
+	assert.Equal(t, "/tmp/out/recipe.md", fileName)
+
+	// Test with OutputDir and nested subdirectory
+	recipeInfo2 := types.Info{
+		RecipeFilePath: "testdata/desserts/cake.cook",
+		RecipeName:     "Cake",
+	}
+	fileName2 := GetNewRecipeFilePath(recipeInfo2, config)
+	assert.Equal(t, "/tmp/out/desserts/cake.md", fileName2)
 }
 
 func TestGetRecipeName(t *testing.T) {

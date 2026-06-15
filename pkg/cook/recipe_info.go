@@ -18,11 +18,32 @@ type RecipeDocumentationInfo struct {
 	NewRecipeFilePath string
 }
 
-func GetNewRecipeFilePath(info types.Info) string {
-	path := filepath.Dir(info.RecipeFilePath)
+func GetNewRecipeFilePath(info types.Info, config *types.Config) string {
 	fileName := strings.Replace(info.RecipeName, " ", "-", -1)
 	fileName = strings.ToLower(fileName) + ".md"
-	return filepath.Join(path, fileName)
+
+	if config == nil || config.OutputDir == "" {
+		path := filepath.Dir(info.RecipeFilePath)
+		return filepath.Join(path, fileName)
+	}
+
+	searchRoot := config.RecipeSearchRoot
+	if searchRoot == "" {
+		searchRoot = "."
+	}
+
+	absSearchRoot, err1 := filepath.Abs(searchRoot)
+	absRecipePath, err2 := filepath.Abs(info.RecipeFilePath)
+	if err1 != nil || err2 != nil {
+		return filepath.Join(config.OutputDir, fileName)
+	}
+
+	rel, err := filepath.Rel(absSearchRoot, absRecipePath)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return filepath.Join(config.OutputDir, fileName)
+	}
+
+	return filepath.Join(config.OutputDir, filepath.Dir(rel), fileName)
 }
 
 func GetRecipeName(recipePath string) string {
@@ -54,7 +75,7 @@ func ParseFile(recipePath string, config *types.Config) (*types.Recipe, error) {
 
 	info.RecipeName = GetRecipeName(recipePath)
 
-	info.NewRecipeFilePath = GetNewRecipeFilePath(info)
+	info.NewRecipeFilePath = GetNewRecipeFilePath(info, config)
 
 	imagePath, err := GetImagePath(info)
 
