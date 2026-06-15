@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"regexp"
 
 	"github.com/nicholaswilde/cook-docs/pkg/types"
@@ -13,6 +14,10 @@ import (
 func getOutputFile(newFileName string, dryRun bool) (*os.File, error) {
 	if dryRun {
 		return os.Stdout, nil
+	}
+	dir := filepath.Dir(newFileName)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, err
 	}
 	return os.Create(newFileName)
 }
