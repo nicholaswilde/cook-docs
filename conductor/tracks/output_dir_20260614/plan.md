@@ -7,9 +7,9 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Setup & Configuration' (Protocol in workflow.md) [3e6f850]
 
 ## Phase 2: Output Path Resolution Logic
-- [ ] Task: Update output path resolution to handle custom output directory
-    - [ ] Write unit tests verifying output path resolution with and without `OutputDir` setting.
-    - [ ] Modify path generation in `pkg/cook` to compute the relative path of the recipe from the search root and combine it with the configured `OutputDir`.
+- [x] Task: Update output path resolution to handle custom output directory [9b55879]
+    - [x] Write unit tests verifying output path resolution with and without `OutputDir` setting.
+    - [x] Modify path generation in `pkg/cook` to compute the relative path of the recipe from the search root and combine it with the configured `OutputDir`.
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: Output Path Resolution Logic' (Protocol in workflow.md)
 
 ## Phase 3: Directory Creation & Integration
