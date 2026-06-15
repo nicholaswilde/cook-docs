@@ -50,6 +50,7 @@ func newCookDocsCommand(run func(cmd *cobra.Command, args []string)) (*cobra.Com
 	command.PersistentFlags().StringP("log-level", "l", "info", logLevelUsage)
 	command.PersistentFlags().StringSliceP("template-files", "t", []string{"recipe.md.gotmpl"}, "gotemplate file paths relative to each recipe directory from which documentation will be generated")
 	command.PersistentFlags().IntP("word-wrap", "w", 120, "word wrap line length for recipe steps section")
+	command.PersistentFlags().StringP("output-dir", "o", "", "directory to save generated markdown files")
 	
 	viper.SetConfigName(".cookdocs")
 	viper.SetConfigType("yaml")
@@ -77,6 +78,7 @@ func newCookDocsCommand(run func(cmd *cobra.Command, args []string)) (*cobra.Com
 	viper.RegisterAlias("recipeSearchRoot", "recipe-search-root")
 	viper.RegisterAlias("logLevel", "log-level")
 	viper.RegisterAlias("templateFiles", "template-files")
+	viper.RegisterAlias("outputDir", "output-dir")
 	err = viper.BindPFlags(command.PersistentFlags())
 	return command, err
 }

@@ -10,6 +10,7 @@ type Config struct {
 	LogLevel			string		`mapstructure:"log-level"`
 	TemplateFiles		[]string	`mapstructure:"template-files"`
 	WordWrap			int			`mapstructure:"word-wrap"`
+	OutputDir			string		`mapstructure:"output-dir"`
 }
 
 // Recipe contains a cooklang defined recipe
