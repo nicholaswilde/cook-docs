@@ -78,12 +78,9 @@ tasks:
     cmds:
       - go run -v ./... --recipe-search-root cmd/cook-docs/testdata
   serve:
-    desc: Serve a mkdocs server
+    desc: Serve a zensical server
     cmds:
-      - >-
-        docker run --rm -it -p {{ .PORT }}:{{ .PORT}} -v ${PWD}:/docs
-        --platform linux/amd64 squidfunk/mkdocs-material serve
-        --dev-addr 0.0.0.0:{{ .PORT }} -f ./mkdocs.yml
+      - uv run zensical serve -a 0.0.0.0:{{ .PORT }}
   test:
     desc: Run go tests
     cmds:
