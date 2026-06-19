@@ -7,9 +7,9 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Python Environment & Dependencies Setup' (Protocol in workflow.md) [75d8f98]
 
 ## Phase 2: Configuration Migration
-- [ ] Task: Create zensical.toml and migrate configurations
-    - [ ] Translate metadata, navigation, and extra files from `mkdocs.yml` to `zensical.toml`
-    - [ ] Configure markdown extensions and extra scripts in `zensical.toml`
+- [x] Task: Create zensical.toml and migrate configurations [41313d2]
+    - [x] Translate metadata, navigation, and extra files from `mkdocs.yml` to `zensical.toml`
+    - [x] Configure markdown extensions and extra scripts in `zensical.toml`
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: Configuration Migration' (Protocol in workflow.md)
 
 ## Phase 3: Integration & Cleanup
