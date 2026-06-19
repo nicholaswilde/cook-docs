@@ -13,7 +13,7 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Configuration Migration' (Protocol in workflow.md) [7d269b5]
 
 ## Phase 3: Integration & Cleanup
-- [ ] Task: Update Taskfile.yaml and remove mkdocs.yml
-    - [ ] Update the `serve` task in `Taskfile.yaml` to run zensical instead of mkdocs via Docker
-    - [ ] Delete `mkdocs.yml`
+- [x] Task: Update Taskfile.yaml and remove mkdocs.yml [73cc03f]
+    - [x] Update the `serve` task in `Taskfile.yaml` to run zensical instead of mkdocs via Docker
+    - [x] Delete `mkdocs.yml`
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: Integration & Cleanup' (Protocol in workflow.md)
