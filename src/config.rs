@@ -99,34 +99,50 @@ pub fn load_config(args: &[&str]) -> Result<Config, String> {
 
     // 5. Merge CLI arguments (using clap)
     let matches = Command::new("cook-docs")
+        .about("cook-docs automatically generates markdown documentation for cook recipes from template files")
         .arg(Arg::new("dry-run")
             .short('d')
             .long("dry-run")
-            .action(ArgAction::SetTrue))
+            .action(ArgAction::SetTrue)
+            .help("don't actually render any markdown files just print to stdout passed"))
         .arg(Arg::new("jsonify")
             .short('j')
             .long("jsonify")
-            .action(ArgAction::SetTrue))
+            .action(ArgAction::SetTrue)
+            .help("parse the recipe and display it in json format"))
         .arg(Arg::new("ignore-file")
             .short('i')
-            .long("ignore-file"))
+            .long("ignore-file")
+            .help("filename to use as an ignore file to exclude recipe directories (default \".cookdocsignore\")"))
         .arg(Arg::new("recipe-search-root")
             .short('c')
-            .long("recipe-search-root"))
+            .long("recipe-search-root")
+            .help("directory to search recursively within for recipes (default \".\")"))
         .arg(Arg::new("log-level")
             .short('l')
-            .long("log-level"))
+            .long("log-level")
+            .help("level of logs that should printed, one of (panic, fatal, error, warning, info, debug, trace) (default \"info\")"))
         .arg(Arg::new("template-files")
             .short('t')
-            .long("template-files"))
+            .long("template-files")
+            .help("gotemplate file paths relative to each recipe directory from which documentation will be generated (default \"recipe.md.gotmpl\")"))
         .arg(Arg::new("word-wrap")
             .short('w')
-            .long("word-wrap"))
+            .long("word-wrap")
+            .help("word wrap line length for recipe steps section (default 120)"))
         .arg(Arg::new("output-dir")
             .short('o')
-            .long("output-dir"))
+            .long("output-dir")
+            .help("custom output directory to write generated markdown documentation"))
         .try_get_matches_from(args)
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            if e.use_stderr() {
+                e.to_string()
+            } else {
+                let _ = e.print();
+                std::process::exit(0);
+            }
+        })?;
 
     if matches.value_source("dry-run") == Some(clap::parser::ValueSource::CommandLine) {
         config.dry_run = matches.get_flag("dry-run");
