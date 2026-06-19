@@ -1,10 +1,10 @@
 # Implementation Plan: Convert Static Website from mkdocs-material to zensical
 
-## Phase 1: Python Environment & Dependencies Setup
+## Phase 1: Python Environment & Dependencies Setup [checkpoint: 75d8f98]
 - [x] Task: Initialize python environment and add zensical [aa22f46]
     - [x] Run `uv init` in the repository root to create `pyproject.toml`
     - [x] Run `uv add zensical` to add zensical as a dependency and generate `uv.lock`
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Python Environment & Dependencies Setup' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Python Environment & Dependencies Setup' (Protocol in workflow.md) [75d8f98]
 
 ## Phase 2: Configuration Migration
 - [ ] Task: Create zensical.toml and migrate configurations
