@@ -42,10 +42,10 @@ fn get_ingredients_template() -> String {
     let mut s = String::new();
     s.push_str(r#"{{ define "cook.ingredientsHeader" }}## :salt: Ingredients{{ end }}"#);
     s.push_str(r#"{{ define "cook.ingredients" }}{{ range .Steps }}{{- range .Ingredients }}"#);
-    s.push_str("\n");
+    s.push('\n');
     s.push_str(r#"- {{ if .Amount.Quantity }}{{ round .Amount.Quantity 2 }}{{ if .Amount.Unit }} {{ .Amount.Unit }}{{ end }}{{ else }}some{{ end }} {{ .Name }}{{- end }}{{- end }}{{ end }}"#);
     s.push_str(r#"{{ define "cook.ingredientsSection" }}{{ template "cook.ingredientsHeader" . }}"#);
-    s.push_str("\n");
+    s.push('\n');
     s.push_str(r#"{{ template "cook.ingredients" . }}{{ end }}"#);
     s
 }
@@ -54,10 +54,10 @@ fn get_cookware_template() -> String {
     let mut s = String::new();
     s.push_str(r#"{{ define "cook.cookwareHeader" }}## :cooking: Cookware{{ end }}"#);
     s.push_str(r#"{{ define "cook.cookware" }}{{ range .Steps }}{{- range .Cookware }}"#);
-    s.push_str("\n");
+    s.push('\n');
     s.push_str(r#"- {{.Quantity}} {{.Name}}{{- end }}{{- end }}{{ end }}"#);
     s.push_str(r#"{{ define "cook.cookwareSection" }}{{ template "cook.cookwareHeader" . }}"#);
-    s.push_str("\n");
+    s.push('\n');
     s.push_str(r#"{{ template "cook.cookware" . }}{{ end }}"#);
     s
 }
@@ -118,7 +118,7 @@ fn get_metadata_template() -> String {
     s.push_str(r#"{{ define "cook.metadata" }}{{ range $key, $value := .Metadata }}"#);
     s.push_str(r#"\n- {{ $key }}: {{ $value }}{{ end }}{{ end }}"#);
     s.push_str(r#"{{ define "cook.metadataSection" }}{{ template "cook.metadataHeader" . }}"#);
-    s.push_str("\n");
+    s.push('\n');
     s.push_str(r#"{{ template "cook.metadata" . }}{{ end }}"#);
     s
 }
@@ -129,7 +129,7 @@ fn get_comments_template() -> String {
     s.push_str(r#"{{ define "cook.comments" }}{{ range .Steps }}{{ range .Comments }}"#);
     s.push_str(r#"\n- {{.}}{{- end }}{{- end }}{{ end }}"#);
     s.push_str(r#"{{ define "cook.commentsSection" }}{{ template "cook.commentsHeader" . }}"#);
-    s.push_str("\n");
+    s.push('\n');
     s.push_str(r#"{{ template "cook.comments" . }}{{ end }}"#);
     s
 }
@@ -180,30 +180,28 @@ fn sum_timers(args: &[Value]) -> Result<Value, FuncError> {
     
     let mut sum = 0.0;
     for step in steps {
-        if let Value::Map(step_map) = step {
-            if let Some(Value::Array(timers)) = step_map.get("Timers") {
-                for timer in timers {
-                    if let Value::Map(timer_map) = timer {
-                        let duration = match timer_map.get("Duration") {
-                            Some(v) => value_to_f64(v),
-                            _ => 0.0,
-                        };
-                        let unit = match timer_map.get("Unit") {
-                            Some(Value::String(s)) => s.as_str(),
-                            _ => "",
-                        };
-                        match unit {
-                            "day" | "days" => {
-                                sum += duration * 60.0 * 24.0;
-                            }
-                            "hour" | "hours" => {
-                                sum += duration * 60.0;
-                            }
-                            "minute" | "minutes" => {
-                                sum += duration;
-                            }
-                            _ => {}
+        if let Some(Value::Array(timers)) = match step { Value::Map(m) => m.get("Timers"), _ => None } {
+            for timer in timers {
+                if let Value::Map(timer_map) = timer {
+                    let duration = match timer_map.get("Duration") {
+                        Some(v) => value_to_f64(v),
+                        _ => 0.0,
+                    };
+                    let unit = match timer_map.get("Unit") {
+                        Some(Value::String(s)) => s.as_str(),
+                        _ => "",
+                    };
+                    match unit {
+                        "day" | "days" => {
+                            sum += duration * 60.0 * 24.0;
                         }
+                        "hour" | "hours" => {
+                            sum += duration * 60.0;
+                        }
+                        "minute" | "minutes" => {
+                            sum += duration;
+                        }
+                        _ => {}
                     }
                 }
             }
@@ -510,11 +508,9 @@ pub fn print_documentation(recipe: &Recipe) {
         println!("{}", formatted);
     } else {
         let out_path = Path::new(&recipe.info.new_recipe_file_path);
-        if let Some(parent) = out_path.parent() {
-            if let Err(e) = fs::create_dir_all(parent) {
-                log::warn!("Could not create parent directory for recipe markdown file {}, skipping recipe: {}", recipe.info.new_recipe_file_path, e);
-                return;
-            }
+        if let Err(e) = out_path.parent().map(fs::create_dir_all).unwrap_or(Ok(())) {
+            log::warn!("Could not create parent directory for recipe markdown file {}, skipping recipe: {}", recipe.info.new_recipe_file_path, e);
+            return;
         }
         if let Err(e) = fs::write(out_path, formatted) {
             log::warn!("Error generating documentation file for recipe {}: {}", recipe.info.new_recipe_file_path, e);

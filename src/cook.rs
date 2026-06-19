@@ -7,7 +7,7 @@ use ignore::gitignore::GitignoreBuilder;
 
 pub fn find_git_repository_root() -> Option<PathBuf> {
     let output = Command::new("git")
-        .args(&["rev-parse", "--show-toplevel"])
+        .args(["rev-parse", "--show-toplevel"])
         .output()
         .ok()?;
     if output.status.success() {
@@ -111,19 +111,18 @@ pub fn find_recipe_file_paths(recipe_search_root: &str, ignore_file: &str) -> Ve
         }
 
         // Get relative path for ignore checking
-        if let Ok(rel_path) = path.strip_prefix(&relative_dir) {
-            if gitignore.matched(rel_path, path.is_dir()).is_ignore() {
-                debug!("Ignoring directory or file {:?}", path);
-                return false;
-            }
+        if path.strip_prefix(&relative_dir)
+            .map(|rel| gitignore.matched(rel, path.is_dir()).is_ignore())
+            .unwrap_or(false)
+        {
+            debug!("Ignoring directory or file {:?}", path);
+            return false;
         }
         true
-    }) {
-        if let Ok(entry) = entry {
-            let path = entry.path();
-            if path.is_file() && path.extension().map_or(false, |ext| ext == "cook") {
-                recipe_paths.push(path.to_path_buf());
-            }
+    }).flatten() {
+        let path = entry.path();
+        if path.is_file() && path.extension().is_some_and(|ext| ext == "cook") {
+            recipe_paths.push(path.to_path_buf());
         }
     }
 
