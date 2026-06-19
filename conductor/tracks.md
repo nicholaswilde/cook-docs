@@ -4,12 +4,10 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [~] **Track: Convert this repo from using golang to using rust**
-  *Link: [./tracks/rust_migration_20260614/](./tracks/rust_migration_20260614/)*
-
 - [ ] **Track: Update GitHub Test Workflow to test Rust code**
   *Link: [./tracks/rust_test_workflow_20260618/](./tracks/rust_test_workflow_20260618/)*
 
 - [ ] **Track: Update GitHub Release Workflow to release Rust binary**
   *Link: [./tracks/rust_release_workflow_20260618/](./tracks/rust_release_workflow_20260618/)*
+
 
