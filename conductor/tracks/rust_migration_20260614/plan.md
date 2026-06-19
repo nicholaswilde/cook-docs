@@ -19,7 +19,7 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 3: Core Implementation & Test Parity' (Protocol in workflow.md) [42c5331]
 
 ## Phase 4: Go Cleanup & Build Integration
-- [ ] Task: Remove Go references and update Taskfile
-    - [ ] Delete Go files and manifest/vendor files (`go.mod`, `go.sum`, `vendor/`, `cmd/`, `pkg/`)
-    - [ ] Update `Taskfile.yaml` to run `cargo` build/test/run commands instead of Go commands
+- [x] Task: Remove Go references and update Taskfile [1fa2f63]
+    - [x] Delete Go files and manifest/vendor files (`go.mod`, `go.sum`, `vendor/`, `cmd/`, `pkg/`)
+    - [x] Update `Taskfile.yaml` to run `cargo` build/test/run commands instead of Go commands
 - [ ] Task: Conductor - User Manual Verification 'Phase 4: Go Cleanup & Build Integration' (Protocol in workflow.md)
