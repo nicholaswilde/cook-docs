@@ -6,31 +6,12 @@
 
 /site
 /cook-docs
-/cmd/cook-docs/cook-docs
-dist
-.idea/
-*.iml
-*.swp
-*.save
-
-.env # ignore local environment variable file
-bin/ # ingore built executables
-
 # Binaries for programs and plugins
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
-
-# Test binary, built with `go test -c`
-*.test
-
-# Output of the go coverage tool, specifically when used with LiteIDE
-*.out
-
-# Dependency directories (remove the comment below to include it)
-# vendor/
 
 
 # Added by cargo

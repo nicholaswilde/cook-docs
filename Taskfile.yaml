@@ -8,99 +8,62 @@ vars:
 
 tasks:
   clean:
-    desc: Clean
+    desc: Clean build artifacts
     cmds:
-      - rm -f cook-docs
-      - rm -f dist
+      - cargo clean
+      - rm -rf dist cook-docs
   coverage:
-    desc: Go test coverage
+    desc: Run tests
     cmds:
-      - go test -coverprofile=coverage.out ./...
+      - cargo test
   dist:
-    desc: Create go releases
+    desc: Create production release
     cmds:
-      - goreleaser release --rm-dist --snapshot --skip-sign
+      - cargo build --release
   deps:
     desc: Download dependencies
     cmds:
-      - go get -d ./...
+      - cargo fetch
   dry-run:
     desc: Perform a dry run
     cmds:
-      - go run -v ./... --recipe-search-root cmd/cook-docs/testdata --dry-run
+      - cargo run -- --recipe-search-root testdata --dry-run
   debug:
-    desc: Run go program
+    desc: Run program with debug logs
     cmds:
       - >
-        go run -v ./... --recipe-search-root cmd/cook-docs/testdata \
-        --template-files cmd/cook-docs/testdata/recipe.md.gotmpl \
+        cargo run -- --recipe-search-root testdata \
+        --template-files testdata/recipe.md.gotmpl \
         --log-level debug --dry-run
   fmt:
-    desc: Print the names of the files that are modified.
+    desc: Format Rust code
     cmds:
-      - go fmt ./...
-  gocyclo:
-    desc: Run gocyclo
-    cmds:
-      - cmd: gocyclo -over 15 cmd/ pkg/
-        ignore_error: true
-  goreport:
-    desc: Run goreport commands
-    cmds:
-      - task: ineffassign
-      - task: misspell
-      - task: gocyclo
-      - task: vet
+      - cargo fmt --all
   help:
     desc: Show app help
     cmds:
-      - go run ./... --help
-  ineffassign:
-    desc: ineffassign
-    cmds:
-      - cmd: ineffassign ./...
-        ignore_error: true
+      - cargo run -- --help
   jsonify:
     desc: Jsonify the recipe
     cmds:
-      - go run ./... --jsonify
+      - cargo run -- --jsonify
   lint:
     desc: Lint the project
     cmds:
       - yamllint .
-  misspell:
-    desc: Run misspell
-    cmds:
-      - cmd: misspell cmd/ pkg/
-        ignore_error: true
+      - cargo clippy -- -D warnings
   run:
-    desc: Run go program
+    desc: Run program
     cmds:
-      - go run -v ./... --recipe-search-root cmd/cook-docs/testdata
+      - cargo run -- --recipe-search-root testdata
   serve:
     desc: Serve a zensical server
     cmds:
       - uv run zensical serve -a 0.0.0.0:{{ .PORT }}
   test:
-    desc: Run go tests
+    desc: Run Rust tests
     cmds:
-      - go test -v ./...
-  vet:
-    desc: Vet
-    cmds:
-      - cmd: go vet ./...
-        ignore_error: true
-  vendor:
-    desc: Generate vendor
-    cmds:
-      - go mod vendor
-      - go mod tidy
-  update:
-    desc: Update vendors
-    cmds:
-      - go get -u ./...
-      - go mod vendor
-      - go mod tidy
+      - cargo test
   default:
     desc: Lists tasks with or without a description
     cmds:
