@@ -12,5 +12,5 @@
 
 ## Testing & Tooling
 - **Testing**: [Testify](https://github.com/stretchr/testify) for assertions and mockings in unit tests.
-- **Documentation**: [MkDocs](https://www.mkdocs.org/) is used to generate static site documentation for the project.
+- **Documentation**: [Zensical](https://zensical.org/) is used to generate static site documentation for the project, managed via [uv](https://github.com/astral-sh/uv).
 - **Task Management**: [Taskfile](https://taskfile.dev/) (`Taskfile.yaml`) is used for automating development tasks (e.g. building, linting, formatting).
