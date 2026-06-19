@@ -12,11 +12,11 @@
     - [x] Configure `Cargo.toml` with `clap`, `figment`, `cooklang`, `gtmpl-ng`, `serde`, and logging crates
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Rust Project Initialization & Dependencies' (Protocol in workflow.md) [4df6b29]
 
-## Phase 3: Core Implementation & Test Parity
+## Phase 3: Core Implementation & Test Parity [checkpoint: 42c5331]
 - [x] Task: Implement parsing, rendering, and CLI flags [1cb3e74]
     - [x] Write Rust tests verifying CLI flag parsing, path resolution, and template rendering (Red Phase)
     - [x] Implement command line argument parsing, config/env overrides, directory crawling, ignore rules, cooklang parsing, and gtmpl-ng template rendering (Green Phase)
-- [~] Task: Conductor - User Manual Verification 'Phase 3: Core Implementation & Test Parity' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 3: Core Implementation & Test Parity' (Protocol in workflow.md) [42c5331]
 
 ## Phase 4: Go Cleanup & Build Integration
 - [ ] Task: Remove Go references and update Taskfile
