@@ -6,11 +6,11 @@
     - [x] Update `conductor/tech-stack.md` to document the transition to Rust, Cargo, clap, figment, and cooklang
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Setup, Branching, and Tech Stack Update' (Protocol in workflow.md) [6c8a2e7]
 
-## Phase 2: Rust Project Initialization & Dependencies
+## Phase 2: Rust Project Initialization & Dependencies [checkpoint: 4df6b29]
 - [x] Task: Initialize Cargo project and add dependencies [1c7f6df]
     - [x] Initialize a cargo binary application at the repository root
     - [x] Configure `Cargo.toml` with `clap`, `figment`, `cooklang`, `gtmpl-ng`, `serde`, and logging crates
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: Rust Project Initialization & Dependencies' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Rust Project Initialization & Dependencies' (Protocol in workflow.md) [4df6b29]
 
 ## Phase 3: Core Implementation & Test Parity
 - [ ] Task: Implement parsing, rendering, and CLI flags
