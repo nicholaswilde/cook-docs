@@ -7,9 +7,9 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Setup, Branching, and Tech Stack Update' (Protocol in workflow.md) [6c8a2e7]
 
 ## Phase 2: Rust Project Initialization & Dependencies
-- [ ] Task: Initialize Cargo project and add dependencies
-    - [ ] Initialize a cargo binary application at the repository root
-    - [ ] Configure `Cargo.toml` with `clap`, `figment`, `cooklang`, `gtmpl-ng`, `serde`, and logging crates
+- [x] Task: Initialize Cargo project and add dependencies [1c7f6df]
+    - [x] Initialize a cargo binary application at the repository root
+    - [x] Configure `Cargo.toml` with `clap`, `figment`, `cooklang`, `gtmpl-ng`, `serde`, and logging crates
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: Rust Project Initialization & Dependencies' (Protocol in workflow.md)
 
 ## Phase 3: Core Implementation & Test Parity
