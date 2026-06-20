@@ -3,72 +3,252 @@ name: release
 
 on:  # yamllint disable-line rule:truthy
   workflow_dispatch:
+    inputs:
+      fake_version:
+        description: 'Fake version for testing (e.g. 0.1.0)'
+        required: false
+        default: '0.0.0-test'
   push:
     tags:
-      - 'v*'
+      - "v[0-9]+.[0-9]+.[0-9]+"
 
 permissions:
   contents: write
 
 jobs:
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Run tests
+        run: cargo test --verbose
+
+  create-release:
+    name: create-release
+    needs: [test]
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get the release version
+        id: get_version
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ inputs.fake_version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          fi
+      - name: Show the version
+        run: |
+          echo "version is: ${{ steps.get_version.outputs.version }}"
+      - name: Check that tag version matches Cargo.toml version
+        if: github.event_name != 'workflow_dispatch'
+        shell: bash
+        run: |
+          cargo_version=$(grep "^version =" Cargo.toml | head -n1 | cut -d'"' -f2)
+          tag_version="${GITHUB_REF#refs/tags/v}"
+          if [[ "$tag_version" != "$cargo_version" ]]; then
+            echo "Tag version ($tag_version) does not match Cargo.toml version ($cargo_version)"
+            exit 1
+          fi
+      - name: Create GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create ${{ github.ref_name }} --draft --prerelease --verify-tag --title ${{ steps.get_version.outputs.version }}
+
   build-release:
-    name: Build Release Asset
+    name: build-release
+    needs: ['create-release']
     runs-on: ${{ matrix.os }}
+    env:
+      CARGO: cargo
+      TARGET_FLAGS: ""
+      TARGET_DIR: ./target
+      CROSS_VERSION: v0.2.5
+      RUST_BACKTRACE: 1
     strategy:
       fail-fast: false
       matrix:
+        build: [linux, linux-arm, linux-armv7, linux-armv6, macos, macos-arm, windows, windows-arm]
         include:
-          - target: x86_64-unknown-linux-gnu
+          - build: linux
             os: ubuntu-latest
+            rust: stable
+            target: x86_64-unknown-linux-musl
             os_name: Linux
             arch: x86_64
-          - target: aarch64-unknown-linux-gnu
+            strip: x86_64-linux-musl-strip
+          - build: linux-arm
             os: ubuntu-latest
+            rust: stable
+            target: aarch64-unknown-linux-musl
             os_name: Linux
             arch: arm64
-          - target: arm-unknown-linux-gnueabi
+            strip: aarch64-linux-musl-strip
+          - build: linux-armv7
             os: ubuntu-latest
-            os_name: Linux
-            arch: armv6
-          - target: armv7-unknown-linux-gnueabihf
-            os: ubuntu-latest
+            rust: stable
+            target: armv7-unknown-linux-musleabihf
             os_name: Linux
             arch: armv7
-          - target: x86_64-apple-darwin
+            strip: arm-linux-musleabihf-strip
+          - build: linux-armv6
+            os: ubuntu-latest
+            rust: stable
+            target: arm-unknown-linux-gnueabihf
+            os_name: Linux
+            arch: armv6
+            strip: arm-linux-gnueabihf-strip
+          - build: macos
             os: macos-latest
+            rust: stable
+            target: x86_64-apple-darwin
             os_name: Darwin
             arch: x86_64
-          - target: aarch64-apple-darwin
+          - build: macos-arm
             os: macos-latest
+            rust: stable
+            target: aarch64-apple-darwin
             os_name: Darwin
             arch: arm64
-          - target: x86_64-pc-windows-msvc
+          - build: windows
             os: windows-latest
+            rust: stable
+            target: x86_64-pc-windows-msvc
             os_name: Windows
             arch: x86_64
-          - target: aarch64-pc-windows-msvc
+          - build: windows-arm
             os: windows-latest
+            rust: stable
+            target: aarch64-pc-windows-msvc
             os_name: Windows
             arch: arm64
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Get version
-        id: get_version
-        run: |
-          TAG_NAME="${{ github.ref_name }}"
-          VERSION="${TAG_NAME#v}"
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-        shell: bash
-
-      - name: Upload binaries to release
-        uses: taiki-e/upload-rust-binary-action@v1
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          bin: cook-docs
-          target: ${{ matrix.target }}
-          archive: cook-docs_${{ steps.get_version.outputs.version }}_${{ matrix.os_name }}_${{ matrix.arch }}
-          tar: all
-          zip: none
-          token: ${{ secrets.GITHUB_TOKEN }}
+          toolchain: ${{ matrix.rust }}
+          targets: ${{ matrix.target }}
+
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+
+      - name: Use Cross
+        if: matrix.os == 'ubuntu-latest' && matrix.target != ''
+        shell: bash
+        run: |
+          dir="$RUNNER_TEMP/cross-download"
+          mkdir "$dir"
+          echo "$dir" >> $GITHUB_PATH
+          cd "$dir"
+          curl -LO "https://github.com/cross-rs/cross/releases/download/$CROSS_VERSION/cross-x86_64-unknown-linux-musl.tar.gz"
+          tar xf cross-x86_64-unknown-linux-musl.tar.gz
+          echo "CARGO=cross" >> $GITHUB_ENV
+
+          # Force using more recent images to avoid glibc issues with newer crates
+          cd "$GITHUB_WORKSPACE"
+          echo "[target.${{ matrix.target }}]" > Cross.toml
+          echo "image = \"ghcr.io/cross-rs/${{ matrix.target }}:main\"" >> Cross.toml
+
+      - name: Set target variables
+        shell: bash
+        run: |
+          echo "TARGET_FLAGS=--target ${{ matrix.target }}" >> $GITHUB_ENV
+          echo "TARGET_DIR=./target/${{ matrix.target }}" >> $GITHUB_ENV
+          if [[ "${{ matrix.os }}" == windows-* ]]; then
+            bin="target/${{ matrix.target }}/release/cook-docs.exe"
+          else
+            bin="target/${{ matrix.target }}/release/cook-docs"
+          fi
+          echo "BIN=$bin" >> $GITHUB_ENV
+
+      - name: Show command used for Cargo
+        run: |
+          echo "cargo command is: ${{ env.CARGO }}"
+          echo "target flag is: ${{ env.TARGET_FLAGS }}"
+          echo "target dir is: ${{ env.TARGET_DIR }}"
+          echo "bin is: ${{ env.BIN }}"
+
+      - name: Setup Custom Cross Image
+        if: matrix.build == 'linux-armv6'
+        run: |
+          # Create the Dockerfile on the fly
+          echo "FROM ghcr.io/cross-rs/arm-unknown-linux-gnueabihf:main" > Dockerfile.custom
+          echo "USER root" >> Dockerfile.custom
+          echo "RUN apt-get update && apt-get install -y binutils-arm-linux-gnueabihf" >> Dockerfile.custom
+
+          # Create Cross.toml on the fly
+          echo "[target.arm-unknown-linux-gnueabihf]" > Cross.toml
+          echo "dockerfile = \"./Dockerfile.custom\"" >> Cross.toml
+
+      - name: Build release binary
+        shell: bash
+        run: |
+          ${{ env.CARGO }} build --release --verbose ${{ env.TARGET_FLAGS }}
+
+      - name: Strip release binary (macos)
+        if: matrix.build == 'macos' || matrix.build == 'macos-arm'
+        run: strip "${{ env.BIN }}"
+
+      - name: Strip release binary (cross)
+        if: matrix.build == 'linux' || matrix.build == 'linux-arm' || matrix.build == 'linux-armv7'
+        shell: bash
+        run: |
+          docker run --rm -v \
+            "$PWD/target:/target:Z" \
+            "ghcr.io/cross-rs/${{ matrix.target }}:main" \
+            "${{ matrix.strip }}" \
+            "/$BIN"
+
+      - name: Strip release binary (cross)
+        if: matrix.build == 'linux-armv6'
+        shell: bash
+        run: |
+          docker run --rm -v \
+            "$PWD/target:/target:Z" \
+            --entrypoint /bin/sh \
+            "ghcr.io/cross-rs/${{ matrix.target }}:main" \
+            -c "apt-get update && apt-get install -y binutils-arm-linux-gnueabihf && ${{ matrix.strip }} /$BIN"
+
+      - name: Build archive
+        shell: bash
+        run: |
+          outdir="${{ env.TARGET_DIR }}/release"
+          staging="cook-docs_${{ needs.create-release.outputs.version }}_${{ matrix.os_name }}_${{ matrix.arch }}"
+          echo "staging is: $staging"
+          mkdir -p "$staging"
+
+          # Copy binary
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            cp "$outdir/cook-docs.exe" "$staging/"
+          else
+            cp "$outdir/cook-docs" "$staging/"
+          fi
+
+          # Copy other files
+          cp {README.md,LICENSE} "$staging/"
+
+          # Compress
+          tar czf "$staging.tar.gz" "$staging"
+          sha256sum "$staging.tar.gz" > "$staging.tar.gz.sha256"
+
+          echo "ASSET=$staging.tar.gz" >> $GITHUB_ENV
+          echo "ASSET_SUM=$staging.tar.gz.sha256" >> $GITHUB_ENV
+
+      - name: Upload release archive
+        if: github.ref_type == 'tag'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ github.ref_name }} "${{ env.ASSET }}" "${{ env.ASSET_SUM }}" --clobber
