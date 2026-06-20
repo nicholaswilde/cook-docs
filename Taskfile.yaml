@@ -20,6 +20,29 @@ tasks:
     desc: Create production release
     cmds:
       - cargo build --release
+  build-all:
+    desc: Build for all architectures
+    cmds:
+      - task: build-linux
+      - task: build-macos
+      - task: build-windows
+  build-linux:
+    desc: Build for Linux architectures using cross
+    cmds:
+      - cross build --release --target x86_64-unknown-linux-musl
+      - cross build --release --target aarch64-unknown-linux-musl
+      - cross build --release --target armv7-unknown-linux-musleabihf
+      - cross build --release --target arm-unknown-linux-gnueabihf
+  build-macos:
+    desc: Build for macOS architectures (requires macOS host)
+    cmds:
+      - cargo build --release --target x86_64-apple-darwin
+      - cargo build --release --target aarch64-apple-darwin
+  build-windows:
+    desc: Build for Windows architectures using cross/cargo
+    cmds:
+      - cross build --release --target x86_64-pc-windows-msvc
+      - cross build --release --target aarch64-pc-windows-msvc
   deps:
     desc: Download dependencies
     cmds:
