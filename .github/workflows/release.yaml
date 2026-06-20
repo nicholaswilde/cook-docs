@@ -230,7 +230,8 @@ jobs:
           fi
 
           # Copy other files
-          cp {README.md,LICENSE} "$staging/"
+          cp docs/README.md "$staging/"
+          cp LICENSE "$staging/"
 
           # Compress
           tar czf "$staging.tar.gz" "$staging"
