@@ -7,30 +7,53 @@ on:  # yamllint disable-line rule:truthy
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
-  goreleaser:
-    runs-on: ubuntu-latest
+  build-release:
+    name: Build Release Asset
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
-        with:
-          fetch-depth: 0
+        uses: actions/checkout@v4
 
-      - name: Setup Go
-        uses: actions/setup-go@v3
-
-      - name: Import GPG key
-        id: import_gpg
-        uses: crazy-max/ghaction-import-gpg@v5
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          targets: ${{ matrix.target }}
 
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v3
+      - name: Build binary
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          tar -czf "cook-docs-${{ github.ref_name }}-${{ matrix.target }}.tar.gz" -C "target/${{ matrix.target }}/release" cook-docs
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          powershell -Command "Compress-Archive -Path target\${{ matrix.target }}\release\cook-docs.exe -DestinationPath cook-docs-${{ github.ref_name }}-${{ matrix.target }}.zip"
+
+      - name: Upload binaries to release
+        uses: softprops/action-gh-release@v2
         with:
-          distribution: goreleaser
-          version: latest
-          args: release --rm-dist
+          files: |
+            cook-docs-${{ github.ref_name }}-${{ matrix.target }}.tar.gz
+            cook-docs-${{ github.ref_name }}-${{ matrix.target }}.zip
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
-          GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
