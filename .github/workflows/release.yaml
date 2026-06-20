@@ -16,19 +16,12 @@ permissions:
   contents: write
 
 jobs:
-  test:
-    name: Run tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-      - name: Run tests
-        run: cargo test --verbose
+  ci:
+    uses: ./.github/workflows/ci.yaml
 
   create-release:
     name: create-release
-    needs: [test]
+    needs: [ci]
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.get_version.outputs.version }}
