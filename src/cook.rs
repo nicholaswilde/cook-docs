@@ -1,9 +1,9 @@
+use ignore::gitignore::GitignoreBuilder;
+use log::{debug, warn};
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::fs;
-use log::{debug, warn};
 use walkdir::WalkDir;
-use ignore::gitignore::GitignoreBuilder;
 
 pub fn find_git_repository_root() -> Option<PathBuf> {
     let output = Command::new("git")
@@ -19,7 +19,8 @@ pub fn find_git_repository_root() -> Option<PathBuf> {
 }
 
 pub fn is_relative_path(file_path: &str) -> bool {
-    file_path.starts_with('.') && Path::new(file_path).file_name().and_then(|f| f.to_str()) != Some(file_path)
+    file_path.starts_with('.')
+        && Path::new(file_path).file_name().and_then(|f| f.to_str()) != Some(file_path)
 }
 
 pub fn is_base_filename(file_path: &str) -> bool {
@@ -34,11 +35,17 @@ pub fn get_recipe_name(recipe_path: &str) -> String {
         .to_string()
 }
 
-pub fn get_new_recipe_path(recipe_path: &str, recipe_name: &str, config: &crate::types::Config) -> PathBuf {
+pub fn get_new_recipe_path(
+    recipe_path: &str,
+    recipe_name: &str,
+    config: &crate::types::Config,
+) -> PathBuf {
     let file_name = format!("{}.md", recipe_name.replace(' ', "-").to_lowercase());
 
     if config.output_dir.is_empty() {
-        let parent = Path::new(recipe_path).parent().unwrap_or_else(|| Path::new(""));
+        let parent = Path::new(recipe_path)
+            .parent()
+            .unwrap_or_else(|| Path::new(""));
         return parent.join(file_name);
     }
 
@@ -48,8 +55,12 @@ pub fn get_new_recipe_path(recipe_path: &str, recipe_name: &str, config: &crate:
         &config.recipe_search_root
     };
 
-    let abs_search_root = Path::new(search_root).canonicalize().unwrap_or_else(|_| PathBuf::from(search_root));
-    let abs_recipe_path = Path::new(recipe_path).canonicalize().unwrap_or_else(|_| PathBuf::from(recipe_path));
+    let abs_search_root = Path::new(search_root)
+        .canonicalize()
+        .unwrap_or_else(|_| PathBuf::from(search_root));
+    let abs_recipe_path = Path::new(recipe_path)
+        .canonicalize()
+        .unwrap_or_else(|_| PathBuf::from(recipe_path));
 
     match abs_recipe_path.strip_prefix(&abs_search_root) {
         Ok(rel) => {
@@ -61,8 +72,10 @@ pub fn get_new_recipe_path(recipe_path: &str, recipe_name: &str, config: &crate:
 }
 
 pub fn get_image_path(recipe_path: &str, recipe_name: &str) -> Option<PathBuf> {
-    let parent = Path::new(recipe_path).parent().unwrap_or_else(|| Path::new(""));
-    
+    let parent = Path::new(recipe_path)
+        .parent()
+        .unwrap_or_else(|| Path::new(""));
+
     // Check JPG first
     let jpg_path = parent.join(format!("{}.jpg", recipe_name));
     if jpg_path.exists() {
@@ -81,11 +94,13 @@ pub fn get_image_path(recipe_path: &str, recipe_name: &str) -> Option<PathBuf> {
 
 pub fn find_recipe_file_paths(recipe_search_root: &str, ignore_file: &str) -> Vec<PathBuf> {
     let mut recipe_paths = Vec::new();
-    
+
     // Build gitignore matcher
     let relative_dir = match find_git_repository_root() {
         Some(root) => root,
-        None => Path::new(".").canonicalize().unwrap_or_else(|_| PathBuf::from(".")),
+        None => Path::new(".")
+            .canonicalize()
+            .unwrap_or_else(|_| PathBuf::from(".")),
     };
 
     let mut gitignore_builder = GitignoreBuilder::new(&relative_dir);
@@ -99,27 +114,33 @@ pub fn find_recipe_file_paths(recipe_search_root: &str, ignore_file: &str) -> Ve
             }
         }
     }
-    let gitignore = gitignore_builder.build().unwrap_or_else(|_| ignore::gitignore::Gitignore::empty());
+    let gitignore = gitignore_builder
+        .build()
+        .unwrap_or_else(|_| ignore::gitignore::Gitignore::empty());
 
     let walk = WalkDir::new(recipe_search_root).into_iter();
-    for entry in walk.filter_entry(|e| {
-        let path = e.path();
-        
-        // Exclude git folder
-        if path.ends_with(".git") {
-            return false;
-        }
+    for entry in walk
+        .filter_entry(|e| {
+            let path = e.path();
 
-        // Get relative path for ignore checking
-        if path.strip_prefix(&relative_dir)
-            .map(|rel| gitignore.matched(rel, path.is_dir()).is_ignore())
-            .unwrap_or(false)
-        {
-            debug!("Ignoring directory or file {:?}", path);
-            return false;
-        }
-        true
-    }).flatten() {
+            // Exclude git folder
+            if path.ends_with(".git") {
+                return false;
+            }
+
+            // Get relative path for ignore checking
+            if path
+                .strip_prefix(&relative_dir)
+                .map(|rel| gitignore.matched(rel, path.is_dir()).is_ignore())
+                .unwrap_or(false)
+            {
+                debug!("Ignoring directory or file {:?}", path);
+                return false;
+            }
+            true
+        })
+        .flatten()
+    {
         let path = entry.path();
         if path.is_file() && path.extension().is_some_and(|ext| ext == "cook") {
             recipe_paths.push(path.to_path_buf());
@@ -129,7 +150,10 @@ pub fn find_recipe_file_paths(recipe_search_root: &str, ignore_file: &str) -> Ve
     recipe_paths
 }
 
-pub fn parse_file(recipe_path: &str, config: &crate::types::Config) -> Result<crate::types::Recipe, String> {
+pub fn parse_file(
+    recipe_path: &str,
+    config: &crate::types::Config,
+) -> Result<crate::types::Recipe, String> {
     let mut info = crate::types::Info {
         recipe_file_path: recipe_path.to_string(),
         recipe_name: get_recipe_name(recipe_path),
@@ -154,7 +178,8 @@ pub fn parse_file(recipe_path: &str, config: &crate::types::Config) -> Result<cr
     let content = fs::read_to_string(recipe_path)
         .map_err(|e| format!("Failed to read recipe file: {}", e))?;
 
-    let parser = cooklang::CooklangParser::new(cooklang::Extensions::all(), cooklang::Converter::default());
+    let parser =
+        cooklang::CooklangParser::new(cooklang::Extensions::all(), cooklang::Converter::default());
     let parsed_recipe = parser
         .parse(&content)
         .into_output()
@@ -199,36 +224,62 @@ pub fn parse_file(recipe_path: &str, config: &crate::types::Config) -> Result<cr
                             if let Some(ing) = parsed_recipe.ingredients.get(*index) {
                                 directions.push_str(&ing.name);
 
-                                let (is_numeric, quantity, quantity_raw, unit) = if let Some(qty) = &ing.quantity {
+                                let (is_numeric, quantity, quantity_raw, unit) = if let Some(qty) =
+                                    &ing.quantity
+                                {
                                     let val = match qty.value() {
                                         cooklang::quantity::Value::Number(num) => {
                                             let val = match num {
                                                 cooklang::quantity::Number::Regular(f) => *f,
-                                                cooklang::quantity::Number::Fraction { whole, num, den, .. } => {
-                                                    *whole as f64 + (*num as f64 / *den as f64)
-                                                }
+                                                cooklang::quantity::Number::Fraction {
+                                                    whole,
+                                                    num,
+                                                    den,
+                                                    ..
+                                                } => *whole as f64 + (*num as f64 / *den as f64),
                                             };
-                                            (true, val, match num {
-                                                cooklang::quantity::Number::Regular(f) => f.to_string(),
-                                                cooklang::quantity::Number::Fraction { whole, num, den, .. } => {
-                                                    if *whole == 0 {
-                                                        format!("{}/{}", num, den)
-                                                    } else {
-                                                        format!("{} {}/{}", whole, num, den)
+                                            (
+                                                true,
+                                                val,
+                                                match num {
+                                                    cooklang::quantity::Number::Regular(f) => {
+                                                        f.to_string()
                                                     }
-                                                }
-                                            })
+                                                    cooklang::quantity::Number::Fraction {
+                                                        whole,
+                                                        num,
+                                                        den,
+                                                        ..
+                                                    } => {
+                                                        if *whole == 0 {
+                                                            format!("{}/{}", num, den)
+                                                        } else {
+                                                            format!("{} {}/{}", whole, num, den)
+                                                        }
+                                                    }
+                                                },
+                                            )
                                         }
                                         cooklang::quantity::Value::Range { start, end } => {
                                             let s_val = match start {
                                                 cooklang::quantity::Number::Regular(f) => *f,
-                                                cooklang::quantity::Number::Fraction { whole, num, den, .. } => {
-                                                    *whole as f64 + (*num as f64 / *den as f64)
-                                                }
+                                                cooklang::quantity::Number::Fraction {
+                                                    whole,
+                                                    num,
+                                                    den,
+                                                    ..
+                                                } => *whole as f64 + (*num as f64 / *den as f64),
                                             };
                                             let s_raw = match start {
-                                                cooklang::quantity::Number::Regular(f) => f.to_string(),
-                                                cooklang::quantity::Number::Fraction { whole, num, den, .. } => {
+                                                cooklang::quantity::Number::Regular(f) => {
+                                                    f.to_string()
+                                                }
+                                                cooklang::quantity::Number::Fraction {
+                                                    whole,
+                                                    num,
+                                                    den,
+                                                    ..
+                                                } => {
                                                     if *whole == 0 {
                                                         format!("{}/{}", num, den)
                                                     } else {
@@ -237,8 +288,15 @@ pub fn parse_file(recipe_path: &str, config: &crate::types::Config) -> Result<cr
                                                 }
                                             };
                                             let e_raw = match end {
-                                                cooklang::quantity::Number::Regular(f) => f.to_string(),
-                                                cooklang::quantity::Number::Fraction { whole, num, den, .. } => {
+                                                cooklang::quantity::Number::Regular(f) => {
+                                                    f.to_string()
+                                                }
+                                                cooklang::quantity::Number::Fraction {
+                                                    whole,
+                                                    num,
+                                                    den,
+                                                    ..
+                                                } => {
                                                     if *whole == 0 {
                                                         format!("{}/{}", num, den)
                                                     } else {
@@ -273,36 +331,62 @@ pub fn parse_file(recipe_path: &str, config: &crate::types::Config) -> Result<cr
                             if let Some(cw) = parsed_recipe.cookware.get(*index) {
                                 directions.push_str(&cw.name);
 
-                                let (is_numeric, quantity, quantity_raw) = if let Some(qty) = &cw.quantity {
+                                let (is_numeric, quantity, quantity_raw) = if let Some(qty) =
+                                    &cw.quantity
+                                {
                                     let val = match qty.value() {
                                         cooklang::quantity::Value::Number(num) => {
                                             let val = match num {
                                                 cooklang::quantity::Number::Regular(f) => *f,
-                                                cooklang::quantity::Number::Fraction { whole, num, den, .. } => {
-                                                    *whole as f64 + (*num as f64 / *den as f64)
-                                                }
+                                                cooklang::quantity::Number::Fraction {
+                                                    whole,
+                                                    num,
+                                                    den,
+                                                    ..
+                                                } => *whole as f64 + (*num as f64 / *den as f64),
                                             };
-                                            (true, val, match num {
-                                                cooklang::quantity::Number::Regular(f) => f.to_string(),
-                                                cooklang::quantity::Number::Fraction { whole, num, den, .. } => {
-                                                    if *whole == 0 {
-                                                        format!("{}/{}", num, den)
-                                                    } else {
-                                                        format!("{} {}/{}", whole, num, den)
+                                            (
+                                                true,
+                                                val,
+                                                match num {
+                                                    cooklang::quantity::Number::Regular(f) => {
+                                                        f.to_string()
                                                     }
-                                                }
-                                            })
+                                                    cooklang::quantity::Number::Fraction {
+                                                        whole,
+                                                        num,
+                                                        den,
+                                                        ..
+                                                    } => {
+                                                        if *whole == 0 {
+                                                            format!("{}/{}", num, den)
+                                                        } else {
+                                                            format!("{} {}/{}", whole, num, den)
+                                                        }
+                                                    }
+                                                },
+                                            )
                                         }
                                         cooklang::quantity::Value::Range { start, end } => {
                                             let s_val = match start {
                                                 cooklang::quantity::Number::Regular(f) => *f,
-                                                cooklang::quantity::Number::Fraction { whole, num, den, .. } => {
-                                                    *whole as f64 + (*num as f64 / *den as f64)
-                                                }
+                                                cooklang::quantity::Number::Fraction {
+                                                    whole,
+                                                    num,
+                                                    den,
+                                                    ..
+                                                } => *whole as f64 + (*num as f64 / *den as f64),
                                             };
                                             let s_raw = match start {
-                                                cooklang::quantity::Number::Regular(f) => f.to_string(),
-                                                cooklang::quantity::Number::Fraction { whole, num, den, .. } => {
+                                                cooklang::quantity::Number::Regular(f) => {
+                                                    f.to_string()
+                                                }
+                                                cooklang::quantity::Number::Fraction {
+                                                    whole,
+                                                    num,
+                                                    den,
+                                                    ..
+                                                } => {
                                                     if *whole == 0 {
                                                         format!("{}/{}", num, den)
                                                     } else {
@@ -311,8 +395,15 @@ pub fn parse_file(recipe_path: &str, config: &crate::types::Config) -> Result<cr
                                                 }
                                             };
                                             let e_raw = match end {
-                                                cooklang::quantity::Number::Regular(f) => f.to_string(),
-                                                cooklang::quantity::Number::Fraction { whole, num, den, .. } => {
+                                                cooklang::quantity::Number::Regular(f) => {
+                                                    f.to_string()
+                                                }
+                                                cooklang::quantity::Number::Fraction {
+                                                    whole,
+                                                    num,
+                                                    den,
+                                                    ..
+                                                } => {
                                                     if *whole == 0 {
                                                         format!("{}/{}", num, den)
                                                     } else {
@@ -344,14 +435,15 @@ pub fn parse_file(recipe_path: &str, config: &crate::types::Config) -> Result<cr
                                 let name = t.name.clone().unwrap_or_default();
                                 let (duration, unit) = if let Some(qty) = &t.quantity {
                                     let val = match qty.value() {
-                                        cooklang::quantity::Value::Number(num) => {
-                                            match num {
-                                                cooklang::quantity::Number::Regular(f) => *f,
-                                                cooklang::quantity::Number::Fraction { whole, num, den, .. } => {
-                                                    *whole as f64 + (*num as f64 / *den as f64)
-                                                }
-                                            }
-                                        }
+                                        cooklang::quantity::Value::Number(num) => match num {
+                                            cooklang::quantity::Number::Regular(f) => *f,
+                                            cooklang::quantity::Number::Fraction {
+                                                whole,
+                                                num,
+                                                den,
+                                                ..
+                                            } => *whole as f64 + (*num as f64 / *den as f64),
+                                        },
                                         _ => 0.0,
                                     };
                                     let u = qty.unit().unwrap_or("").to_string();
@@ -371,14 +463,15 @@ pub fn parse_file(recipe_path: &str, config: &crate::types::Config) -> Result<cr
                         cooklang::model::Item::InlineQuantity { index } => {
                             if let Some(qty) = parsed_recipe.inline_quantities.get(*index) {
                                 let duration = match qty.value() {
-                                    cooklang::quantity::Value::Number(num) => {
-                                        match num {
-                                            cooklang::quantity::Number::Regular(f) => *f,
-                                            cooklang::quantity::Number::Fraction { whole, num, den, .. } => {
-                                                *whole as f64 + (*num as f64 / *den as f64)
-                                            }
-                                        }
-                                    }
+                                    cooklang::quantity::Value::Number(num) => match num {
+                                        cooklang::quantity::Number::Regular(f) => *f,
+                                        cooklang::quantity::Number::Fraction {
+                                            whole,
+                                            num,
+                                            den,
+                                            ..
+                                        } => *whole as f64 + (*num as f64 / *den as f64),
+                                    },
                                     _ => 0.0,
                                 };
                                 let unit = qty.unit().unwrap_or("");

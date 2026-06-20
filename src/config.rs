@@ -1,8 +1,11 @@
-use std::path::PathBuf;
-use figment::{Figment, providers::{Format, Yaml}};
-use serde::Deserialize;
-use clap::{Arg, Command, ArgAction};
 use crate::types::Config;
+use clap::{Arg, ArgAction, Command};
+use figment::{
+    Figment,
+    providers::{Format, Yaml},
+};
+use serde::Deserialize;
+use std::path::PathBuf;
 
 #[derive(Deserialize, Debug)]
 struct ConfigFile {
@@ -12,11 +15,19 @@ struct ConfigFile {
     pub jsonify: Option<bool>,
     #[serde(alias = "ignore-file", alias = "ignore_file", alias = "ignoreFile")]
     pub ignore_file: Option<String>,
-    #[serde(alias = "recipe-search-root", alias = "recipe_search_root", alias = "recipeSearchRoot")]
+    #[serde(
+        alias = "recipe-search-root",
+        alias = "recipe_search_root",
+        alias = "recipeSearchRoot"
+    )]
     pub recipe_search_root: Option<String>,
     #[serde(alias = "log-level", alias = "log_level", alias = "logLevel")]
     pub log_level: Option<String>,
-    #[serde(alias = "template-files", alias = "template_files", alias = "templateFiles")]
+    #[serde(
+        alias = "template-files",
+        alias = "template_files",
+        alias = "templateFiles"
+    )]
     pub template_files: Option<Vec<String>>,
     #[serde(alias = "word-wrap", alias = "word_wrap", alias = "wordWrap")]
     pub word_wrap: Option<usize>,
@@ -60,15 +71,36 @@ pub fn load_config(args: &[&str]) -> Result<Config, String> {
     }
 
     // 3. Merge config file if found
-    if let Some(config_file) = found_path.and_then(|path| Figment::new().merge(Yaml::file(path)).extract::<ConfigFile>().ok()) {
-        if let Some(val) = config_file.dry_run { config.dry_run = val; }
-        if let Some(val) = config_file.jsonify { config.jsonify = val; }
-        if let Some(val) = config_file.ignore_file { config.ignore_file = val; }
-        if let Some(val) = config_file.recipe_search_root { config.recipe_search_root = val; }
-        if let Some(val) = config_file.log_level { config.log_level = val; }
-        if let Some(val) = config_file.template_files { config.template_files = val; }
-        if let Some(val) = config_file.word_wrap { config.word_wrap = val; }
-        if let Some(val) = config_file.output_dir { config.output_dir = val; }
+    if let Some(config_file) = found_path.and_then(|path| {
+        Figment::new()
+            .merge(Yaml::file(path))
+            .extract::<ConfigFile>()
+            .ok()
+    }) {
+        if let Some(val) = config_file.dry_run {
+            config.dry_run = val;
+        }
+        if let Some(val) = config_file.jsonify {
+            config.jsonify = val;
+        }
+        if let Some(val) = config_file.ignore_file {
+            config.ignore_file = val;
+        }
+        if let Some(val) = config_file.recipe_search_root {
+            config.recipe_search_root = val;
+        }
+        if let Some(val) = config_file.log_level {
+            config.log_level = val;
+        }
+        if let Some(val) = config_file.template_files {
+            config.template_files = val;
+        }
+        if let Some(val) = config_file.word_wrap {
+            config.word_wrap = val;
+        }
+        if let Some(val) = config_file.output_dir {
+            config.output_dir = val;
+        }
     }
 
     // 4. Merge environment variables
@@ -169,7 +201,10 @@ pub fn load_config(args: &[&str]) -> Result<Config, String> {
     if let Some(val) = matches.get_one::<String>("template-files") {
         config.template_files = val.split(',').map(|s| s.trim().to_string()).collect();
     }
-    if let Some(parsed) = matches.get_one::<String>("word-wrap").and_then(|val| val.parse::<usize>().ok()) {
+    if let Some(parsed) = matches
+        .get_one::<String>("word-wrap")
+        .and_then(|val| val.parse::<usize>().ok())
+    {
         config.word_wrap = parsed;
     }
     if let Some(val) = matches.get_one::<String>("output-dir") {

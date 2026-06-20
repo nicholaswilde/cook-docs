@@ -27,9 +27,7 @@ fn main() {
         "error" => log::LevelFilter::Error,
         _ => log::LevelFilter::Info,
     };
-    env_logger::Builder::new()
-        .filter_level(log_level)
-        .init();
+    env_logger::Builder::new().filter_level(log_level).init();
 
     // 3. Resolve search root
     let search_root = if Path::new(&config.recipe_search_root).is_absolute() {
@@ -42,7 +40,8 @@ fn main() {
 
     // 4. Find recipe paths
     let search_root_str = search_root.to_string_lossy();
-    let recipe_paths = cook_docs::cook::find_recipe_file_paths(&search_root_str, &config.ignore_file);
+    let recipe_paths =
+        cook_docs::cook::find_recipe_file_paths(&search_root_str, &config.ignore_file);
 
     let recipe_paths_strs: Vec<String> = recipe_paths
         .iter()
@@ -50,7 +49,10 @@ fn main() {
         .collect();
 
     log::info!("Found recipes [{}]", recipe_paths_strs.join(", "));
-    log::debug!("Rendering from optional template files [{}]", config.template_files.join(", "));
+    log::debug!(
+        "Rendering from optional template files [{}]",
+        config.template_files.join(", ")
+    );
 
     // 5. Parse and render recipes
     let mut handles = Vec::new();
@@ -59,12 +61,20 @@ fn main() {
         if config.dry_run {
             // Serially render dry run
             if let Err(e) = render_recipe(&path_str, &config_clone) {
-                log::warn!("Error parsing file for recipe {}, skipping: {}", path_str, e);
+                log::warn!(
+                    "Error parsing file for recipe {}, skipping: {}",
+                    path_str,
+                    e
+                );
             }
         } else {
             let handle = std::thread::spawn(move || {
                 if let Err(e) = render_recipe(&path_str, &config_clone) {
-                    log::warn!("Error parsing file for recipe {}, skipping: {}", path_str, e);
+                    log::warn!(
+                        "Error parsing file for recipe {}, skipping: {}",
+                        path_str,
+                        e
+                    );
                 }
             });
             handles.push(handle);

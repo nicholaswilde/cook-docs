@@ -3,21 +3,56 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-    #[serde(rename = "DryRun", alias = "dry-run", alias = "dry_run", alias = "dryRun")]
+    #[serde(
+        rename = "DryRun",
+        alias = "dry-run",
+        alias = "dry_run",
+        alias = "dryRun"
+    )]
     pub dry_run: bool,
     #[serde(rename = "Jsonify", alias = "jsonify")]
     pub jsonify: bool,
-    #[serde(rename = "IgnoreFile", alias = "ignore-file", alias = "ignore_file", alias = "ignoreFile")]
+    #[serde(
+        rename = "IgnoreFile",
+        alias = "ignore-file",
+        alias = "ignore_file",
+        alias = "ignoreFile"
+    )]
     pub ignore_file: String,
-    #[serde(rename = "RecipeSearchRoot", alias = "recipe-search-root", alias = "recipe_search_root", alias = "recipeSearchRoot")]
+    #[serde(
+        rename = "RecipeSearchRoot",
+        alias = "recipe-search-root",
+        alias = "recipe_search_root",
+        alias = "recipeSearchRoot"
+    )]
     pub recipe_search_root: String,
-    #[serde(rename = "LogLevel", alias = "log-level", alias = "log_level", alias = "logLevel")]
+    #[serde(
+        rename = "LogLevel",
+        alias = "log-level",
+        alias = "log_level",
+        alias = "logLevel"
+    )]
     pub log_level: String,
-    #[serde(rename = "TemplateFiles", alias = "template-files", alias = "template_files", alias = "templateFiles")]
+    #[serde(
+        rename = "TemplateFiles",
+        alias = "template-files",
+        alias = "template_files",
+        alias = "templateFiles"
+    )]
     pub template_files: Vec<String>,
-    #[serde(rename = "WordWrap", alias = "word-wrap", alias = "word_wrap", alias = "wordWrap")]
+    #[serde(
+        rename = "WordWrap",
+        alias = "word-wrap",
+        alias = "word_wrap",
+        alias = "wordWrap"
+    )]
     pub word_wrap: usize,
-    #[serde(rename = "OutputDir", alias = "output-dir", alias = "output_dir", alias = "outputDir")]
+    #[serde(
+        rename = "OutputDir",
+        alias = "output-dir",
+        alias = "output_dir",
+        alias = "outputDir"
+    )]
     pub output_dir: String,
 }
 

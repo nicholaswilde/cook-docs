@@ -1,7 +1,7 @@
+use crate::types::Recipe;
+use gtmpl_ng::{FuncError, Template, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
-use gtmpl_ng::{FuncError, Value, Template};
-use crate::types::Recipe;
 
 const DEFAULT_DOCUMENTATION_TEMPLATE: &str = r#"{{ template "cook.headerSection" . }}
  
@@ -44,7 +44,9 @@ fn get_ingredients_template() -> String {
     s.push_str(r#"{{ define "cook.ingredients" }}{{ range .Steps }}{{- range .Ingredients }}"#);
     s.push('\n');
     s.push_str(r#"- {{ if .Amount.Quantity }}{{ round .Amount.Quantity 2 }}{{ if .Amount.Unit }} {{ .Amount.Unit }}{{ end }}{{ else }}some{{ end }} {{ .Name }}{{- end }}{{- end }}{{ end }}"#);
-    s.push_str(r#"{{ define "cook.ingredientsSection" }}{{ template "cook.ingredientsHeader" . }}"#);
+    s.push_str(
+        r#"{{ define "cook.ingredientsSection" }}{{ template "cook.ingredientsHeader" . }}"#,
+    );
     s.push('\n');
     s.push_str(r#"{{ template "cook.ingredients" . }}{{ end }}"#);
     s
@@ -74,7 +76,9 @@ fn get_steps_template() -> String {
 
 fn get_steps_with_quoted_comments_template() -> String {
     let mut s = String::new();
-    s.push_str(r#"{{ define "cook.stepsWithQuotedCommentsHeader" }}## :pencil: Instructions{{ end }}"#);
+    s.push_str(
+        r#"{{ define "cook.stepsWithQuotedCommentsHeader" }}## :pencil: Instructions{{ end }}"#,
+    );
     s.push_str(r#"{{ define "cook.stepsWithQuotedComments" }}{{ range $i, $a := .Steps }}"#);
     s.push_str("\n\n### Step {{add1 $i}}\n\n");
     s.push_str(r#"{{ wrap $.Config.WordWrap .Directions }}"#);
@@ -88,7 +92,9 @@ fn get_steps_with_quoted_comments_template() -> String {
 
 fn get_steps_with_admonished_comments_template() -> String {
     let mut s = String::new();
-    s.push_str(r#"{{ define "cook.stepsWithAdmonishedCommentsHeader" }}## :pencil: Instructions{{ end }}"#);
+    s.push_str(
+        r#"{{ define "cook.stepsWithAdmonishedCommentsHeader" }}## :pencil: Instructions{{ end }}"#,
+    );
     s.push_str(r#"{{ define "cook.stepsWithAdmonishedComments" }}{{ range $i, $a := .Steps }}"#);
     s.push_str("\n\n### Step {{add1 $i}}\n\n");
     s.push_str(r#"{{ wrap $.Config.WordWrap .Directions }}"#);
@@ -175,12 +181,19 @@ fn sum_timers(args: &[Value]) -> Result<Value, FuncError> {
     }
     let steps = match &args[0] {
         Value::Array(arr) => arr,
-        _ => return Err(FuncError::Generic("sumTimers expects an array of steps".to_string())),
+        _ => {
+            return Err(FuncError::Generic(
+                "sumTimers expects an array of steps".to_string(),
+            ));
+        }
     };
-    
+
     let mut sum = 0.0;
     for step in steps {
-        if let Some(Value::Array(timers)) = match step { Value::Map(m) => m.get("Timers"), _ => None } {
+        if let Some(Value::Array(timers)) = match step {
+            Value::Map(m) => m.get("Timers"),
+            _ => None,
+        } {
             for timer in timers {
                 if let Value::Map(timer_map) = timer {
                     let duration = match timer_map.get("Duration") {
@@ -207,7 +220,7 @@ fn sum_timers(args: &[Value]) -> Result<Value, FuncError> {
             }
         }
     }
-    
+
     let res = if sum > 1440.0 {
         format!("{:.2} days", sum / 1440.0)
     } else if sum > 60.0 {
@@ -233,9 +246,18 @@ fn replace(args: &[Value]) -> Result<Value, FuncError> {
     if args.len() < 3 {
         return Ok(Value::String(String::new()));
     }
-    let old = match &args[0] { Value::String(s) => s.as_str(), _ => "" };
-    let new = match &args[1] { Value::String(s) => s.as_str(), _ => "" };
-    let input = match &args[2] { Value::String(s) => s.as_str(), _ => "" };
+    let old = match &args[0] {
+        Value::String(s) => s.as_str(),
+        _ => "",
+    };
+    let new = match &args[1] {
+        Value::String(s) => s.as_str(),
+        _ => "",
+    };
+    let input = match &args[2] {
+        Value::String(s) => s.as_str(),
+        _ => "",
+    };
     Ok(Value::String(input.replace(old, new)))
 }
 
@@ -270,7 +292,10 @@ fn add1(args: &[Value]) -> Result<Value, FuncError> {
 
 fn wrap(args: &[Value]) -> Result<Value, FuncError> {
     if args.len() < 2 {
-        return Ok(args.first().cloned().unwrap_or(Value::String(String::new())));
+        return Ok(args
+            .first()
+            .cloned()
+            .unwrap_or(Value::String(String::new())));
     }
     let limit = match &args[0] {
         Value::Number(n) => n.as_i64().unwrap_or(120) as usize,
@@ -280,7 +305,7 @@ fn wrap(args: &[Value]) -> Result<Value, FuncError> {
         Value::String(s) => s.as_str(),
         _ => "",
     };
-    
+
     let mut result = String::new();
     for paragraph in text.split('\n') {
         let mut current_line = String::new();
@@ -379,7 +404,11 @@ fn apply_markdown_format(input: &str) -> String {
     result
 }
 
-fn get_documentation_template(recipe_search_root: &str, recipe_path: &str, template_files: &[String]) -> Result<String, String> {
+fn get_documentation_template(
+    recipe_search_root: &str,
+    recipe_path: &str,
+    template_files: &[String],
+) -> Result<String, String> {
     let mut template_files_for_recipe = Vec::new();
     let mut template_not_found = false;
 
@@ -387,14 +416,20 @@ fn get_documentation_template(recipe_search_root: &str, recipe_path: &str, templ
         let full_template_path = if crate::cook::is_relative_path(template_file) {
             Path::new(recipe_search_root).join(template_file)
         } else if crate::cook::is_base_filename(template_file) {
-            let parent = Path::new(recipe_path).parent().unwrap_or_else(|| Path::new(""));
+            let parent = Path::new(recipe_path)
+                .parent()
+                .unwrap_or_else(|| Path::new(""));
             parent.join(template_file)
         } else {
             PathBuf::from(template_file)
         };
 
         if !full_template_path.exists() || !full_template_path.is_file() {
-            log::debug!("Did not find template file {:?} for recipe {}, using default template", full_template_path, recipe_path);
+            log::debug!(
+                "Did not find template file {:?} for recipe {}, using default template",
+                full_template_path,
+                recipe_path
+            );
             template_not_found = true;
             continue;
         }
@@ -402,7 +437,11 @@ fn get_documentation_template(recipe_search_root: &str, recipe_path: &str, templ
         template_files_for_recipe.push(full_template_path);
     }
 
-    log::debug!("Using template files {:?} for recipe {}", template_files, recipe_path);
+    log::debug!(
+        "Using template files {:?} for recipe {}",
+        template_files,
+        recipe_path
+    );
     let mut all_template_contents = String::new();
 
     for file_path in template_files_for_recipe {
@@ -418,7 +457,11 @@ fn get_documentation_template(recipe_search_root: &str, recipe_path: &str, templ
     Ok(all_template_contents)
 }
 
-fn get_documentation_templates(recipe_search_root: &str, recipe_path: &str, template_files: &[String]) -> Result<Vec<String>, String> {
+fn get_documentation_templates(
+    recipe_search_root: &str,
+    recipe_path: &str,
+    template_files: &[String],
+) -> Result<Vec<String>, String> {
     let doc_template = get_documentation_template(recipe_search_root, recipe_path, template_files)?;
     Ok(vec![
         get_header_template(),
@@ -439,22 +482,37 @@ fn get_documentation_templates(recipe_search_root: &str, recipe_path: &str, temp
 
 pub fn print_documentation(recipe: &Recipe) {
     if recipe.config.jsonify {
-        log::info!("Printing json output for recipe {}", recipe.info.new_recipe_file_path);
+        log::info!(
+            "Printing json output for recipe {}",
+            recipe.info.new_recipe_file_path
+        );
         if let Ok(j) = serde_json::to_string_pretty(recipe) {
             log::info!("{}", j);
         }
         return;
     }
 
-    log::info!("Generating markdown file for recipe {}", recipe.info.new_recipe_file_path);
+    log::info!(
+        "Generating markdown file for recipe {}",
+        recipe.info.new_recipe_file_path
+    );
 
     // 1. Create the template and register functions
     let mut doc_template = Template::default();
     doc_template.add_funcs(&[
-        ("getSource", get_source_fn as fn(&[Value]) -> Result<Value, FuncError>),
-        ("sumTimers", sum_timers as fn(&[Value]) -> Result<Value, FuncError>),
+        (
+            "getSource",
+            get_source_fn as fn(&[Value]) -> Result<Value, FuncError>,
+        ),
+        (
+            "sumTimers",
+            sum_timers as fn(&[Value]) -> Result<Value, FuncError>,
+        ),
         ("lower", lower as fn(&[Value]) -> Result<Value, FuncError>),
-        ("replace", replace as fn(&[Value]) -> Result<Value, FuncError>),
+        (
+            "replace",
+            replace as fn(&[Value]) -> Result<Value, FuncError>,
+        ),
         ("round", round as fn(&[Value]) -> Result<Value, FuncError>),
         ("add1", add1 as fn(&[Value]) -> Result<Value, FuncError>),
         ("wrap", wrap as fn(&[Value]) -> Result<Value, FuncError>),
@@ -469,14 +527,22 @@ pub fn print_documentation(recipe: &Recipe) {
     ) {
         Ok(lst) => lst,
         Err(e) => {
-            log::warn!("Error getting template data {}: {}", recipe.info.recipe_file_path, e);
+            log::warn!(
+                "Error getting template data {}: {}",
+                recipe.info.recipe_file_path,
+                e
+            );
             return;
         }
     };
 
     for t in templates_list {
         if let Err(e) = doc_template.parse(t) {
-            log::warn!("Error parsing template {}: {}", recipe.info.recipe_file_path, e);
+            log::warn!(
+                "Error parsing template {}: {}",
+                recipe.info.recipe_file_path,
+                e
+            );
             return;
         }
     }
@@ -485,7 +551,11 @@ pub fn print_documentation(recipe: &Recipe) {
     let json_val = match serde_json::to_value(recipe) {
         Ok(v) => v,
         Err(e) => {
-            log::warn!("Error serializing recipe to JSON for {}: {}", recipe.info.recipe_file_path, e);
+            log::warn!(
+                "Error serializing recipe to JSON for {}: {}",
+                recipe.info.recipe_file_path,
+                e
+            );
             return;
         }
     };
@@ -496,24 +566,36 @@ pub fn print_documentation(recipe: &Recipe) {
     let rendered = match doc_template.render(&gtmpl_context) {
         Ok(out) => out,
         Err(e) => {
-            log::warn!("Error executing template {}: {}", recipe.info.recipe_file_path, e);
+            log::warn!(
+                "Error executing template {}: {}",
+                recipe.info.recipe_file_path,
+                e
+            );
             return;
         }
     };
 
     // 5. Apply formatting and write to output file
     let formatted = apply_markdown_format(&rendered);
-    
+
     if recipe.config.dry_run {
         println!("{}", formatted);
     } else {
         let out_path = Path::new(&recipe.info.new_recipe_file_path);
         if let Err(e) = out_path.parent().map(fs::create_dir_all).unwrap_or(Ok(())) {
-            log::warn!("Could not create parent directory for recipe markdown file {}, skipping recipe: {}", recipe.info.new_recipe_file_path, e);
+            log::warn!(
+                "Could not create parent directory for recipe markdown file {}, skipping recipe: {}",
+                recipe.info.new_recipe_file_path,
+                e
+            );
             return;
         }
         if let Err(e) = fs::write(out_path, formatted) {
-            log::warn!("Error generating documentation file for recipe {}: {}", recipe.info.new_recipe_file_path, e);
+            log::warn!(
+                "Error generating documentation file for recipe {}: {}",
+                recipe.info.new_recipe_file_path,
+                e
+            );
         }
     }
 }

@@ -1,4 +1,4 @@
-use gtmpl_ng::{FuncError, Value, Template};
+use gtmpl_ng::{FuncError, Template, Value};
 use std::collections::HashMap;
 
 #[test]
@@ -10,19 +10,24 @@ fn test_is_relative_path() {
 #[test]
 fn test_is_base_filename() {
     assert!(cook_docs::cook::is_base_filename("recipe.md.gotmpl"));
-    assert!(!cook_docs::cook::is_base_filename("path/to/recipe.md.gotmpl"));
+    assert!(!cook_docs::cook::is_base_filename(
+        "path/to/recipe.md.gotmpl"
+    ));
 }
 
 #[test]
 fn test_get_recipe_name() {
-    assert_eq!(cook_docs::cook::get_recipe_name("recipes/Tomato Soup.cook"), "Tomato Soup");
+    assert_eq!(
+        cook_docs::cook::get_recipe_name("recipes/Tomato Soup.cook"),
+        "Tomato Soup"
+    );
 }
 
 #[test]
 fn test_load_config_defaults() {
     let config = cook_docs::config::load_config(&["cook-docs"]).unwrap();
-    assert_eq!(config.dry_run, false);
-    assert_eq!(config.jsonify, false);
+    assert!(!config.dry_run);
+    assert!(!config.jsonify);
     assert_eq!(config.ignore_file, ".cookdocsignore");
     assert_eq!(config.recipe_search_root, ".");
     assert_eq!(config.log_level, "info");
@@ -51,8 +56,8 @@ fn test_load_config_cli_overrides() {
         "out",
     ])
     .unwrap();
-    assert_eq!(config.dry_run, true);
-    assert_eq!(config.jsonify, true);
+    assert!(config.dry_run);
+    assert!(config.jsonify);
     assert_eq!(config.ignore_file, "custom-ignore");
     assert_eq!(config.recipe_search_root, "custom-root");
     assert_eq!(config.log_level, "debug");
@@ -63,7 +68,8 @@ fn test_load_config_cli_overrides() {
 
 #[test]
 fn test_metadata_keys() {
-    let parser = cooklang::CooklangParser::new(cooklang::Extensions::all(), cooklang::Converter::default());
+    let parser =
+        cooklang::CooklangParser::new(cooklang::Extensions::all(), cooklang::Converter::default());
     let recipe = parser.parse(">> key: value\n").into_output().unwrap();
     let mut metadata_map = HashMap::new();
     for (k, v) in &recipe.metadata.map {
@@ -90,21 +96,22 @@ fn test_metadata_keys() {
 
 #[test]
 fn test_cooklang_types() {
-    let parser = cooklang::CooklangParser::new(cooklang::Extensions::all(), cooklang::Converter::default());
+    let parser =
+        cooklang::CooklangParser::new(cooklang::Extensions::all(), cooklang::Converter::default());
     let recipe = parser.parse("Add @flour{1-2%g}").into_output().unwrap();
     let ing = &recipe.ingredients[0];
     let qty = ing.quantity.as_ref().unwrap();
     match qty.value() {
-        cooklang::quantity::Value::Number(num) => {
-            match num {
-                cooklang::quantity::Number::Regular(f) => {
-                    println!("Regular: {}", f);
-                }
-                cooklang::quantity::Number::Fraction { whole, num, den, .. } => {
-                    println!("Fraction: {} {}/{}", whole, num, den);
-                }
+        cooklang::quantity::Value::Number(num) => match num {
+            cooklang::quantity::Number::Regular(f) => {
+                println!("Regular: {}", f);
             }
-        }
+            cooklang::quantity::Number::Fraction {
+                whole, num, den, ..
+            } => {
+                println!("Fraction: {} {}/{}", whole, num, den);
+            }
+        },
         cooklang::quantity::Value::Range { start, end } => {
             println!("Range: {:?} to {:?}", start, end);
         }
@@ -121,9 +128,10 @@ fn dummy_fn(args: &[Value]) -> Result<Value, FuncError> {
 #[test]
 fn test_template_funcs() {
     let mut t = Template::default();
-    t.add_funcs(&[
-        ("dummy", dummy_fn as fn(&[Value]) -> Result<Value, FuncError>)
-    ]);
+    t.add_funcs(&[(
+        "dummy",
+        dummy_fn as fn(&[Value]) -> Result<Value, FuncError>,
+    )]);
 }
 
 #[test]
