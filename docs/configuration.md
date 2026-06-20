@@ -14,7 +14,7 @@ Here is a list of the current supported parameters:
 | -c, --recipe-search-root string | COOK_DOCS_RECIPE_SEARCH_ROOT  | recipeSearchRoot  | .                   | directory to search recursively within for recipes.                                                 |
 | -t, --template-files strings    | COOK_DOCS_TEMPLATE_FILES      | templateFiles     | [recipe.md.gotmpl]  | gotemplate file paths relative to each recipe directory from which documentation will be generated  |
 | -w, --word-wrap int             | COOK_DOCS_WORD_WRAP           | wordWrap          | 120                 | word wrap line length for recipe steps section                                                      |
-| -v, --version                   | N/A                           | N/A               | N/A                 | diplay the version of cook-docs                                                                     |
+| -v, --version                   | N/A                           | N/A               | N/A                 | display the version of cook-docs                                                                     |
 
 ## Config Files
 

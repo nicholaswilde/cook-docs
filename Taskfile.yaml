@@ -60,6 +60,10 @@ tasks:
     desc: Serve a zensical server
     cmds:
       - uv run zensical serve -a 0.0.0.0:{{ .PORT }}
+  spellcheck:
+    desc: Run typos spellcheck
+    cmds:
+      - typos
   test:
     desc: Run Rust tests
     cmds:

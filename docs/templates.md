@@ -59,7 +59,7 @@ can be used in the templates you supply.
 | `cook.steps`                             | A list of steps. Each step has its own sub heading labeled as `Step #`       |
 | `cook.stepsWithQuotedCommentsHeader`     | The steps with block quotes header                                           |
 | `cook.stepsWithQuotedComments`           | A list of steps with block quoted comments in between                        |
-| `cook.stepsWithAdmonishedCommentsHeader` | The steps with admonitions headder                                           |
+| `cook.stepsWithAdmonishedCommentsHeader` | The steps with admonitions header                                            |
 | `cook.stepsWithAdmonishedComments`       | A list of steps with comments as admonitions in between                      |
 | `cook.sourceHeader`                      | Source header                                                                |
 | `cook.source`                            | The `source` as a single unordered list item                                 |
@@ -67,7 +67,7 @@ can be used in the templates you supply.
 | `cook.metadata`                          | An unordered list of the `Metadata`.                                         |
 | `cook.commentsHeader`                    | The comments header                                                          |
 | `cook.comments`                          | An unordered list of the comments                                            |
-| `.Info.RecipeName`                       | The name of the recipe taken fromt the recipe file name                      |
+| `.Info.RecipeName`                       | The name of the recipe taken from the recipe file name                       |
 | `.Info.ImageFileName`                    | The image name if an image file is found                                     |
 | `.Info.ImageFilePath`                    | The image path if an image file is found                                     |
 | `.Info.NewRecipeFilePath`                | The new recipe file name after removal of spaces and converting to lowercase |
