@@ -20,40 +20,55 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
+            os_name: Linux
+            arch: x86_64
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            os_name: Linux
+            arch: arm64
+          - target: arm-unknown-linux-gnueabi
+            os: ubuntu-latest
+            os_name: Linux
+            arch: armv6
+          - target: armv7-unknown-linux-gnueabihf
+            os: ubuntu-latest
+            os_name: Linux
+            arch: armv7
           - target: x86_64-apple-darwin
             os: macos-latest
+            os_name: Darwin
+            arch: x86_64
           - target: aarch64-apple-darwin
             os: macos-latest
+            os_name: Darwin
+            arch: arm64
           - target: x86_64-pc-windows-msvc
             os: windows-latest
+            os_name: Windows
+            arch: x86_64
+          - target: aarch64-pc-windows-msvc
+            os: windows-latest
+            os_name: Windows
+            arch: arm64
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-
-      - name: Build binary
-        run: cargo build --release --locked --target ${{ matrix.target }}
-
-      - name: Package (Unix)
-        if: runner.os != 'Windows'
+      - name: Get version
+        id: get_version
         run: |
-          tar -czf "cook-docs-${{ github.ref_name }}-${{ matrix.target }}.tar.gz" -C "target/${{ matrix.target }}/release" cook-docs
-
-      - name: Package (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          powershell -Command "Compress-Archive -Path target\${{ matrix.target }}\release\cook-docs.exe -DestinationPath cook-docs-${{ github.ref_name }}-${{ matrix.target }}.zip"
+          TAG_NAME="${{ github.ref_name }}"
+          VERSION="${TAG_NAME#v}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+        shell: bash
 
       - name: Upload binaries to release
-        uses: softprops/action-gh-release@v2
+        uses: taiki-e/upload-rust-binary-action@v1
         with:
-          files: |
-            cook-docs-${{ github.ref_name }}-${{ matrix.target }}.tar.gz
-            cook-docs-${{ github.ref_name }}-${{ matrix.target }}.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          bin: cook-docs
+          target: ${{ matrix.target }}
+          archive: cook-docs_${{ steps.get_version.outputs.version }}_${{ matrix.os_name }}_${{ matrix.arch }}
+          tar: all
+          zip: none
+          token: ${{ secrets.GITHUB_TOKEN }}
