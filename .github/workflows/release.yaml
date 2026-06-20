@@ -252,3 +252,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload ${{ github.ref_name }} "${{ env.ASSET }}" "${{ env.ASSET_SUM }}" --clobber
+
+  publish-release:
+    name: publish-release
+    needs: [create-release, build-release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit ${{ github.ref_name }} --draft=false
