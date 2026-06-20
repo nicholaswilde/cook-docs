@@ -263,4 +263,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release edit ${{ github.ref_name }} --draft=false
+          gh release edit ${{ github.ref_name }} --draft=false --repo ${{ github.repository }}
