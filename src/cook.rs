@@ -97,7 +97,7 @@ pub fn find_recipe_file_paths(recipe_search_root: &str, ignore_file: &str) -> Ve
 
     // Build gitignore matcher
     let relative_dir = match find_git_repository_root() {
-        Some(root) => root,
+        Some(root) => root.canonicalize().unwrap_or(root),
         None => Path::new(".")
             .canonicalize()
             .unwrap_or_else(|_| PathBuf::from(".")),
@@ -128,8 +128,9 @@ pub fn find_recipe_file_paths(recipe_search_root: &str, ignore_file: &str) -> Ve
                 return false;
             }
 
-            // Get relative path for ignore checking
-            if path
+            // Get relative path for ignore checking (canonicalize so short/relative prefixes match)
+            let canonical_path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+            if canonical_path
                 .strip_prefix(&relative_dir)
                 .map(|rel| gitignore.matched(rel, path.is_dir()).is_ignore())
                 .unwrap_or(false)

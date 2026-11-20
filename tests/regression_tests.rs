@@ -77,12 +77,18 @@ fn regression_cli_help_and_version_contract() {
         );
     }
 
+    let expected_usage = if cfg!(windows) {
+        "Usage: cook-docs.exe [OPTIONS]"
+    } else {
+        "Usage: cook-docs [OPTIONS]"
+    };
+
     for flag in ["-h", "--help"] {
         let out = run_cli(bin, None, &[flag], &[]);
         assert!(out.status.success(), "{flag} failed");
         let stdout = String::from_utf8_lossy(&out.stdout);
         for expected in [
-            "Usage: cook-docs [OPTIONS]",
+            expected_usage,
             "-v, --version",
             "-C, --config <config>",
             "-d, --dry-run",

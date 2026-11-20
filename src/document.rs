@@ -387,7 +387,7 @@ fn json_to_gtmpl(val: serde_json::Value) -> Value {
 }
 
 fn apply_markdown_format(input: &str) -> String {
-    let s = input.replace(" \n", "\n");
+    let s = input.replace("\r\n", "\n").replace(" \n", "\n");
     let mut result = String::new();
     let mut newline_count = 0;
     for c in s.chars() {
@@ -852,6 +852,7 @@ mod tests {
         assert!(matches!(mapped, Value::Map(_)));
 
         assert_eq!(apply_markdown_format("a \nb\n\n\n\nc"), "a\nb\n\nc");
+        assert_eq!(apply_markdown_format("a \r\n\r\n\r\nb\r\n"), "a\n\nb\n");
     }
 
     #[test]
