@@ -21,6 +21,11 @@ tasks:
       - cargo run -- completions fish > completions/cook-docs.fish
       - cargo run -- completions powershell > completions/_cook-docs.ps1
       - cargo run -- completions elvish > completions/cook-docs.elv
+  man:
+    desc: Generate UNIX roff man page (assets/cook-docs.1)
+    cmds:
+      - mkdir -p assets
+      - cargo run -- man > assets/cook-docs.1
   coverage:
     desc: Run tests
     cmds:

@@ -1,0 +1,63 @@
+# =============================================================================
+# cook-docs Configuration Example (config.example.toml)
+# =============================================================================
+# Copy this file to .cookdocs.toml in your project root (or ~/.config/.cookdocs.toml)
+# or pass it explicitly via -C / --config <path> (or COOK_DOCS_CONFIG)
+# to customize default behavior.
+#
+# All settings below represent supported options and default values.
+# Because every line is commented out, this file can be copied as-is without
+# altering default behavior until settings are explicitly uncommented.
+#
+# Settings resolve in precedence order:
+#   CLI Flags > Environment Variables > Config File > Hardcoded Defaults.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Discovery & Output
+# -----------------------------------------------------------------------------
+
+# Directory to search recursively within for .cook recipe files.
+# CLI: -c, --recipe-search-root <DIR> | Env: COOK_DOCS_RECIPE_SEARCH_ROOT
+# recipe_search_root = "."
+
+# Filename to use as an ignore file to exclude recipe files and directories.
+# CLI: -i, --ignore-file <FILE> | Env: COOK_DOCS_IGNORE_FILE
+# ignore_file = ".cookdocsignore"
+
+# Custom output directory to write generated Markdown documentation.
+# Mirrors relative directory structure under recipe_search_root.
+# When empty, writes .md files alongside each .cook file.
+# CLI: -o, --output-dir <DIR> | Env: COOK_DOCS_OUTPUT_DIR
+# output_dir = ""
+
+# Do not write any Markdown files to disk; print rendered output to stdout instead.
+# CLI: -d, --dry-run | Env: COOK_DOCS_DRY_RUN
+# dry_run = false
+
+# Parse recipes and print them in JSON format without rendering Markdown files.
+# CLI: -j, --jsonify | Env: COOK_DOCS_JSONIFY
+# jsonify = false
+
+# -----------------------------------------------------------------------------
+# Templates & Formatting
+# -----------------------------------------------------------------------------
+
+# Go template file paths used to generate documentation for each recipe.
+# Filenames without a path separator are resolved relative to each recipe directory;
+# relative paths are resolved relative to recipe_search_root.
+# CLI: -t, --template-files <PATHS> (comma-separated) | Env: COOK_DOCS_TEMPLATE_FILES
+# template_files = ["recipe.md.gotmpl"]
+
+# Word wrap line length for the recipe steps section.
+# CLI: -w, --word-wrap <LENGTH> | Env: COOK_DOCS_WORD_WRAP
+# word_wrap = 120
+
+# -----------------------------------------------------------------------------
+# Logging
+# -----------------------------------------------------------------------------
+
+# Log verbosity level.
+# Supported values: "trace", "debug", "info", "warn" / "warning", "error"
+# CLI: -l, --log-level <LEVEL> | Env: COOK_DOCS_LOG_LEVEL
+# log_level = "info"

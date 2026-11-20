@@ -77,28 +77,24 @@ jobs:
             target: x86_64-unknown-linux-musl
             os_name: Linux
             arch: x86_64
-            strip: x86_64-linux-musl-strip
           - build: linux-arm
             os: ubuntu-latest
             rust: stable
             target: aarch64-unknown-linux-musl
             os_name: Linux
             arch: arm64
-            strip: aarch64-linux-musl-strip
           - build: linux-armv7
             os: ubuntu-latest
             rust: stable
             target: armv7-unknown-linux-musleabihf
             os_name: Linux
             arch: armv7
-            strip: arm-linux-musleabihf-strip
           - build: linux-armv6
             os: ubuntu-latest
             rust: stable
             target: arm-unknown-linux-gnueabihf
             os_name: Linux
             arch: armv6
-            strip: arm-linux-gnueabihf-strip
           - build: macos
             os: macos-latest
             rust: stable
@@ -173,46 +169,10 @@ jobs:
           echo "target dir is: ${{ env.TARGET_DIR }}"
           echo "bin is: ${{ env.BIN }}"
 
-      - name: Setup Custom Cross Image
-        if: matrix.build == 'linux-armv6'
-        run: |
-          # Create the Dockerfile on the fly
-          echo "FROM ghcr.io/cross-rs/arm-unknown-linux-gnueabihf:main" > Dockerfile.custom
-          echo "USER root" >> Dockerfile.custom
-          echo "RUN apt-get update && apt-get install -y binutils-arm-linux-gnueabihf" >> Dockerfile.custom
-
-          # Create Cross.toml on the fly
-          echo "[target.arm-unknown-linux-gnueabihf]" > Cross.toml
-          echo "dockerfile = \"./Dockerfile.custom\"" >> Cross.toml
-
       - name: Build release binary
         shell: bash
         run: |
           ${{ env.CARGO }} build --release --verbose ${{ env.TARGET_FLAGS }}
-
-      - name: Strip release binary (macos)
-        if: matrix.build == 'macos' || matrix.build == 'macos-arm'
-        run: strip "${{ env.BIN }}"
-
-      - name: Strip release binary (cross)
-        if: matrix.build == 'linux' || matrix.build == 'linux-arm' || matrix.build == 'linux-armv7'
-        shell: bash
-        run: |
-          docker run --rm -v \
-            "$PWD/target:/target:Z" \
-            "ghcr.io/cross-rs/${{ matrix.target }}:main" \
-            "${{ matrix.strip }}" \
-            "/$BIN"
-
-      - name: Strip release binary (cross)
-        if: matrix.build == 'linux-armv6'
-        shell: bash
-        run: |
-          docker run --rm -v \
-            "$PWD/target:/target:Z" \
-            --entrypoint /bin/sh \
-            "ghcr.io/cross-rs/${{ matrix.target }}:main" \
-            -c "apt-get update && apt-get install -y binutils-arm-linux-gnueabihf && ${{ matrix.strip }} /$BIN"
 
       - name: Build archive
         shell: bash
@@ -233,9 +193,20 @@ jobs:
           cp docs/README.md "$staging/"
           cp LICENSE "$staging/"
 
+          # Copy example configuration
+          if [ -f "assets/config.example.toml" ]; then
+            cp assets/config.example.toml "$staging/"
+          fi
+
           # Copy completions
           if [ -d "completions" ]; then
             cp -r completions/ "$staging/"
+          fi
+
+          # Copy man page
+          if [ -f "assets/cook-docs.1" ]; then
+            mkdir -p "$staging/assets"
+            cp assets/cook-docs.1 "$staging/assets/"
           fi
 
           # Compress

@@ -404,6 +404,24 @@ fn apply_markdown_format(input: &str) -> String {
     result
 }
 
+/// Resolve a single configured template entry to its on-disk path.
+pub(crate) fn resolve_template_path(
+    recipe_search_root: &str,
+    recipe_path: &str,
+    template_file: &str,
+) -> PathBuf {
+    if crate::cook::is_relative_path(template_file) {
+        Path::new(recipe_search_root).join(template_file)
+    } else if crate::cook::is_base_filename(template_file) {
+        let parent = Path::new(recipe_path)
+            .parent()
+            .unwrap_or_else(|| Path::new(""));
+        parent.join(template_file)
+    } else {
+        PathBuf::from(template_file)
+    }
+}
+
 fn get_documentation_template(
     recipe_search_root: &str,
     recipe_path: &str,
@@ -413,16 +431,8 @@ fn get_documentation_template(
     let mut template_not_found = false;
 
     for template_file in template_files {
-        let full_template_path = if crate::cook::is_relative_path(template_file) {
-            Path::new(recipe_search_root).join(template_file)
-        } else if crate::cook::is_base_filename(template_file) {
-            let parent = Path::new(recipe_path)
-                .parent()
-                .unwrap_or_else(|| Path::new(""));
-            parent.join(template_file)
-        } else {
-            PathBuf::from(template_file)
-        };
+        let full_template_path =
+            resolve_template_path(recipe_search_root, recipe_path, template_file);
 
         if !full_template_path.exists() || !full_template_path.is_file() {
             log::debug!(
@@ -480,24 +490,12 @@ fn get_documentation_templates(
     ])
 }
 
-pub fn print_documentation(recipe: &Recipe) {
-    if recipe.config.jsonify {
-        log::info!(
-            "Printing json output for recipe {}",
-            recipe.info.new_recipe_file_path
-        );
-        if let Ok(j) = serde_json::to_string_pretty(recipe) {
-            log::info!("{}", j);
-        }
-        return;
-    }
-
-    log::info!(
-        "Generating markdown file for recipe {}",
-        recipe.info.new_recipe_file_path
-    );
-
-    // 1. Create the template and register functions
+/// Load, register helper functions, and compile documentation templates for a recipe.
+pub(crate) fn build_documentation_template(
+    recipe_search_root: &str,
+    recipe_path: &str,
+    template_files: &[String],
+) -> Result<Template, String> {
     let mut doc_template = Template::default();
     doc_template.add_funcs(&[
         (
@@ -519,33 +517,49 @@ pub fn print_documentation(recipe: &Recipe) {
         ("indent", indent as fn(&[Value]) -> Result<Value, FuncError>),
     ]);
 
-    // 2. Load and parse template files
-    let templates_list = match get_documentation_templates(
+    let templates_list =
+        get_documentation_templates(recipe_search_root, recipe_path, template_files)?;
+    for t in templates_list {
+        doc_template
+            .parse(t)
+            .map_err(|e| format!("Failed to parse template: {e}"))?;
+    }
+
+    Ok(doc_template)
+}
+
+pub fn print_documentation(recipe: &Recipe) {
+    if recipe.config.jsonify {
+        log::info!(
+            "Printing json output for recipe {}",
+            recipe.info.new_recipe_file_path
+        );
+        if let Ok(j) = serde_json::to_string_pretty(recipe) {
+            log::info!("{}", j);
+        }
+        return;
+    }
+
+    log::info!(
+        "Generating markdown file for recipe {}",
+        recipe.info.new_recipe_file_path
+    );
+
+    let doc_template = match build_documentation_template(
         &recipe.config.recipe_search_root,
         &recipe.info.recipe_file_path,
         &recipe.config.template_files,
     ) {
-        Ok(lst) => lst,
+        Ok(t) => t,
         Err(e) => {
             log::warn!(
-                "Error getting template data {}: {}",
+                "Error preparing template for {}: {}",
                 recipe.info.recipe_file_path,
                 e
             );
             return;
         }
     };
-
-    for t in templates_list {
-        if let Err(e) = doc_template.parse(t) {
-            log::warn!(
-                "Error parsing template {}: {}",
-                recipe.info.recipe_file_path,
-                e
-            );
-            return;
-        }
-    }
 
     // 3. Serialize context to json value and then map to gtmpl value
     let json_val = match serde_json::to_value(recipe) {

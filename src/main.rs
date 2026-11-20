@@ -1,3 +1,4 @@
+use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 
 fn render_recipe(path: &str, config: &cook_docs::types::Config) -> Result<(), String> {
@@ -13,6 +14,58 @@ fn main() {
     let config = match cook_docs::config::load_action(&args_ref) {
         Ok(cook_docs::config::CliAction::Completions(shell)) => {
             cook_docs::config::generate_completions(shell, &mut std::io::stdout());
+            return;
+        }
+        Ok(cook_docs::config::CliAction::Man) => {
+            if let Err(e) = cook_docs::config::generate_manpage(&mut std::io::stdout()) {
+                eprintln!("{}", e);
+                std::process::exit(1);
+            }
+            return;
+        }
+        Ok(cook_docs::config::CliAction::Doctor {
+            json,
+            config_path,
+            config_result,
+        }) => {
+            let report = cook_docs::doctor::run_doctor(config_path.as_deref(), &config_result);
+            if json {
+                match serde_json::to_string_pretty(&report) {
+                    Ok(json_str) => println!("{}", json_str),
+                    Err(e) => {
+                        eprintln!("Failed to serialize doctor report: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                let colorize =
+                    std::io::stdout().is_terminal() && std::env::var("NO_COLOR").is_err();
+                print!(
+                    "{}",
+                    cook_docs::doctor::format_doctor_report(&report, colorize)
+                );
+            }
+            if !report.healthy {
+                std::process::exit(1);
+            }
+            return;
+        }
+        Ok(cook_docs::config::CliAction::SelfUpdate {
+            check,
+            yes,
+            version,
+        }) => {
+            if let Err(e) = cook_docs::update::run_self_update(
+                cook_docs::update::SelfUpdateOptions {
+                    check,
+                    yes,
+                    version,
+                },
+                &mut std::io::stdout(),
+            ) {
+                eprintln!("{}", e);
+                std::process::exit(1);
+            }
             return;
         }
         Ok(cook_docs::config::CliAction::Run(cfg)) => cfg,

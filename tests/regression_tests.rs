@@ -73,7 +73,7 @@ fn regression_cli_help_and_version_contract() {
         let stdout = String::from_utf8_lossy(&out.stdout);
         assert_eq!(
             stdout.trim(),
-            format!("cook-docs {}", env!("CARGO_PKG_VERSION"))
+            format!("cook-docs {}", env!("PROJECT_VERSION"))
         );
     }
 
@@ -84,6 +84,7 @@ fn regression_cli_help_and_version_contract() {
         for expected in [
             "Usage: cook-docs [OPTIONS]",
             "-v, --version",
+            "-C, --config <config>",
             "-d, --dry-run",
             "-j, --jsonify",
             "-i, --ignore-file <ignore-file>",
@@ -549,4 +550,213 @@ fn regression_completions_subcommand_all_shells() {
 
     let invalid = run_cli(bin, Some(dir.path()), &["completions", "tcsh"], &[]);
     assert!(!invalid.status.success());
+}
+
+#[test]
+fn regression_man_subcommand() {
+    let Some(bin) = bin_if_runnable() else {
+        return;
+    };
+
+    let dir = TempDir::new("man");
+    fs::write(dir.path().join("Sample.cook"), "Boil @water{1%l}.").unwrap();
+
+    let out = run_cli(bin, Some(dir.path()), &["man"], &[]);
+    assert!(
+        out.status.success(),
+        "man failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains(".TH cook-docs 1") && stdout.contains("OPTIONS"),
+        "unexpected man output:\n{stdout}"
+    );
+    assert!(
+        !String::from_utf8_lossy(&out.stderr).contains("Found recipes"),
+        "man must not trigger recipe scanning"
+    );
+    assert!(!dir.path().join("sample.md").exists());
+
+    let extra = run_cli(bin, Some(dir.path()), &["man", "unexpected"], &[]);
+    assert!(!extra.status.success());
+}
+
+#[test]
+fn regression_config_flag_toml_json_and_env() {
+    let Some(bin) = bin_if_runnable() else {
+        return;
+    };
+
+    let dir = TempDir::new("config_formats");
+    let recipes_dir = dir.path().join("recipes");
+    fs::create_dir_all(&recipes_dir).unwrap();
+    fs::write(
+        recipes_dir.join("Soup.cook"),
+        "Simmer @water{1%l} until hot and steaming.",
+    )
+    .unwrap();
+
+    let toml_cfg = dir.path().join("custom.toml");
+    fs::write(
+        &toml_cfg,
+        "dry_run = true\nrecipe_search_root = \"recipes\"\nword_wrap = 20\n",
+    )
+    .unwrap();
+
+    let out_toml = run_cli(
+        bin,
+        Some(dir.path()),
+        &["-C", toml_cfg.to_str().unwrap()],
+        &[],
+    );
+    assert!(out_toml.status.success());
+    let stdout_toml = String::from_utf8_lossy(&out_toml.stdout);
+    assert!(stdout_toml.contains("# Soup"));
+    assert!(stdout_toml.contains("Simmer water until\nhot and steaming."));
+    assert!(!recipes_dir.join("soup.md").exists());
+
+    let json_cfg = dir.path().join("custom.json");
+    fs::write(
+        &json_cfg,
+        r#"{"dryRun": true, "recipeSearchRoot": "recipes", "wordWrap": 120}"#,
+    )
+    .unwrap();
+
+    let out_env_json = run_cli(
+        bin,
+        Some(dir.path()),
+        &[],
+        &[("COOK_DOCS_CONFIG", json_cfg.to_str().unwrap())],
+    );
+    assert!(out_env_json.status.success());
+    let stdout_json = String::from_utf8_lossy(&out_env_json.stdout);
+    assert!(stdout_json.contains("Simmer water until hot and steaming."));
+
+    let missing_cfg = dir.path().join("missing.toml");
+    let out_missing = run_cli(
+        bin,
+        Some(dir.path()),
+        &["--config", missing_cfg.to_str().unwrap()],
+        &[],
+    );
+    assert!(!out_missing.status.success());
+}
+
+#[test]
+fn regression_doctor_subcommand_text_and_json() {
+    let Some(bin) = bin_if_runnable() else {
+        return;
+    };
+
+    let dir = TempDir::new("doctor");
+    let recipes_dir = dir.path().join("recipes");
+    let out_dir = dir.path().join("out");
+    fs::create_dir_all(&recipes_dir).unwrap();
+    fs::create_dir_all(&out_dir).unwrap();
+    fs::write(recipes_dir.join("Toast.cook"), "Toast @bread{2%slices}.").unwrap();
+    fs::write(dir.path().join(".cookdocsignore"), "ignored/\n").unwrap();
+
+    let cfg_path = dir.path().join("doctor.toml");
+    fs::write(
+        &cfg_path,
+        format!(
+            "recipe_search_root = {:?}\noutput_dir = {:?}\n",
+            recipes_dir, out_dir
+        ),
+    )
+    .unwrap();
+
+    // 1. Healthy text report via `doctor`
+    let out_ok = run_cli(
+        bin,
+        Some(dir.path()),
+        &["doctor", "-C", cfg_path.to_str().unwrap()],
+        &[],
+    );
+    assert!(
+        out_ok.status.success(),
+        "doctor failed: {}",
+        String::from_utf8_lossy(&out_ok.stderr)
+    );
+    let stdout_ok = String::from_utf8_lossy(&out_ok.stdout);
+    assert!(stdout_ok.contains("[OK]"));
+    assert!(stdout_ok.contains("Doctor summary:"));
+    assert!(stdout_ok.contains("0 error(s)."));
+
+    // 2. Healthy JSON report via `doc` alias
+    let out_json = run_cli(
+        bin,
+        Some(dir.path()),
+        &["doc", "--json", "-C", cfg_path.to_str().unwrap()],
+        &[],
+    );
+    assert!(out_json.status.success());
+    let report: Value =
+        serde_json::from_slice(&out_json.stdout).expect("doctor --json must output valid JSON");
+    assert_eq!(report["healthy"], true);
+    assert_eq!(report["errors"], 0);
+    let checks = report["checks"].as_array().unwrap();
+    assert!(checks.iter().any(|c| c["category"] == "config"));
+    assert!(checks.iter().any(|c| c["category"] == "recipe_search_root"));
+    assert!(checks.iter().any(|c| c["category"] == "ignore_file"));
+    assert!(checks.iter().any(|c| c["category"] == "templates"));
+    assert!(checks.iter().any(|c| c["category"] == "output_dir"));
+
+    // 3. Unhealthy: broken template compilation & missing search root -> exit non-zero
+    fs::write(recipes_dir.join("recipe.md.gotmpl"), "{{ .Unclosed").unwrap();
+    let out_bad_tmpl = run_cli(
+        bin,
+        Some(dir.path()),
+        &["doctor", "--json", "-C", cfg_path.to_str().unwrap()],
+        &[],
+    );
+    assert!(!out_bad_tmpl.status.success());
+    let bad_report: Value = serde_json::from_slice(&out_bad_tmpl.stdout).unwrap();
+    assert_eq!(bad_report["healthy"], false);
+    assert!(bad_report["errors"].as_u64().unwrap() >= 1);
+
+    let out_missing_cfg = run_cli(
+        bin,
+        Some(dir.path()),
+        &["doctor", "--json", "-C", "/nonexistent/cookdocs.toml"],
+        &[],
+    );
+    assert!(!out_missing_cfg.status.success());
+    let missing_report: Value = serde_json::from_slice(&out_missing_cfg.stdout).unwrap();
+    assert_eq!(missing_report["healthy"], false);
+    assert_eq!(missing_report["checks"][0]["category"], "config");
+}
+
+#[test]
+fn regression_self_update_help_and_non_interactive_guard() {
+    let Some(bin) = bin_if_runnable() else {
+        return;
+    };
+
+    for sub in ["self-update", "update"] {
+        let out = run_cli(bin, None, &[sub, "--help"], &[]);
+        assert!(out.status.success(), "{sub} --help failed");
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        for expected in ["--check", "-y, --yes", "--version <VERSION>"] {
+            assert!(
+                stdout.contains(expected),
+                "{sub} help missing {expected:?}:\n{stdout}"
+            );
+        }
+    }
+
+    let dir = TempDir::new("self_update_guard");
+    fs::write(dir.path().join("Sample.cook"), "Boil @water{1%l}.").unwrap();
+    let out = run_cli(bin, Some(dir.path()), &["self-update"], &[]);
+    assert!(!out.status.success());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("--yes"),
+        "expected non-interactive --yes error, got:\n{stderr}"
+    );
+    assert!(
+        !dir.path().join("sample.md").exists(),
+        "self-update must not trigger recipe rendering"
+    );
 }

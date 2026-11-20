@@ -15,6 +15,8 @@ _cook-docs() {
 
     local context curcontext="$curcontext" state line
     _arguments "${_arguments_options[@]}" : \
+'-C+[path to configuration file (TOML, YAML, or JSON)]: :_default' \
+'--config=[path to configuration file (TOML, YAML, or JSON)]: :_default' \
 '-i+[filename to use as an ignore file to exclude recipe directories (default ".cookdocsignore")]: :_default' \
 '--ignore-file=[filename to use as an ignore file to exclude recipe directories (default ".cookdocsignore")]: :_default' \
 '-c+[directory to search recursively within for recipes (default ".")]: :_default' \
@@ -46,9 +48,88 @@ _cook-docs() {
         case $line[1] in
             (completions)
 _arguments "${_arguments_options[@]}" : \
+'-C+[path to configuration file (TOML, YAML, or JSON)]: :_default' \
+'--config=[path to configuration file (TOML, YAML, or JSON)]: :_default' \
+'-i+[filename to use as an ignore file to exclude recipe directories (default ".cookdocsignore")]: :_default' \
+'--ignore-file=[filename to use as an ignore file to exclude recipe directories (default ".cookdocsignore")]: :_default' \
+'-c+[directory to search recursively within for recipes (default ".")]: :_default' \
+'--recipe-search-root=[directory to search recursively within for recipes (default ".")]: :_default' \
+'-l+[level of logs that should printed, one of (panic, fatal, error, warning, info, debug, trace) (default "info")]: :_default' \
+'--log-level=[level of logs that should printed, one of (panic, fatal, error, warning, info, debug, trace) (default "info")]: :_default' \
+'-t+[gotemplate file paths relative to each recipe directory from which documentation will be generated (default "recipe.md.gotmpl")]: :_default' \
+'--template-files=[gotemplate file paths relative to each recipe directory from which documentation will be generated (default "recipe.md.gotmpl")]: :_default' \
+'-w+[word wrap line length for recipe steps section (default 120)]: :_default' \
+'--word-wrap=[word wrap line length for recipe steps section (default 120)]: :_default' \
+'-o+[custom output directory to write generated markdown documentation]: :_default' \
+'--output-dir=[custom output directory to write generated markdown documentation]: :_default' \
 '-h[Print help]' \
 '--help[Print help]' \
 ':shell -- Shell to generate completions for:(bash elvish fish powershell zsh)' \
+&& ret=0
+;;
+(man)
+_arguments "${_arguments_options[@]}" : \
+'-C+[path to configuration file (TOML, YAML, or JSON)]: :_default' \
+'--config=[path to configuration file (TOML, YAML, or JSON)]: :_default' \
+'-i+[filename to use as an ignore file to exclude recipe directories (default ".cookdocsignore")]: :_default' \
+'--ignore-file=[filename to use as an ignore file to exclude recipe directories (default ".cookdocsignore")]: :_default' \
+'-c+[directory to search recursively within for recipes (default ".")]: :_default' \
+'--recipe-search-root=[directory to search recursively within for recipes (default ".")]: :_default' \
+'-l+[level of logs that should printed, one of (panic, fatal, error, warning, info, debug, trace) (default "info")]: :_default' \
+'--log-level=[level of logs that should printed, one of (panic, fatal, error, warning, info, debug, trace) (default "info")]: :_default' \
+'-t+[gotemplate file paths relative to each recipe directory from which documentation will be generated (default "recipe.md.gotmpl")]: :_default' \
+'--template-files=[gotemplate file paths relative to each recipe directory from which documentation will be generated (default "recipe.md.gotmpl")]: :_default' \
+'-w+[word wrap line length for recipe steps section (default 120)]: :_default' \
+'--word-wrap=[word wrap line length for recipe steps section (default 120)]: :_default' \
+'-o+[custom output directory to write generated markdown documentation]: :_default' \
+'--output-dir=[custom output directory to write generated markdown documentation]: :_default' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(doctor)
+_arguments "${_arguments_options[@]}" : \
+'-C+[path to configuration file (TOML, YAML, or JSON)]: :_default' \
+'--config=[path to configuration file (TOML, YAML, or JSON)]: :_default' \
+'-i+[filename to use as an ignore file to exclude recipe directories (default ".cookdocsignore")]: :_default' \
+'--ignore-file=[filename to use as an ignore file to exclude recipe directories (default ".cookdocsignore")]: :_default' \
+'-c+[directory to search recursively within for recipes (default ".")]: :_default' \
+'--recipe-search-root=[directory to search recursively within for recipes (default ".")]: :_default' \
+'-l+[level of logs that should printed, one of (panic, fatal, error, warning, info, debug, trace) (default "info")]: :_default' \
+'--log-level=[level of logs that should printed, one of (panic, fatal, error, warning, info, debug, trace) (default "info")]: :_default' \
+'-t+[gotemplate file paths relative to each recipe directory from which documentation will be generated (default "recipe.md.gotmpl")]: :_default' \
+'--template-files=[gotemplate file paths relative to each recipe directory from which documentation will be generated (default "recipe.md.gotmpl")]: :_default' \
+'-w+[word wrap line length for recipe steps section (default 120)]: :_default' \
+'--word-wrap=[word wrap line length for recipe steps section (default 120)]: :_default' \
+'-o+[custom output directory to write generated markdown documentation]: :_default' \
+'--output-dir=[custom output directory to write generated markdown documentation]: :_default' \
+'--json[Output doctor report in JSON format]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(self-update)
+_arguments "${_arguments_options[@]}" : \
+'--version=[Target a specific release version or tag (e.g. 0.9.1 or v0.9.1)]:VERSION:_default' \
+'-C+[path to configuration file (TOML, YAML, or JSON)]: :_default' \
+'--config=[path to configuration file (TOML, YAML, or JSON)]: :_default' \
+'-i+[filename to use as an ignore file to exclude recipe directories (default ".cookdocsignore")]: :_default' \
+'--ignore-file=[filename to use as an ignore file to exclude recipe directories (default ".cookdocsignore")]: :_default' \
+'-c+[directory to search recursively within for recipes (default ".")]: :_default' \
+'--recipe-search-root=[directory to search recursively within for recipes (default ".")]: :_default' \
+'-l+[level of logs that should printed, one of (panic, fatal, error, warning, info, debug, trace) (default "info")]: :_default' \
+'--log-level=[level of logs that should printed, one of (panic, fatal, error, warning, info, debug, trace) (default "info")]: :_default' \
+'-t+[gotemplate file paths relative to each recipe directory from which documentation will be generated (default "recipe.md.gotmpl")]: :_default' \
+'--template-files=[gotemplate file paths relative to each recipe directory from which documentation will be generated (default "recipe.md.gotmpl")]: :_default' \
+'-w+[word wrap line length for recipe steps section (default 120)]: :_default' \
+'--word-wrap=[word wrap line length for recipe steps section (default 120)]: :_default' \
+'-o+[custom output directory to write generated markdown documentation]: :_default' \
+'--output-dir=[custom output directory to write generated markdown documentation]: :_default' \
+'--check[Check for available updates without installing]' \
+'-y[Skip confirmation prompt before installing]' \
+'--yes[Skip confirmation prompt before installing]' \
+'-h[Print help]' \
+'--help[Print help]' \
 && ret=0
 ;;
 (help)
@@ -64,6 +145,18 @@ _arguments "${_arguments_options[@]}" : \
         curcontext="${curcontext%:*:*}:cook-docs-help-command-$line[1]:"
         case $line[1] in
             (completions)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(man)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(doctor)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(self-update)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -84,6 +177,9 @@ esac
 _cook-docs_commands() {
     local commands; commands=(
 'completions:Generate shell autocompletions script' \
+'man:Generate UNIX roff man page' \
+'doctor:Validate configuration, inputs, templates, and output permissions' \
+'self-update:Check for and install the latest cook-docs release from GitHub' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'cook-docs commands' commands "$@"
@@ -93,10 +189,18 @@ _cook-docs__subcmd__completions_commands() {
     local commands; commands=()
     _describe -t commands 'cook-docs completions commands' commands "$@"
 }
+(( $+functions[_cook-docs__subcmd__doctor_commands] )) ||
+_cook-docs__subcmd__doctor_commands() {
+    local commands; commands=()
+    _describe -t commands 'cook-docs doctor commands' commands "$@"
+}
 (( $+functions[_cook-docs__subcmd__help_commands] )) ||
 _cook-docs__subcmd__help_commands() {
     local commands; commands=(
 'completions:Generate shell autocompletions script' \
+'man:Generate UNIX roff man page' \
+'doctor:Validate configuration, inputs, templates, and output permissions' \
+'self-update:Check for and install the latest cook-docs release from GitHub' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'cook-docs help commands' commands "$@"
@@ -106,10 +210,35 @@ _cook-docs__subcmd__help__subcmd__completions_commands() {
     local commands; commands=()
     _describe -t commands 'cook-docs help completions commands' commands "$@"
 }
+(( $+functions[_cook-docs__subcmd__help__subcmd__doctor_commands] )) ||
+_cook-docs__subcmd__help__subcmd__doctor_commands() {
+    local commands; commands=()
+    _describe -t commands 'cook-docs help doctor commands' commands "$@"
+}
 (( $+functions[_cook-docs__subcmd__help__subcmd__help_commands] )) ||
 _cook-docs__subcmd__help__subcmd__help_commands() {
     local commands; commands=()
     _describe -t commands 'cook-docs help help commands' commands "$@"
+}
+(( $+functions[_cook-docs__subcmd__help__subcmd__man_commands] )) ||
+_cook-docs__subcmd__help__subcmd__man_commands() {
+    local commands; commands=()
+    _describe -t commands 'cook-docs help man commands' commands "$@"
+}
+(( $+functions[_cook-docs__subcmd__help__subcmd__self-update_commands] )) ||
+_cook-docs__subcmd__help__subcmd__self-update_commands() {
+    local commands; commands=()
+    _describe -t commands 'cook-docs help self-update commands' commands "$@"
+}
+(( $+functions[_cook-docs__subcmd__man_commands] )) ||
+_cook-docs__subcmd__man_commands() {
+    local commands; commands=()
+    _describe -t commands 'cook-docs man commands' commands "$@"
+}
+(( $+functions[_cook-docs__subcmd__self-update_commands] )) ||
+_cook-docs__subcmd__self-update_commands() {
+    local commands; commands=()
+    _describe -t commands 'cook-docs self-update commands' commands "$@"
 }
 
 if [ "$funcstack[1]" = "_cook-docs" ]; then
