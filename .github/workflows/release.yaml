@@ -92,7 +92,7 @@ jobs:
           - build: linux-armv6
             os: ubuntu-latest
             rust: stable
-            target: arm-unknown-linux-gnueabihf
+            target: arm-unknown-linux-musleabi
             os_name: Linux
             arch: armv6
           - build: macos
@@ -144,11 +144,6 @@ jobs:
           curl -LO "https://github.com/cross-rs/cross/releases/download/$CROSS_VERSION/cross-x86_64-unknown-linux-musl.tar.gz"
           tar xf cross-x86_64-unknown-linux-musl.tar.gz
           echo "CARGO=cross" >> $GITHUB_ENV
-
-          # Force using more recent images to avoid glibc issues with newer crates
-          cd "$GITHUB_WORKSPACE"
-          echo "[target.${{ matrix.target }}]" > Cross.toml
-          echo "image = \"ghcr.io/cross-rs/${{ matrix.target }}:main\"" >> Cross.toml
 
       - name: Set target variables
         shell: bash
@@ -222,12 +217,79 @@ jobs:
             echo "ASSET_SUM=$staging.tar.gz.sha256" >> $GITHUB_ENV
           fi
 
+      - name: Install cargo-deb
+        if: startsWith(matrix.build, 'linux')
+        shell: bash
+        run: |
+          CARGO_DEB_VER="3.8.0"
+          curl -LO "https://github.com/kornelski/cargo-deb/releases/download/v${CARGO_DEB_VER}/cargo-deb_${CARGO_DEB_VER}-1_amd64.deb"
+          sudo dpkg -i "cargo-deb_${CARGO_DEB_VER}-1_amd64.deb"
+          rm -f "cargo-deb_${CARGO_DEB_VER}-1_amd64.deb"
+
+      - name: Build Debian package
+        if: startsWith(matrix.build, 'linux')
+        shell: bash
+        run: |
+          cargo deb --no-build --target ${{ matrix.target }}
+
+      - name: Upload Debian package artifact
+        if: startsWith(matrix.build, 'linux')
+        uses: actions/upload-artifact@v4
+        with:
+          name: deb-${{ matrix.build }}
+          path: target/debian/*.deb
+          retention-days: 1
+
       - name: Upload release archive
         if: github.ref_type == 'tag'
+        shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload ${{ github.ref_name }} "${{ env.ASSET }}" "${{ env.ASSET_SUM }}" --clobber
+          files=("${{ env.ASSET }}" "${{ env.ASSET_SUM }}")
+          if [[ "${{ matrix.build }}" == linux* ]]; then
+            files+=(target/debian/*.deb)
+          fi
+          gh release upload ${{ github.ref_name }} "${files[@]}" --clobber
+
+  publish-deb:
+    name: publish-deb
+    needs: ['create-release', 'build-release']
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Download all Debian packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: deb-*
+          merge-multiple: true
+          path: debs/
+
+      - name: Push .deb packages to nicholaswilde/apt
+        if: github.ref_type == 'tag'
+        env:
+          APT_REPO_TOKEN: ${{ secrets.APT_REPO_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Clone apt repo using PAT
+          git clone "https://x-access-token:${APT_REPO_TOKEN}@github.com/nicholaswilde/apt.git" apt-repo
+
+          # Copy all generated Debian packages into pool/main
+          cp debs/*.deb apt-repo/pool/main/
+
+          # Commit and push changes
+          cd apt-repo
+          git add pool/main/*.deb
+          if ! git diff --staged --quiet; then
+            git commit -m "feat(pkg): add cook-docs ${{ needs.create-release.outputs.version }} debs (amd64, arm64, armhf, armel)"
+            git push origin main
+          fi
 
   publish-release:
     name: publish-release

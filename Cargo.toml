@@ -2,6 +2,8 @@
 name = "cook-docs"
 version = "0.9.2"
 edition = "2024"
+authors = ["Nicholas Wilde"]
+description = "A tool for automatically generating markdown documentation for cooklang recipes"
 
 [dependencies]
 clap = { version = "4.6.1", features = ["derive", "env"] }
@@ -41,3 +43,43 @@ strip = true      # Strip symbols (smaller binary)
 inherits = "dev"
 incremental = false # Disable incremental compilation for CI (often slower/buggy in CI cache)
 debug = 0           # No debug info needed for basic CI checks (speeds up build)
+
+[package.metadata.deb]
+maintainer = "Nicholas Wilde <ncwilde43@gmail.com>"
+copyright = "2026 Nicholas Wilde"
+license-file = ["LICENSE", "4"]
+extended-description = "A tool for automatically generating markdown documentation for cooklang recipes."
+section = "utils"
+priority = "optional"
+assets = [
+  [
+    "target/release/cook-docs",
+    "usr/bin/",
+    "755",
+  ],
+  [
+    "assets/cook-docs.1",
+    "usr/share/man/man1/",
+    "644",
+  ],
+  [
+    "completions/cook-docs.bash",
+    "usr/share/bash-completion/completions/cook-docs",
+    "644",
+  ],
+  [
+    "completions/_cook-docs",
+    "usr/share/zsh/vendor-completions/_cook-docs",
+    "644",
+  ],
+  [
+    "completions/cook-docs.fish",
+    "usr/share/fish/vendor_completions.d/cook-docs.fish",
+    "644",
+  ],
+  [
+    "docs/README.md",
+    "usr/share/doc/cook-docs/README.md",
+    "644",
+  ],
+]
