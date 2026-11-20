@@ -195,6 +195,14 @@ NEVER commit or stage sensitive credentials or secrets:
 
 ## 3. Testing & Quality Gates
 
+### Test-Driven Development (TDD) Protocol
+
+1. **Red Phase:** Write failing unit (`src/*.rs` `#[cfg(test)]`) or integration (`tests/`) test first. Run `rtk test cargo test` to verify failure.
+2. **Green Phase:** Write minimum code passing tests (Ponytail discipline).
+3. **Refactor Phase:** Clean up while keeping tests green.
+
+### Quality Gates
+
 Before completing any task:
 
 - [ ] `task fmt` / `cargo fmt --all --check` passes.

@@ -85,3 +85,38 @@ fn main() {
         let _ = h.join();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+    #[test]
+    fn test_render_recipe_success_and_error() {
+        let id = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let dir =
+            std::env::temp_dir().join(format!("cook_docs_main_{}_{}", std::process::id(), id));
+        fs::create_dir_all(&dir).unwrap();
+        let recipe = dir.join("Test.cook");
+        fs::write(&recipe, "Boil @water{1%l} for ~{5%minutes}.").unwrap();
+
+        let cfg = cook_docs::types::Config {
+            dry_run: true,
+            jsonify: false,
+            ignore_file: ".cookdocsignore".to_string(),
+            recipe_search_root: dir.to_string_lossy().to_string(),
+            log_level: "info".to_string(),
+            template_files: vec!["recipe.md.gotmpl".to_string()],
+            word_wrap: 120,
+            output_dir: "".to_string(),
+        };
+
+        assert!(render_recipe(&recipe.to_string_lossy(), &cfg).is_ok());
+        assert!(render_recipe("/nonexistent/Test.cook", &cfg).is_err());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+}

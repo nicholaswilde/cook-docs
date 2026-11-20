@@ -36,19 +36,6 @@ struct ConfigFile {
 }
 
 pub fn load_config(args: &[&str]) -> Result<Config, String> {
-    // 1. Set default configuration values
-    let mut config = Config {
-        dry_run: false,
-        jsonify: false,
-        ignore_file: ".cookdocsignore".to_string(),
-        recipe_search_root: ".".to_string(),
-        log_level: "info".to_string(),
-        template_files: vec!["recipe.md.gotmpl".to_string()],
-        word_wrap: 120,
-        output_dir: "".to_string(),
-    };
-
-    // 2. Resolve the config file path if it exists
     let mut config_paths = Vec::new();
     config_paths.push(PathBuf::from("/etc/cook-docs/.cookdocs.yaml"));
     config_paths.push(PathBuf::from("/etc/cook-docs/.cookdocs.yml"));
@@ -62,10 +49,34 @@ pub fn load_config(args: &[&str]) -> Result<Config, String> {
     config_paths.push(PathBuf::from(".cookdocs.yaml"));
     config_paths.push(PathBuf::from(".cookdocs.yml"));
 
+    load_config_with(args, &config_paths, |k| std::env::var(k).ok())
+}
+
+fn load_config_with<F>(
+    args: &[&str],
+    config_paths: &[PathBuf],
+    env_get: F,
+) -> Result<Config, String>
+where
+    F: Fn(&str) -> Option<String>,
+{
+    // 1. Set default configuration values
+    let mut config = Config {
+        dry_run: false,
+        jsonify: false,
+        ignore_file: ".cookdocsignore".to_string(),
+        recipe_search_root: ".".to_string(),
+        log_level: "info".to_string(),
+        template_files: vec!["recipe.md.gotmpl".to_string()],
+        word_wrap: 120,
+        output_dir: "".to_string(),
+    };
+
+    // 2. Resolve the config file path if it exists
     let mut found_path = None;
     for path in config_paths {
         if path.exists() && path.is_file() {
-            found_path = Some(path);
+            found_path = Some(path.clone());
             break;
         }
     }
@@ -104,28 +115,28 @@ pub fn load_config(args: &[&str]) -> Result<Config, String> {
     }
 
     // 4. Merge environment variables
-    if let Ok(val) = std::env::var("COOK_DOCS_DRY_RUN") {
+    if let Some(val) = env_get("COOK_DOCS_DRY_RUN") {
         config.dry_run = val.parse().unwrap_or(config.dry_run);
     }
-    if let Ok(val) = std::env::var("COOK_DOCS_JSONIFY") {
+    if let Some(val) = env_get("COOK_DOCS_JSONIFY") {
         config.jsonify = val.parse().unwrap_or(config.jsonify);
     }
-    if let Ok(val) = std::env::var("COOK_DOCS_IGNORE_FILE") {
+    if let Some(val) = env_get("COOK_DOCS_IGNORE_FILE") {
         config.ignore_file = val;
     }
-    if let Ok(val) = std::env::var("COOK_DOCS_RECIPE_SEARCH_ROOT") {
+    if let Some(val) = env_get("COOK_DOCS_RECIPE_SEARCH_ROOT") {
         config.recipe_search_root = val;
     }
-    if let Ok(val) = std::env::var("COOK_DOCS_LOG_LEVEL") {
+    if let Some(val) = env_get("COOK_DOCS_LOG_LEVEL") {
         config.log_level = val;
     }
-    if let Ok(val) = std::env::var("COOK_DOCS_TEMPLATE_FILES") {
+    if let Some(val) = env_get("COOK_DOCS_TEMPLATE_FILES") {
         config.template_files = val.split(',').map(|s| s.trim().to_string()).collect();
     }
-    if let Ok(val) = std::env::var("COOK_DOCS_WORD_WRAP") {
+    if let Some(val) = env_get("COOK_DOCS_WORD_WRAP") {
         config.word_wrap = val.parse().unwrap_or(config.word_wrap);
     }
-    if let Ok(val) = std::env::var("COOK_DOCS_OUTPUT_DIR") {
+    if let Some(val) = env_get("COOK_DOCS_OUTPUT_DIR") {
         config.output_dir = val;
     }
 
@@ -212,4 +223,79 @@ pub fn load_config(args: &[&str]) -> Result<Config, String> {
     }
 
     Ok(config)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+    use std::fs;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+    #[test]
+    fn test_load_config_with_yaml_file_and_precedence() {
+        let id = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!("cook_docs_cfg_{}_{}", std::process::id(), id));
+        fs::create_dir_all(&dir).unwrap();
+        let cfg_file = dir.join(".cookdocs.yaml");
+        fs::write(
+            &cfg_file,
+            "\
+dryRun: true
+jsonify: true
+ignoreFile: .myignore
+recipeSearchRoot: recipes
+logLevel: debug
+templateFiles:
+  - custom.gotmpl
+wordWrap: 90
+outputDir: build
+",
+        )
+        .unwrap();
+
+        let empty_env = |_: &str| None;
+        let cfg = load_config_with(&["cook-docs"], &[cfg_file.clone()], empty_env).unwrap();
+        assert!(cfg.dry_run);
+        assert!(cfg.jsonify);
+        assert_eq!(cfg.ignore_file, ".myignore");
+        assert_eq!(cfg.recipe_search_root, "recipes");
+        assert_eq!(cfg.log_level, "debug");
+        assert_eq!(cfg.template_files, vec!["custom.gotmpl"]);
+        assert_eq!(cfg.word_wrap, 90);
+        assert_eq!(cfg.output_dir, "build");
+
+        let mut env_map = HashMap::new();
+        env_map.insert("COOK_DOCS_DRY_RUN", "false");
+        env_map.insert("COOK_DOCS_JSONIFY", "notabool");
+        env_map.insert("COOK_DOCS_IGNORE_FILE", ".envignore");
+        env_map.insert("COOK_DOCS_RECIPE_SEARCH_ROOT", "env_root");
+        env_map.insert("COOK_DOCS_LOG_LEVEL", "warn");
+        env_map.insert("COOK_DOCS_TEMPLATE_FILES", "a.gotmpl, b.gotmpl");
+        env_map.insert("COOK_DOCS_WORD_WRAP", "72");
+        env_map.insert("COOK_DOCS_OUTPUT_DIR", "env_out");
+
+        let cfg2 = load_config_with(&["cook-docs", "-w", "notanint"], &[cfg_file], |k| {
+            env_map.get(k).map(|s| s.to_string())
+        })
+        .unwrap();
+        assert!(!cfg2.dry_run);
+        assert!(cfg2.jsonify);
+        assert_eq!(cfg2.ignore_file, ".envignore");
+        assert_eq!(cfg2.recipe_search_root, "env_root");
+        assert_eq!(cfg2.log_level, "warn");
+        assert_eq!(cfg2.template_files, vec!["a.gotmpl", "b.gotmpl"]);
+        assert_eq!(cfg2.word_wrap, 72);
+        assert_eq!(cfg2.output_dir, "env_out");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_load_config_with_invalid_cli_arg_returns_err() {
+        let err = load_config_with(&["cook-docs", "--no-such-flag"], &[], |_| None).unwrap_err();
+        assert!(err.contains("unexpected argument"));
+    }
 }

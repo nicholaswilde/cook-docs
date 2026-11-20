@@ -1,0 +1,43 @@
+# cook-docs
+
+> Rust CLI for automatically generating standardized Markdown documentation from Cooklang (`.cook`) recipes using Go-compatible templates (`gtmpl-ng`).
+
+`cook-docs` recursively scans directories (respecting `.cookdocsignore`), parses `.cook` recipes with `cooklang`, resolves optional `.jpg`/`.png` recipe images, and renders Markdown documentation (in-place or mirrored into `--output-dir`) using built-in or custom `recipe.md.gotmpl` templates, with `--dry-run` and `--jsonify` modes.
+
+## Documentation
+
+- [docs/README.md](docs/README.md): Project overview, TL;DR installation, and usage quickstart.
+- [docs/index.md](docs/index.md): Documentation site homepage.
+- [docs/about.md](docs/about.md): Motivation, workflow, and recursive mode of operation.
+- [docs/installation.md](docs/installation.md): Installation options (Homebrew, Scoop, source).
+- [docs/usage.md](docs/usage.md): CLI usage, template search rules, `.cookdocsignore`, and task automation.
+- [docs/configuration.md](docs/configuration.md): CLI flags, `.cookdocs.yaml`/`.cookdocs.yml` config files, and `COOK_DOCS_*` env vars.
+- [docs/templates.md](docs/templates.md): Built-in Go template sections, components, custom sections, and JSON structure.
+- [AGENTS.md](AGENTS.md): Agentic conventions, architecture, tech stack, and quality gates.
+- [Full Context (llms-full.txt)](llms-full.txt): Single-file compiled documentation and specifications for LLMs.
+
+## Core Modules
+
+- [src/main.rs](src/main.rs): CLI entrypoint, logger setup, recipe discovery, serial (`--dry-run`) or multi-threaded rendering.
+- [src/lib.rs](src/lib.rs): Library root exporting `config`, `cook`, `document`, and `types`.
+- [src/config.rs](src/config.rs): Configuration loader merging defaults, YAML config files (`figment`), `COOK_DOCS_*` env vars, and CLI args (`clap`).
+- [src/cook.rs](src/cook.rs): `.cook` file discovery (`.cookdocsignore` aware), output/image path resolution, and Cooklang parsing.
+- [src/document.rs](src/document.rs): Built-in `gtmpl-ng` templates, custom template functions, Markdown formatting, and file/stdout output.
+- [src/types.rs](src/types.rs): Serializable data structures (`Config`, `Recipe`, `Info`, `Step`, `Ingredient`, `IngredientAmount`, `Cookware`, `Timer`).
+- [tests/integration_tests.rs](tests/integration_tests.rs): Unit and integration test suite covering path helpers, config precedence, and parsing.
+
+## Build & Automation
+
+- [Cargo.toml](Cargo.toml): Rust crate manifest (Edition 2024, v0.9.1) and dependency specifications.
+- [Taskfile.yaml](Taskfile.yaml): Task runner automation (`test`, `fmt`, `lint`, `spellcheck`, `dry-run`, `serve`, `dist`, `build-all`).
+- [pyproject.toml](pyproject.toml): Python environment (`zensical` >=0.0.45) for building the static documentation site via `uv`.
+- [zensical.toml](zensical.toml): Zensical static site configuration and navigation.
+- [.github/workflows/ci.yaml](.github/workflows/ci.yaml): Multi-target CI workflow (`test`, `rustfmt`, `clippy`, `docs`, `yamllint`, `typos`).
+- [.github/workflows/release.yaml](.github/workflows/release.yaml): Tag-triggered multi-arch release build and GitHub draft release workflow.
+
+## Optional
+
+- [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md): Contribution workflow and Developer Certificate of Origin (DCO) guidelines.
+- [docs/CODE_OF_CONDUCT.md](docs/CODE_OF_CONDUCT.md): Contributor Covenant code of conduct.
+- [.agents/skills_catalog.md](.agents/skills_catalog.md): Repository agent skills catalog (`lint-fmt-fix`, `release`, `release-summary`).
+- [LICENSE](LICENSE): Apache License 2.0.

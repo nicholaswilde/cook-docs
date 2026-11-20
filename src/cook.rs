@@ -499,3 +499,196 @@ pub fn parse_file(
         info,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::Config;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+    struct TempDir(PathBuf);
+
+    impl TempDir {
+        fn new(prefix: &str) -> Self {
+            let id = COUNTER.fetch_add(1, Ordering::Relaxed);
+            let dir = std::env::temp_dir().join(format!(
+                "cook_docs_cook_{}_{}_{}",
+                prefix,
+                std::process::id(),
+                id
+            ));
+            fs::create_dir_all(&dir).unwrap();
+            Self(dir)
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn default_config() -> Config {
+        Config {
+            dry_run: false,
+            jsonify: false,
+            ignore_file: ".cookdocsignore".to_string(),
+            recipe_search_root: ".".to_string(),
+            log_level: "info".to_string(),
+            template_files: vec!["recipe.md.gotmpl".to_string()],
+            word_wrap: 120,
+            output_dir: "".to_string(),
+        }
+    }
+
+    #[test]
+    fn test_find_git_repository_root_succeeds() {
+        assert!(find_git_repository_root().is_some());
+    }
+
+    #[test]
+    fn test_path_and_name_helpers() {
+        assert!(is_relative_path("./templates/a.gotmpl"));
+        assert!(is_relative_path("../a.gotmpl"));
+        assert!(!is_relative_path("recipe.md.gotmpl"));
+        assert!(!is_relative_path("/abs/recipe.md.gotmpl"));
+
+        assert!(is_base_filename("recipe.md.gotmpl"));
+        assert!(!is_base_filename("./recipe.md.gotmpl"));
+        assert!(!is_base_filename("dir/recipe.md.gotmpl"));
+
+        assert_eq!(get_recipe_name("a/b/Tomato Soup.cook"), "Tomato Soup");
+        assert_eq!(get_recipe_name(""), "");
+    }
+
+    #[test]
+    fn test_get_new_recipe_path_variants() {
+        let mut cfg = default_config();
+        assert_eq!(
+            get_new_recipe_path("recipes/Tomato Soup.cook", "Tomato Soup", &cfg),
+            PathBuf::from("recipes/tomato-soup.md")
+        );
+
+        let root = TempDir::new("out_path");
+        let sub = root.0.join("breakfast");
+        fs::create_dir_all(&sub).unwrap();
+        let recipe_file = sub.join("Pancakes.cook");
+        fs::write(&recipe_file, "").unwrap();
+
+        cfg.recipe_search_root = root.0.to_string_lossy().to_string();
+        cfg.output_dir = root.0.join("out").to_string_lossy().to_string();
+        assert_eq!(
+            get_new_recipe_path(&recipe_file.to_string_lossy(), "Pancakes", &cfg),
+            root.0.join("out/breakfast/pancakes.md")
+        );
+
+        cfg.recipe_search_root = "".to_string();
+        assert_eq!(
+            get_new_recipe_path("/unrelated/dir/Bread.cook", "Bread", &cfg),
+            root.0.join("out/bread.md")
+        );
+    }
+
+    #[test]
+    fn test_get_image_path_priority_and_missing() {
+        let dir = TempDir::new("images");
+        let cook = dir.0.join("Soup.cook");
+        fs::write(&cook, "").unwrap();
+        let cook_str = cook.to_string_lossy().to_string();
+
+        assert_eq!(get_image_path(&cook_str, "Soup"), None);
+
+        let png = dir.0.join("Soup.png");
+        fs::write(&png, b"png").unwrap();
+        assert_eq!(get_image_path(&cook_str, "Soup"), Some(png));
+
+        let jpg = dir.0.join("Soup.jpg");
+        fs::write(&jpg, b"jpg").unwrap();
+        assert_eq!(get_image_path(&cook_str, "Soup"), Some(jpg));
+    }
+
+    #[test]
+    fn test_find_recipe_file_paths_respects_ignore_and_git() {
+        let dir = TempDir::new("find");
+        fs::create_dir_all(dir.0.join("keep")).unwrap();
+        fs::create_dir_all(dir.0.join("skip")).unwrap();
+        fs::create_dir_all(dir.0.join(".git")).unwrap();
+
+        fs::write(dir.0.join("keep/One.cook"), "").unwrap();
+        fs::write(dir.0.join("keep/note.txt"), "").unwrap();
+        fs::write(dir.0.join("skip/Two.cook"), "").unwrap();
+        fs::write(dir.0.join(".git/Three.cook"), "").unwrap();
+
+        let paths = find_recipe_file_paths(&dir.0.to_string_lossy(), "");
+        assert!(paths.iter().any(|p| p.ends_with("keep/One.cook")));
+        assert!(paths.iter().any(|p| p.ends_with("skip/Two.cook")));
+        assert!(!paths.iter().any(|p| p.ends_with(".git/Three.cook")));
+
+        let repo_paths = find_recipe_file_paths("testdata", ".cookdocsignore");
+        assert!(
+            repo_paths
+                .iter()
+                .any(|p| p.ends_with("My Test Recipe.cook"))
+        );
+    }
+
+    #[test]
+    fn test_parse_file_missing_returns_error() {
+        let cfg = default_config();
+        let err = parse_file("/nonexistent/path/missing.cook", &cfg).unwrap_err();
+        assert!(err.contains("Failed to read recipe file"));
+    }
+
+    #[test]
+    fn test_parse_file_quantities_cookware_timers_metadata() {
+        let dir = TempDir::new("parse");
+        let recipe_path = dir.0.join("Rich Recipe.cook");
+        let img_path = dir.0.join("Rich Recipe.jpg");
+        fs::write(&img_path, b"img").unwrap();
+        fs::write(
+            &recipe_path,
+            "\
+>> servings: 4
+>> flag: true
+>> ratio: 1.5
+>> count: 2
+Add @flour{1/2%cup}, @sugar{1 1/2%tbsp}, @butter{1-2%sticks}, @salt{some}, and @pepper in #bowl{1}, #pan{1/2}, #tray{1-2}, #pot{big}, and #spoon for ~boil{1/2%hour} and ~rest{10%minutes} at ~{20%minutes}.
+",
+        )
+        .unwrap();
+
+        let cfg = default_config();
+        let parsed = parse_file(&recipe_path.to_string_lossy(), &cfg).unwrap();
+        assert_eq!(parsed.info.recipe_name, "Rich Recipe");
+        assert_eq!(parsed.info.image_file_name, "Rich Recipe.jpg");
+        assert_eq!(parsed.metadata.get("servings"), Some(&"4".to_string()));
+        assert_eq!(parsed.metadata.get("flag"), Some(&"true".to_string()));
+        assert_eq!(parsed.metadata.get("ratio"), Some(&"1.5".to_string()));
+        assert_eq!(parsed.metadata.get("count"), Some(&"2".to_string()));
+        assert_eq!(parsed.steps.len(), 1);
+
+        let step = &parsed.steps[0];
+        assert_eq!(step.ingredients.len(), 5);
+        assert_eq!(step.ingredients[0].amount.quantity_raw, "1/2");
+        assert!((step.ingredients[0].amount.quantity - 0.5).abs() < 1e-6);
+        assert_eq!(step.ingredients[1].amount.quantity_raw, "1 1/2");
+        assert!((step.ingredients[1].amount.quantity - 1.5).abs() < 1e-6);
+        assert_eq!(step.ingredients[2].amount.quantity_raw, "1-2");
+        assert!(!step.ingredients[3].amount.is_numeric);
+        assert_eq!(step.ingredients[3].amount.quantity_raw, "some");
+        assert!(!step.ingredients[4].amount.is_numeric);
+
+        assert_eq!(step.cookware.len(), 5);
+        assert_eq!(step.cookware[1].quantity_raw, "1/2");
+        assert_eq!(step.cookware[2].quantity_raw, "1-2");
+        assert_eq!(step.cookware[3].quantity_raw, "big");
+        assert_eq!(step.cookware[4].quantity, 1.0);
+
+        assert_eq!(step.timers.len(), 3);
+        assert_eq!(step.timers[0].name, "boil");
+        assert!((step.timers[0].duration - 0.5).abs() < 1e-6);
+        assert_eq!(step.timers[0].unit, "hour");
+    }
+}

@@ -142,3 +142,39 @@ fn test_gtmpl_number_getters() {
         assert_eq!(num.as_u64(), Some(820));
     }
 }
+
+#[test]
+fn test_cli_binary_dry_run_and_jsonify() {
+    let bin = env!("CARGO_BIN_EXE_cook-docs");
+    match std::process::Command::new(bin).arg("--version").output() {
+        Ok(o) if o.status.success() => {}
+        _ => return,
+    }
+
+    let dry = std::process::Command::new(bin)
+        .args(["--recipe-search-root", "testdata", "--dry-run"])
+        .output()
+        .unwrap();
+    assert!(dry.status.success());
+    let stdout = String::from_utf8_lossy(&dry.stdout);
+    assert!(stdout.contains("# My Test Recipe"));
+    assert!(stdout.contains("tipo zero flour"));
+
+    let json = std::process::Command::new(bin)
+        .args([
+            "--recipe-search-root",
+            "testdata",
+            "--jsonify",
+            "--log-level",
+            "info",
+        ])
+        .output()
+        .unwrap();
+    assert!(json.status.success());
+
+    let bad = std::process::Command::new(bin)
+        .arg("--unknown-flag")
+        .output()
+        .unwrap();
+    assert!(!bad.status.success());
+}
