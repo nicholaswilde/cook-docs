@@ -10,8 +10,12 @@ fn main() {
     // 1. Load config and CLI arguments
     let args: Vec<String> = std::env::args().collect();
     let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-    let config = match cook_docs::config::load_config(&args_ref) {
-        Ok(cfg) => cfg,
+    let config = match cook_docs::config::load_action(&args_ref) {
+        Ok(cook_docs::config::CliAction::Completions(shell)) => {
+            cook_docs::config::generate_completions(shell, &mut std::io::stdout());
+            return;
+        }
+        Ok(cook_docs::config::CliAction::Run(cfg)) => cfg,
         Err(e) => {
             eprintln!("Failed to parse config or CLI args: {}", e);
             std::process::exit(1);

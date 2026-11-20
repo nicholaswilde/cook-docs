@@ -12,6 +12,15 @@ tasks:
     cmds:
       - cargo clean
       - rm -rf dist cook-docs
+  completions:
+    desc: Generate shell completions for bash, zsh, fish, powershell, and elvish
+    cmds:
+      - mkdir -p completions
+      - cargo run -- completions bash > completions/cook-docs.bash
+      - cargo run -- completions zsh > completions/_cook-docs
+      - cargo run -- completions fish > completions/cook-docs.fish
+      - cargo run -- completions powershell > completions/_cook-docs.ps1
+      - cargo run -- completions elvish > completions/cook-docs.elv
   coverage:
     desc: Run tests
     cmds:

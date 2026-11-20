@@ -1,0 +1,119 @@
+#compdef cook-docs
+
+autoload -U is-at-least
+
+_cook-docs() {
+    typeset -A opt_args
+    typeset -a _arguments_options
+    local ret=1
+
+    if is-at-least 5.2; then
+        _arguments_options=(-s -S -C)
+    else
+        _arguments_options=(-s -C)
+    fi
+
+    local context curcontext="$curcontext" state line
+    _arguments "${_arguments_options[@]}" : \
+'-i+[filename to use as an ignore file to exclude recipe directories (default ".cookdocsignore")]: :_default' \
+'--ignore-file=[filename to use as an ignore file to exclude recipe directories (default ".cookdocsignore")]: :_default' \
+'-c+[directory to search recursively within for recipes (default ".")]: :_default' \
+'--recipe-search-root=[directory to search recursively within for recipes (default ".")]: :_default' \
+'-l+[level of logs that should printed, one of (panic, fatal, error, warning, info, debug, trace) (default "info")]: :_default' \
+'--log-level=[level of logs that should printed, one of (panic, fatal, error, warning, info, debug, trace) (default "info")]: :_default' \
+'-t+[gotemplate file paths relative to each recipe directory from which documentation will be generated (default "recipe.md.gotmpl")]: :_default' \
+'--template-files=[gotemplate file paths relative to each recipe directory from which documentation will be generated (default "recipe.md.gotmpl")]: :_default' \
+'-w+[word wrap line length for recipe steps section (default 120)]: :_default' \
+'--word-wrap=[word wrap line length for recipe steps section (default 120)]: :_default' \
+'-o+[custom output directory to write generated markdown documentation]: :_default' \
+'--output-dir=[custom output directory to write generated markdown documentation]: :_default' \
+'-v[version for cook-docs]' \
+'--version[version for cook-docs]' \
+'-d[don'\''t actually render any markdown files just print to stdout passed]' \
+'--dry-run[don'\''t actually render any markdown files just print to stdout passed]' \
+'-j[parse the recipe and display it in json format]' \
+'--jsonify[parse the recipe and display it in json format]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_cook-docs_commands" \
+"*::: :->cook-docs" \
+&& ret=0
+    case $state in
+    (cook-docs)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cook-docs-command-$line[1]:"
+        case $line[1] in
+            (completions)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+':shell -- Shell to generate completions for:(bash elvish fish powershell zsh)' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_cook-docs__subcmd__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:cook-docs-help-command-$line[1]:"
+        case $line[1] in
+            (completions)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+}
+
+(( $+functions[_cook-docs_commands] )) ||
+_cook-docs_commands() {
+    local commands; commands=(
+'completions:Generate shell autocompletions script' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cook-docs commands' commands "$@"
+}
+(( $+functions[_cook-docs__subcmd__completions_commands] )) ||
+_cook-docs__subcmd__completions_commands() {
+    local commands; commands=()
+    _describe -t commands 'cook-docs completions commands' commands "$@"
+}
+(( $+functions[_cook-docs__subcmd__help_commands] )) ||
+_cook-docs__subcmd__help_commands() {
+    local commands; commands=(
+'completions:Generate shell autocompletions script' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'cook-docs help commands' commands "$@"
+}
+(( $+functions[_cook-docs__subcmd__help__subcmd__completions_commands] )) ||
+_cook-docs__subcmd__help__subcmd__completions_commands() {
+    local commands; commands=()
+    _describe -t commands 'cook-docs help completions commands' commands "$@"
+}
+(( $+functions[_cook-docs__subcmd__help__subcmd__help_commands] )) ||
+_cook-docs__subcmd__help__subcmd__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'cook-docs help help commands' commands "$@"
+}
+
+if [ "$funcstack[1]" = "_cook-docs" ]; then
+    _cook-docs "$@"
+else
+    compdef _cook-docs cook-docs
+fi

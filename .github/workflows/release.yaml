@@ -233,6 +233,11 @@ jobs:
           cp docs/README.md "$staging/"
           cp LICENSE "$staging/"
 
+          # Copy completions
+          if [ -d "completions" ]; then
+            cp -r completions/ "$staging/"
+          fi
+
           # Compress
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
             7z a "$staging.zip" "$staging"
