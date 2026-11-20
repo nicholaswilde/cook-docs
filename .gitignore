@@ -17,3 +17,19 @@
 # Added by cargo
 
 /target
+
+# Python / uv
+.venv/
+__pycache__/
+*.pyc
+
+# Agentic tools & caches
+.codegraph/
+.serena/
+.rtk/*
+!.rtk/filters.toml
+
+.agents/*
+!.agents/skills/
+!.agents/rules/
+!.agents/skills_catalog.md

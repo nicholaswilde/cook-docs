@@ -1,6 +1,6 @@
 ---
 name: lint-fmt-fix
-description: Run formatting (task fmt) and linting (task lint), and automatically apply fixes (including cargo clippy --fix) for formatting and lint issues.
+description: Run formatting (task fmt) and linting (task lint), and automatically apply fixes (including cargo clippy --fix) for formatting and lint issues. Trigger: /lint-fmt-fix, "lint fmt fix", "fix clippy", "format and lint".
 ---
 
 ## Overview

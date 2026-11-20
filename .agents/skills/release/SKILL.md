@@ -1,3 +1,8 @@
+---
+name: release
+description: Automates versioning, tagging, and deployment for cook-docs via Cargo.toml bump, Taskfile checks, and atomic push. Trigger: /release, "release", "cut release", "tag release".
+---
+
 # /release
 
 Automates the versioning, tagging, and deployment process for the project.
@@ -22,8 +27,8 @@ This skill handles the end-to-end release process: extracting the current versio
    - Run `task test` to guarantee all tests pass before making the release.
 
 4. **Verify Git State:**
-   - Check `git status --porcelain` to ensure there are no unexpected local modifications.
-   - Run `git pull --rebase` to ensure the local branch is synchronized with `origin main`.
+   - Check `rtk git status` to ensure there are no unexpected local modifications.
+   - Run `rtk git pull --rebase` to ensure the local branch is synchronized with `origin main`.
 
 5. **Commit and Tag Changes:**
    - Stage `Cargo.toml` and `Cargo.lock`.

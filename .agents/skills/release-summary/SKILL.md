@@ -1,3 +1,8 @@
+---
+name: release-summary
+description: Generates a categorized GitHub release summary from git commit logs between tags. Trigger: /release-summary, "release summary", "generate release notes".
+---
+
 # /release-summary [range]
 
 Generates a clean, professional GitHub release summary based on git logs.
