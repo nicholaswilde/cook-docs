@@ -26,26 +26,26 @@ this:
 {{ template "cook.sourceSection" . }}
 ```
 
-The tool also includes the [sprig templating library][5], so those functions
-can be used in the templates you supply.
+The tool renders Go-compatible templates using [`gtmpl-ng`][5] and provides built-in helper functions (`getSource`, `sumTimers`, `lower`, `replace`, `round`, `add1`, `wrap`, `indent`) for use in custom templates.
 
 ## Built-in Templates
 
 ### Sections
 
-| Name                                     | Description                                                        |
-|------------------------------------------|--------------------------------------------------------------------|
-| `cook.headerSection`                     | The main heading of the generated markdown file                    |
-| `cook.imageSection`                      | The image section                                                  |
-| `cook.tableSection`                      | The table section that consists of the serving size and total time |
-| `cook.ingredientsSection`                | The ingredients section                                            |
-| `cook.cookwareSection`                   | The cookware section                                               |
-| `cook.stepsSection`                      | The steps section                                                  |
-| `cook.stepsWithQuotedCommentsSection`    | The steps section with comments in [block quotes][8]               |
-| `cook.stepsWithAdmonishedCommentsHeader` | The steps section with comments in [admonitions][9]                |
-| `cook.sourceSection`                     | The source section if `source` exists in Metadata                  |
-| `cook.commentsSection`                   | The comments section                                               |
-| `cook.metadataSection`                   | The metadata section. This prints all values in `Metadata`         |
+| Name                                      | Description                                                        |
+|-------------------------------------------|--------------------------------------------------------------------|
+| `cook.headerSection`                      | The main heading of the generated markdown file                    |
+| `cook.imageSection`                       | The image section                                                  |
+| `cook.lazyImageSection`                   | The lazy-loaded image section (`loading="lazy"`)                   |
+| `cook.tableSection`                       | The table section that consists of the serving size and total time |
+| `cook.ingredientsSection`                 | The ingredients section                                            |
+| `cook.cookwareSection`                    | The cookware section                                               |
+| `cook.stepsSection`                       | The steps section                                                  |
+| `cook.stepsWithQuotedCommentsSection`     | The steps section with comments in [block quotes][8]               |
+| `cook.stepsWithAdmonishedCommentsSection` | The steps section with comments in [admonitions][9]                |
+| `cook.sourceSection`                      | The source section if `source` exists in Metadata                  |
+| `cook.commentsSection`                    | The comments section                                               |
+| `cook.metadataSection`                    | The metadata section. This prints all values in `Metadata`         |
 
 ### Components
 
@@ -73,10 +73,20 @@ can be used in the templates you supply.
 | `.Info.NewRecipeFilePath`                | The new recipe file name after removal of spaces and converting to lowercase |
 | `.Info.RecipeFilePath`                   | The file path of the recipe file                                             |
 
-See [template.go][6] for how each key is defined.
+### Helper Functions
 
-!!! note
-    The `cook.commentsSection` does not print the comments properly [(#3)][7]
+| Function    | Description                                                     |
+|-------------|-----------------------------------------------------------------|
+| `getSource` | Formats a `source` metadata URL into a Markdown link            |
+| `sumTimers` | Sums recipe step timers into a total duration string            |
+| `lower`     | Converts a string to lowercase                                  |
+| `replace`   | Replaces substrings (`replace old new str`)                     |
+| `round`     | Rounds a numeric value to specified decimal places              |
+| `add1`      | Adds `1` to an integer (useful for 1-based step numbering)      |
+| `wrap`      | Word-wraps text to a specified line width                       |
+| `indent`    | Indents lines by a specified number of spaces                   |
+
+See [`src/document.rs`][6] for how each built-in template and helper function is defined.
 
 ## Metadata
 
@@ -91,19 +101,20 @@ Any [metadata][10] from the recipe `*.cook` file will be written to the `cook.me
 
 ## Images
 
-Uses the [`loading="lazy"`][11] that is [available][12] on every modern browser. The only requirement is [`attr_list`][13]:
+`cook.lazyImageSection` uses [`loading="lazy"`][11], which is [available][12] on modern browsers. To enable Markdown attribute syntax in Zensical / MkDocs, enable [`attr_list`][13]:
+
+```toml title="zensical.toml"
+[project.markdown_extensions.attr_list]
+```
 
 ```yml title="mkdocs.yml"
-...
 markdown_extensions:
   - attr_list
-...
 ```
 
 See [mkdocs-material][14] for reference.
 
-The names of the markdown and image files are made lowercase and the spaces are replaced
-by dashes. E.g. `My Recipe Name.cook -> my-recipe-name.md` and `My Recipe Name.png -> my-recipe-name.png`.
+Both `.jpg` and `.png` sidecar images matching `<Recipe Name>.<ext>` are detected automatically (`.jpg` preferred when both exist). Output Markdown and image link names are lowercased with spaces replaced by dashes, e.g. `My Recipe Name.cook -> my-recipe-name.md` and `My Recipe Name.png -> my-recipe-name.png`.
 
 ## Custom Sections
 
@@ -129,14 +140,9 @@ Then use it later in the template.
 
 ## Cooklang Parser
 
-`cook-docs` uses [aquilax's][1] [cooklang-go][2] parser to parse `cooklang`
-recipes. The recipes are then merged with custom cook-docs data, such as
-`Info` and `Config`. The data output may then be directly used inside of
-the `cook-docs` template files.
+`cook-docs` uses the Rust [`cooklang`][1] parser crate ([`cooklang-rs`][2]) to parse Cooklang recipes and merges them with `Info` and `Config` metadata defined in [`src/types.rs`][3]. The resulting context is passed directly into `gtmpl-ng` templates.
 
-See [`parser.go`][3] for the basic structure latyout.
-
-The `jsonify` option may also be used to output
+Run `cook-docs --jsonify` to inspect the full parsed data structure:
 
 ```json title="Example parsed cook-docs output"
  Output:
@@ -346,19 +352,20 @@ The `jsonify` option may also be used to output
      "IgnoreFile": ".cookdocsignore",
      "RecipeSearchRoot": ".",
      "LogLevel": "info",
-     "TemplateFiles": [
-       "recipe.md.gotmpl"
-     ],
-     "WordWrap": 120
-   },
-   "Info": {
-     "ImageFilePath": "/home/nicholas/git/nicholaswilde/cook-docs/cmd/cook-docs/testdata/My Test Recipe.png",
-     "ImageFileName": "My Test Recipe.png",
-     "RecipeName": "My Test Recipe",
-     "RecipeFilePath": "/home/nicholas/git/nicholaswilde/cook-docs/cmd/cook-docs/testdata/My Test Recipe.cook",
-     "NewRecipeFilePath": "/home/nicholas/git/nicholaswilde/cook-docs/cmd/cook-docs/testdata/my-test-recipe.md"
-   }
- }
+      "TemplateFiles": [
+        "recipe.md.gotmpl"
+      ],
+      "WordWrap": 120,
+      "OutputDir": ""
+    },
+    "Info": {
+      "ImageFilePath": "/path/to/cook-docs/testdata/My Test Recipe.png",
+      "ImageFileName": "My Test Recipe.png",
+      "RecipeName": "My Test Recipe",
+      "RecipeFilePath": "/path/to/cook-docs/testdata/My Test Recipe.cook",
+      "NewRecipeFilePath": "/path/to/cook-docs/testdata/my-test-recipe.md"
+    }
+  }
 }
 ```
 
@@ -376,13 +383,12 @@ delimiters. See [Text and spaces][4].
     To remove the double EOF new lines when `.Metadata.source` is missing from the recipe file but present in the template file, double new lines is added to the beginning of `cook.sourceSection` and white space is removed from the end
     of `cook.stepsSection`.
 
-[1]: <https://github.com/aquilax>
-[2]: <https://github.com/aquilax/cooklang-go>
-[3]: <https://github.com/aquilax/cooklang-go/blob/490a595d639b679a4f2053a309647882db37e569/parser.go>
+[1]: <https://crates.io/crates/cooklang>
+[2]: <https://github.com/cooklang/cooklang-rs>
+[3]: <https://github.com/nicholaswilde/cook-docs/blob/main/src/types.rs>
 [4]: <https://pkg.go.dev/text/template#hdr-Text_and_spaces>
-[5]: <https://github.com/Masterminds/sprig>
-[6]: <https://github.com/nicholaswilde/cook-docs/blob/main/pkg/document/template.go>
-[7]: <https://github.com/nicholaswilde/cook-docs/issues/3>
+[5]: <https://crates.io/crates/gtmpl-ng>
+[6]: <https://github.com/nicholaswilde/cook-docs/blob/main/src/document.rs>
 [8]: <https://github.github.com/gfm/#block-quotes>
 [9]: <https://squidfunk.github.io/mkdocs-material/reference/admonitions/>
 [10]: <https://cooklang.org/docs/spec/#metadata>

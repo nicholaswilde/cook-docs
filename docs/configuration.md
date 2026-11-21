@@ -21,6 +21,8 @@ Here is a list of the supported parameters:
 | -c, --recipe-search-root string | COOK_DOCS_RECIPE_SEARCH_ROOT | recipe_search_root | .                | directory to search recursively within for recipes                                               |
 | -t, --template-files strings    | COOK_DOCS_TEMPLATE_FILES     | template_files   | [recipe.md.gotmpl] | gotemplate file paths relative to each recipe directory from which documentation will be generated |
 | -w, --word-wrap int             | COOK_DOCS_WORD_WRAP          | word_wrap        | 120                | word wrap line length for recipe steps section                                                   |
+| --watch                         | N/A                          | N/A              | false              | watch recipes and templates and re-render automatically on changes                               |
+| --debounce MS                   | N/A                          | N/A              | 300                | debounce delay in milliseconds for watch mode                                                    |
 | -v, --version                   | N/A                          | N/A              | N/A                | display the version of cook-docs                                                                 |
 
 ## Config Files

@@ -1,56 +1,126 @@
 # Usage
 
 !!! warning
-      The mode of operation of `cook-docs` is to process all recipes in the
-      working directory and sub folders. See [Mode of Operation][3] for
-      details.
+    The mode of operation of `cook-docs` is to process all recipes in the
+    working directory and sub folders. See [Mode of Operation][3] for
+    details.
 
-There are two important parameters to be aware of when running `cook-docs`.
-`--recipe-search-root` specifies the directory under which the tool will
-recursively search for recipes to render documentation for.
-`--template-files` specifies the list of gotemplate files that should be used
-in rendering the resulting markdown file for each chart found. By default
-`--recipe-search-root=.` and `--template-files=recipe.md.gotmpl`.
+There are two key parameters to know when running `cook-docs`:
 
-If a template file is specified as a filename only as with the default above,
-the file is interpreted as being _relative to each chart directory found_. If,
-however, a template file is specified as a relative path, e.g. the first of
-`--template-files=./_templates.gotmpl --template-files=recipe.md.gotmpl` then
-the file is interpreted as being relative to the `recipe-search-root`.
+- `--recipe-search-root` (`-c`) specifies the directory under which the tool recursively searches for `.cook` recipe files (default `.`).
+- `--template-files` (`-t`) specifies a comma-separated list of Go-compatible template files used to render each recipe's Markdown output (default `recipe.md.gotmpl`).
 
-## :runner: Running the Binary Directly
+If a template entry is a bare filename (like `recipe.md.gotmpl`), it is resolved _relative to each recipe directory_. If it is a relative path starting with `.` (like `./_templates.gotmpl`), it is resolved relative to `recipe-search-root`.
 
-To run and generate documentation into markdown files for all cooklang recipes within or recursively contained by a directory:
+## :runner: Generating Documentation
+
+Generate Markdown files for all `.cook` recipes under the current directory:
 
 ```bash
 cook-docs
-# OR
-cook-docs --dry-run # prints generated documentation to stdout rather than modifying markdown files.
 ```
 
-The tool searches recursively through subdirectories of the current directory for `<Recipe Name>.cook` files and generates documentation
-for every recipe that it finds.
+Preview rendered Markdown on stdout without writing any files:
+
+```bash
+cook-docs --dry-run
+```
+
+Render recipes from a specific directory into a separate output folder (mirroring relative subdirectories):
+
+```bash
+cook-docs --recipe-search-root ./recipes --output-dir ./docs/recipes
+```
+
+Inspect parsed recipe data as JSON:
+
+```bash
+cook-docs --jsonify
+```
+
+Use an explicit configuration file (TOML, YAML, or JSON):
+
+```bash
+cook-docs --config .cookdocs.toml
+```
+
+## :eyes: Watch Mode
+
+Monitor `recipe-search-root` and configured `template-files` and automatically re-render affected recipes on save:
+
+```bash
+cook-docs watch
+# OR
+cook-docs --watch
+```
+
+Customize the debounce delay (default `300` ms) and combine with standard flags:
+
+```bash
+cook-docs watch --recipe-search-root ./recipes --output-dir ./docs --debounce 500
+```
+
+Editing a single `.cook` file re-renders only that recipe; editing a per-directory template re-renders recipes in that directory; editing a shared/external template re-renders all discovered recipes. Press `Ctrl+C` to stop.
+
+## :stethoscope: Doctor Diagnostics
+
+Validate configuration files, `recipe-search-root`, templates, and output directory permissions:
+
+```bash
+cook-docs doctor
+# Alias:
+cook-docs doc
+# Machine-readable JSON output:
+cook-docs doctor --json
+```
+
+Exits non-zero when errors are detected.
+
+## :arrow_up: Self-Update
+
+Check for or install the latest release from GitHub:
+
+```bash
+# Check only without installing
+cook-docs self-update --check
+
+# Update interactively (or skip prompt with -y/--yes)
+cook-docs self-update --yes
+
+# Pin a specific release tag/version
+cook-docs self-update --version 0.9.3 --yes
+```
+
+Alias: `cook-docs update`.
+
+## :shell: Completions & Man Page
+
+```bash
+# Generate shell completions (bash, zsh, fish, powershell, elvish)
+cook-docs completions bash
+
+# Generate UNIX roff man page
+cook-docs man
+```
 
 ## :file_folder: Ignoring Recipe Directories
 
-cook-docs supports a `.cookdocsignore` file, exactly like a `.gitignore` file in which one can specify directories to ignore
-when searching for recipes. Directories specified need not be charts themselves, so parent directories containing potentially
-many recipes can be ignored and none of the recipes underneath them will be processed. You may also directly reference the
-`<Recipe Name>.cook` file for a chart to skip processing for it.
+`cook-docs` supports a `.cookdocsignore` file (`.gitignore` syntax) to exclude directories or specific `.cook` files from discovery. Parent directories listed in `.cookdocsignore` skip all recipes underneath them. Use `-i, --ignore-file` to specify an alternate ignore filename.
 
 ## :grey_question: Help
 
-Use the `--help` parameter for help on using `cook-docs`.
+Use `--help` on the root command or any subcommand:
 
 ```bash
 cook-docs --help
+cook-docs watch --help
 ```
 
 ## :robot: Task
 
-[go-task][1] may be used to automate `cook-docs` tasks.
+[go-task][1] automates development workflows (`test`, `fmt`, `lint`, `lint:md`, `coverage`, `completions`, `man`, `serve`, `release`).
 
-Run `task` for a list of tasks:
+Run `task` to list all available tasks:
 
 ```bash
 task
@@ -58,7 +128,7 @@ task
 
 ## :material-git: pre-commit
 
-[pre-commit][2] may also be used on this project.
+[pre-commit][2] may also be used on this project:
 
 ```bash
 pre-commit install

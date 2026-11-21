@@ -5,7 +5,7 @@
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white&style=for-the-badge)](https://pre-commit.com/)
 [![task](https://img.shields.io/badge/task-enabled-brightgreen?logo=task&logoColor=white&style=for-the-badge)](https://taskfile.dev/#/)
 
-A tool for automatically generating markdown documentation for [cooklang][1] recipes.
+A fast Rust CLI for automatically generating Markdown documentation for [Cooklang][1] recipes using Go-compatible templates.
 
 ---
 
@@ -14,26 +14,39 @@ A tool for automatically generating markdown documentation for [cooklang][1] rec
 ### :floppy_disk:&nbsp; Installation
 
 ```bash
-# brew
+# Homebrew
 brew install nicholaswilde/tap/cook-docs
 ```
 
 ```powershell
-# scoop
+# Scoop
 scoop bucket add nicholaswilde https://github.com/nicholaswilde/scoop-bucket.git
 scoop install nicholaswilde/cook-docs
 ```
 
+```bash
+# Cargo (from source)
+cargo install --git https://github.com/nicholaswilde/cook-docs
+```
+
+Debian/Ubuntu `.deb` packages are also published via [`nicholaswilde/apt`](https://nicholaswilde.io/apt) — see [Installation](https://nicholaswilde.io/cook-docs/installation/).
+
 ### :gear:&nbsp; Usage
 
-> :warning: Warning: The mode of operation of cook-docs is to process all
+> :warning: Warning: The mode of operation of `cook-docs` is to process all
 > recipes in the working directory and sub folders. See [Mode of Operation][2]
 > for details.
 
 ```bash
 cook-docs
-# OR
-cook-docs --dry-run # prints generated documentation to stdout rather than modifying markdown files.
+# Preview generated Markdown on stdout without writing files
+cook-docs --dry-run
+# Watch recipes & templates and re-render automatically on save
+cook-docs watch
+# Validate config, templates, and output permissions
+cook-docs doctor
+# Check for or install the latest GitHub release
+cook-docs self-update --check
 ```
 
 ---
@@ -62,15 +75,15 @@ Inspiration for this repository has been taken from [helm-docs](https://github.c
 
 ---
 
-## ​:balance_scale:​&nbsp;​ License
+## :balance_scale:&nbsp; License
 
-​[​Apache License 2.0](../LICENSE)
+[Apache License 2.0](../LICENSE)
 
 ---
 
-## ​:pencil:​&nbsp;​ Author
+## :pencil:&nbsp; Author
 
-​This project was started in 2022 by [​Nicholas Wilde​](https://github.com/nicholaswilde/).
+This project was started in 2022 by [Nicholas Wilde](https://github.com/nicholaswilde/).
 
 [1]: https://cooklang.org/
 [2]: https://nicholaswilde.io/cook-docs/about#mode-of-operation

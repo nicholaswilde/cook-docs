@@ -5,43 +5,58 @@
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white&style=for-the-badge)](https://pre-commit.com/)
 [![task](https://img.shields.io/badge/task-enabled-brightgreen?logo=task&logoColor=white&style=for-the-badge)](https://taskfile.dev/#/)
 
-A tool for automatically generating markdown documentation for [cooklang][1] recipes
+A fast Rust CLI for automatically generating Markdown documentation from [Cooklang][1] (`.cook`) recipes using Go-compatible templates.
 
 ## :rocket: TL;DR
 
 ### :floppy_disk: Installation
 
-=== "brew"
+=== "Homebrew"
     ```bash
     brew install nicholaswilde/tap/cook-docs
     ```
 
-=== "scoop"
+=== "APT"
     ```bash
+    # After adding https://nicholaswilde.io/apt (see Installation page)
+    sudo apt update && sudo apt install cook-docs
+    ```
+
+=== "Scoop"
+    ```powershell
     scoop bucket add nicholaswilde https://github.com/nicholaswilde/scoop-bucket.git
     scoop install nicholaswilde/cook-docs
+    ```
+
+=== "Cargo"
+    ```bash
+    cargo install --git https://github.com/nicholaswilde/cook-docs
     ```
 
 ### :gear: Usage
 
 !!! warning
-      The mode of operation of `cook-docs` is to process all recipes in the
-      working directory and sub folders. See [Mode of Operation][4] for
-      details.
+    The mode of operation of `cook-docs` is to process all recipes in the
+    working directory and sub folders. See [Mode of Operation][4] for
+    details.
 
 ```bash title="Run binary directly"
 cook-docs
-# OR
-cook-docs --dry-run # prints generated documentation to stdout rather than modifying markdown files.
+# Preview generated Markdown on stdout without writing files
+cook-docs --dry-run
+# Watch recipes & templates and re-render automatically on save
+cook-docs watch
+# Validate config, templates, and permissions
+cook-docs doctor
 ```
 
 ## :star: Contributing
 
-See [Contributing](./CONTRIBUTING/)
+See [Contributing](./CONTRIBUTING.md)
 
 ## :sparkles: Code of Conduct
 
-See [Code of Conduct](./CODE_OF_CONDUCT)
+See [Code of Conduct](./CODE_OF_CONDUCT.md)
 
 ## :bulb: Inspiration
 
