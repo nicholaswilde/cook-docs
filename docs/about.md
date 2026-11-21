@@ -32,4 +32,4 @@ and files.
 [5]: https://github.com/cooklang/cook-import
 [6]: https://github.com/nicholaswilde/recipes/
 [7]: https://nicholaswilde.io/recipes/
-[8]: ../usage#ignoring-recipe-directories
+[8]: ./usage.md#ignoring-recipe-directories

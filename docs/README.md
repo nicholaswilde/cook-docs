@@ -1,4 +1,5 @@
 # cook-docs
+
 ![GitHub tag (latest SemVer)](https://img.shields.io/github/v/tag/nicholaswilde/cook-docs?style=for-the-badge)
 [![ci](https://img.shields.io/github/actions/workflow/status/nicholaswilde/cook-docs/ci.yaml?label=ci&style=for-the-badge&branch=main)](https://github.com/nicholaswilde/cook-docs/actions/workflows/ci.yaml)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white&style=for-the-badge)](https://pre-commit.com/)
@@ -12,12 +13,12 @@ A tool for automatically generating markdown documentation for [cooklang][1] rec
 
 ### :floppy_disk:&nbsp; Installation
 
-```
+```bash
 # brew
 brew install nicholaswilde/tap/cook-docs
 ```
 
-```
+```powershell
 # scoop
 scoop bucket add nicholaswilde https://github.com/nicholaswilde/scoop-bucket.git
 scoop install nicholaswilde/cook-docs
@@ -29,7 +30,7 @@ scoop install nicholaswilde/cook-docs
 > recipes in the working directory and sub folders. See [Mode of Operation][2]
 > for details.
 
-```
+```bash
 cook-docs
 # OR
 cook-docs --dry-run # prints generated documentation to stdout rather than modifying markdown files.
@@ -39,7 +40,7 @@ cook-docs --dry-run # prints generated documentation to stdout rather than modif
 
 ## :book:&nbsp; Documentation
 
-Documentation can be found [here](http://nicholaswilde.io/cook-docs).
+Documentation can be found on the [cook-docs documentation site](https://nicholaswilde.io/cook-docs).
 
 ---
 

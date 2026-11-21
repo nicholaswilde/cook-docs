@@ -1,4 +1,5 @@
 # cook-docs
+
 ![GitHub tag (latest SemVer)](https://img.shields.io/github/v/tag/nicholaswilde/cook-docs?style=for-the-badge)
 [![ci](https://img.shields.io/github/actions/workflow/status/nicholaswilde/cook-docs/ci.yaml?label=ci&style=for-the-badge&branch=main)](https://github.com/nicholaswilde/cook-docs/actions/workflows/ci.yaml)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white&style=for-the-badge)](https://pre-commit.com/)
@@ -58,4 +59,4 @@ This project was started in 2022 by [Nicholas Wilde].
 [1]: https://cooklang.org/
 [2]: https://github.com/norwoodj/helm-docs
 [3]: https://github.com/nicholaswilde/cook-docs/blob/main/LICENSE
-[4]: ./about#mode-of-operation
+[4]: ./about.md#mode-of-operation

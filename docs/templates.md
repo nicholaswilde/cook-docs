@@ -76,14 +76,13 @@ can be used in the templates you supply.
 See [template.go][6] for how each key is defined.
 
 !!! note
-
-      The `cook.commentsSection` does not print the comments properly [(#3)][7]
+    The `cook.commentsSection` does not print the comments properly [(#3)][7]
 
 ## Metadata
 
 Any [metadata][10] from the recipe `*.cook` file will be written to the `cook.metadataSection`.
 
-```
+```text
 >> source: https://www.gimmesomeoven.com/baked-potato/
 >> time required: 1.5 hours
 >> course: dinner
@@ -139,7 +138,7 @@ See [`parser.go`][3] for the basic structure latyout.
 
 The `jsonify` option may also be used to output
 
-```json title="Example parsed `cook-docs` output"
+```json title="Example parsed cook-docs output"
  Output:
  {
    "Steps": [

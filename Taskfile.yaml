@@ -1,6 +1,8 @@
 ---
 version: '3'
 
+dotenv: ['.env']
+
 vars:
   ROOT_DIR:
     sh: git rev-parse --show-toplevel
@@ -31,9 +33,21 @@ tasks:
       - mkdir -p assets
       - cargo run -- man > assets/cook-docs.1
   coverage:
-    desc: Run tests
+    desc: Run tests and generate coverage report (stdout summary)
     cmds:
-      - cargo test
+      - cargo llvm-cov --all-features --workspace --summary-only
+  coverage:report:
+    desc: Run tests and generate LCOV coverage report (for Coveralls)
+    cmds:
+      - cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
+  coverage:upload:
+    desc: Upload coverage report to Coveralls
+    precondition:
+      - sh: test -f lcov.info
+        msg: "lcov.info doesn't exist"
+    cmds:
+      - coveralls report lcov.info -n -r {{ .COVERALLS_REPO_TOKEN }}
+    silent: true
   dist:
     desc: Create production release
     cmds:
@@ -96,6 +110,10 @@ tasks:
     desc: Check code formatting with rustfmt
     cmds:
       - cargo fmt --all --check
+  fmt:md:
+    desc: Format Markdown files with rumdl
+    cmds:
+      - rumdl fmt .
   help:
     desc: Show app help
     cmds:
@@ -109,6 +127,10 @@ tasks:
     cmds:
       - yamllint-rs .
       - task: clippy
+  lint:md:
+    desc: Lint Markdown files with rumdl
+    cmds:
+      - rumdl check .
   run:
     desc: Run program
     cmds:

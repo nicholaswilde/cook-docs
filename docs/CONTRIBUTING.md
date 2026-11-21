@@ -9,7 +9,7 @@ cook-docs uses a [Developers Certificate of Origin (DCO)][2] to sign-off that
 you have the right to contribute the code being contributed. The full text of
 the DCO reads:
 
-```
+```text
 Developer Certificate of Origin
 Version 1.1
 
@@ -84,7 +84,7 @@ contributed to the commit.
 Feature requests, bug reports, and support requests all occur through GitHub
 issues. If you would like to file an issue, view existing issues, or comment on
 an issue please engage with issues at
-https://github.com/nicholaswilde/cook-docs/issues
+<https://github.com/nicholaswilde/cook-docs/issues>
 
 ## Pull Request
 
@@ -97,7 +97,7 @@ first. The issue can detail the change and you can get feedback from the
 maintainers prior to starting to make the change.
 
 You can find the existing pull requests at
-https://github.com/nicholaswilde/cook-docs/pulls
+<https://github.com/nicholaswilde/cook-docs/pulls>
 
 ## Versioning
 

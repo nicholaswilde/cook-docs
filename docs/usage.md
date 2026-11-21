@@ -31,14 +31,12 @@ cook-docs --dry-run # prints generated documentation to stdout rather than modif
 The tool searches recursively through subdirectories of the current directory for `<Recipe Name>.cook` files and generates documentation
 for every recipe that it finds.
 
-
 ## :file_folder: Ignoring Recipe Directories
 
 cook-docs supports a `.cookdocsignore` file, exactly like a `.gitignore` file in which one can specify directories to ignore
 when searching for recipes. Directories specified need not be charts themselves, so parent directories containing potentially
 many recipes can be ignored and none of the recipes underneath them will be processed. You may also directly reference the
 `<Recipe Name>.cook` file for a chart to skip processing for it.
-
 
 ## :grey_question: Help
 
@@ -69,4 +67,4 @@ pre-commit install-hooks
 
 [1]: https://taskfile.dev/#/
 [2]: https://pre-commit.com/
-[3]: ./about#mode-of-operation
+[3]: ./about.md#mode-of-operation

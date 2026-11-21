@@ -8,6 +8,7 @@ description: Automates versioning, tagging, and deployment for cook-docs via Car
 Automates the versioning, tagging, and deployment process for the project.
 
 ## Description
+
 This skill handles the end-to-end release process: extracting the current version, incrementing the patch version, updating configuration, committing changes, creating git tags, and pushing atomically to the remote repository.
 
 ## Protocol

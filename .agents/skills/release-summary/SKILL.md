@@ -8,6 +8,7 @@ description: Generates a categorized GitHub release summary from git commit logs
 Generates a clean, professional GitHub release summary based on git logs.
 
 ## Description
+
 This skill retrieves the git commit logs for a specified range (or defaults to the latest two tags) and formats them into a categorized, structured release summary suitable for GitHub.
 
 ## Protocol
@@ -25,10 +26,10 @@ This skill retrieves the git commit logs for a specified range (or defaults to t
 
 3. **Generate and Format the Release Summary:**
    - Categorize the commit messages into the following markdown sections (using `###` for headers):
-     - ### 🚀 **New Features** (for commits starting with `feat`)
-     - ### 🐛 **Bug Fixes** (for commits starting with `fix`)
-     - ### ✨ **Improvements** (for commits starting with `refactor`, `perf`, `style`)
-     - ### 📝 **Documentation** (for commits starting with `docs`)
+     - `### 🚀 **New Features**` (for commits starting with `feat`)
+     - `### 🐛 **Bug Fixes**` (for commits starting with `fix`)
+     - `### ✨ **Improvements**` (for commits starting with `refactor`, `perf`, `style`)
+     - `### 📝 **Documentation**` (for commits starting with `docs`)
    - Clean up the commit messages:
      - Exclude any commit messages related to `conductor` or `checkpoint` tasks (e.g., commits containing `conductor` or `checkpoint` in their type, scope, or message body).
      - Strip the type prefix (e.g. "feat:", "fix:").

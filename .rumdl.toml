@@ -1,0 +1,24 @@
+# rumdl configuration file
+# https://github.com/rvben/rumdl
+
+[global]
+respect-gitignore = true
+
+exclude = [".git", "node_modules", "vendor", "target", ".venv", "site"]
+
+# Relaxed rules suited for CLI documentation
+disable = [
+  "MD013", # Line length
+  "MD033", # Inline HTML
+  "MD041", # First line heading (e.g. skills starting with YAML frontmatter)
+]
+
+[MD007]
+indent = 2
+
+[MD024]
+siblings-only = true
+
+[per-file-ignores]
+# Zensical/MkDocs strips :emoji: shortcodes from heading anchor slugs
+"docs/**/*.md" = ["MD051"]

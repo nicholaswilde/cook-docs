@@ -4,30 +4,35 @@ description: Run formatting (task fmt) and linting (task lint), and automaticall
 ---
 
 ## Overview
+
 This skill automates formatting and lint checks for the project, and automatically applies fixes for formatting and compiler warnings/errors where possible.
 
 ## Execution Steps
 
 1. **Format Code**:
    Run the project's formatting command:
+
    ```bash
    task fmt
    ```
 
 2. **Auto-Fix Clippy Issues**:
    Run Cargo Clippy with automatic fixes enabled:
+
    ```bash
    cargo clippy --fix --allow-dirty --allow-staged --all-targets
    ```
 
 3. **Verify Linting**:
    Run the project's linting command to verify all checks pass:
+
    ```bash
    task lint
    ```
 
 4. **Verify Test Suite**:
    Run the tests to ensure the changes did not break anything:
+
    ```bash
    task test
    ```
