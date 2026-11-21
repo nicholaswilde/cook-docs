@@ -2,6 +2,7 @@
 
 ![GitHub tag (latest SemVer)](https://img.shields.io/github/v/tag/nicholaswilde/cook-docs?style=for-the-badge)
 [![ci](https://img.shields.io/github/actions/workflow/status/nicholaswilde/cook-docs/ci.yaml?label=ci&style=for-the-badge&branch=main)](https://github.com/nicholaswilde/cook-docs/actions/workflows/ci.yaml)
+[![Coveralls](https://img.shields.io/coveralls/github/nicholaswilde/cook-docs/main?style=for-the-badge&logo=coveralls)](https://coveralls.io/github/nicholaswilde/cook-docs?branch=main)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white&style=for-the-badge)](https://pre-commit.com/)
 [![task](https://img.shields.io/badge/task-enabled-brightgreen?logo=task&logoColor=white&style=for-the-badge)](https://taskfile.dev/#/)
 
