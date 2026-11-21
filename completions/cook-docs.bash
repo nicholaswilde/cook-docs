@@ -31,6 +31,9 @@ _cook__docs() {
             cook__docs,self-update)
                 cmd="cook__docs__subcmd__self__subcmd__update"
                 ;;
+            cook__docs,watch)
+                cmd="cook__docs__subcmd__watch"
+                ;;
             cook__docs__subcmd__help,completions)
                 cmd="cook__docs__subcmd__help__subcmd__completions"
                 ;;
@@ -46,6 +49,9 @@ _cook__docs() {
             cook__docs__subcmd__help,self-update)
                 cmd="cook__docs__subcmd__help__subcmd__self__subcmd__update"
                 ;;
+            cook__docs__subcmd__help,watch)
+                cmd="cook__docs__subcmd__help__subcmd__watch"
+                ;;
             *)
                 ;;
         esac
@@ -53,7 +59,7 @@ _cook__docs() {
 
     case "${cmd}" in
         cook__docs)
-            opts="-v -C -d -j -i -c -l -t -w -o -h --version --config --dry-run --jsonify --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --help completions man doctor self-update help"
+            opts="-v -C -d -j -i -c -l -t -w -o -h --version --config --dry-run --jsonify --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --watch --debounce --help watch completions man doctor self-update help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 1 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -115,6 +121,10 @@ _cook__docs() {
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
+                --debounce)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
                 *)
                     COMPREPLY=()
                     ;;
@@ -123,7 +133,7 @@ _cook__docs() {
             return 0
             ;;
         cook__subcmd__docs__subcmd__completions)
-            opts="-C -i -c -l -t -w -o -h --config --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --help bash elvish fish powershell zsh"
+            opts="-C -d -j -i -c -l -t -w -o -h --config --dry-run --jsonify --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --help bash elvish fish powershell zsh"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -193,7 +203,7 @@ _cook__docs() {
             return 0
             ;;
         cook__subcmd__docs__subcmd__doctor)
-            opts="-C -i -c -l -t -w -o -h --json --config --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --help"
+            opts="-C -d -j -i -c -l -t -w -o -h --json --config --dry-run --jsonify --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -263,7 +273,7 @@ _cook__docs() {
             return 0
             ;;
         cook__subcmd__docs__subcmd__help)
-            opts="completions man doctor self-update help"
+            opts="watch completions man doctor self-update help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -346,8 +356,22 @@ _cook__docs() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
+        cook__subcmd__docs__subcmd__help__subcmd__watch)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
         cook__subcmd__docs__subcmd__man)
-            opts="-C -i -c -l -t -w -o -h --config --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --help"
+            opts="-C -d -j -i -c -l -t -w -o -h --config --dry-run --jsonify --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -417,13 +441,87 @@ _cook__docs() {
             return 0
             ;;
         cook__subcmd__docs__subcmd__self__subcmd__update)
-            opts="-y -C -i -c -l -t -w -o -h --check --yes --version --config --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --help"
+            opts="-y -C -d -j -i -c -l -t -w -o -h --check --yes --version --config --dry-run --jsonify --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
             case "${prev}" in
                 --version)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --config)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                -C)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --ignore-file)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                -i)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --recipe-search-root)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                -c)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --log-level)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                -l)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --template-files)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                -t)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --word-wrap)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                -w)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --output-dir)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        cook__subcmd__docs__subcmd__watch)
+            opts="-C -d -j -i -c -l -t -w -o -h --debounce --config --dry-run --jsonify --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --debounce)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;

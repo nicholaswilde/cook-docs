@@ -99,6 +99,8 @@ fn regression_cli_help_and_version_contract() {
             "-t, --template-files <template-files>",
             "-w, --word-wrap <word-wrap>",
             "-o, --output-dir <output-dir>",
+            "--watch",
+            "--debounce <MS>",
             "-h, --help",
         ] {
             assert!(
@@ -764,5 +766,35 @@ fn regression_self_update_help_and_non_interactive_guard() {
     assert!(
         !dir.path().join("sample.md").exists(),
         "self-update must not trigger recipe rendering"
+    );
+}
+
+#[test]
+fn regression_watch_help_and_missing_root() {
+    let Some(bin) = bin_if_runnable() else {
+        return;
+    };
+
+    let out = run_cli(bin, None, &["watch", "--help"], &[]);
+    assert!(out.status.success(), "watch --help failed");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    for expected in ["--debounce <MS>", "--dry-run", "--recipe-search-root"] {
+        assert!(
+            stdout.contains(expected),
+            "watch help missing {expected:?}:\n{stdout}"
+        );
+    }
+
+    let missing = run_cli(
+        bin,
+        None,
+        &["watch", "-c", "nonexistent_watch_dir_99999"],
+        &[],
+    );
+    assert!(!missing.status.success());
+    let stderr = String::from_utf8_lossy(&missing.stderr);
+    assert!(
+        stderr.contains("does not exist"),
+        "expected missing search root error, got:\n{stderr}"
     );
 }

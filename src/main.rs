@@ -1,10 +1,16 @@
 use std::io::IsTerminal;
-use std::path::{Path, PathBuf};
+use std::time::Duration;
 
-fn render_recipe(path: &str, config: &cook_docs::types::Config) -> Result<(), String> {
-    let recipe = cook_docs::cook::parse_file(path, config)?;
-    cook_docs::document::print_documentation(&recipe);
-    Ok(())
+fn init_logger(level: &str) {
+    let log_level = match level.to_lowercase().as_str() {
+        "trace" => log::LevelFilter::Trace,
+        "debug" => log::LevelFilter::Debug,
+        "info" => log::LevelFilter::Info,
+        "warn" | "warning" => log::LevelFilter::Warn,
+        "error" => log::LevelFilter::Error,
+        _ => log::LevelFilter::Info,
+    };
+    env_logger::Builder::new().filter_level(log_level).init();
 }
 
 fn main() {
@@ -68,6 +74,22 @@ fn main() {
             }
             return;
         }
+        Ok(cook_docs::config::CliAction::Watch {
+            config,
+            debounce_ms,
+        }) => {
+            init_logger(&config.log_level);
+            if let Err(e) = cook_docs::watch::run_watch(
+                &config,
+                cook_docs::watch::WatchOptions {
+                    debounce: Duration::from_millis(debounce_ms),
+                },
+            ) {
+                eprintln!("{}", e);
+                std::process::exit(1);
+            }
+            return;
+        }
         Ok(cook_docs::config::CliAction::Run(cfg)) => cfg,
         Err(e) => {
             eprintln!("Failed to parse config or CLI args: {}", e);
@@ -76,24 +98,10 @@ fn main() {
     };
 
     // 2. Initialize logger
-    let log_level = match config.log_level.to_lowercase().as_str() {
-        "trace" => log::LevelFilter::Trace,
-        "debug" => log::LevelFilter::Debug,
-        "info" => log::LevelFilter::Info,
-        "warn" | "warning" => log::LevelFilter::Warn,
-        "error" => log::LevelFilter::Error,
-        _ => log::LevelFilter::Info,
-    };
-    env_logger::Builder::new().filter_level(log_level).init();
+    init_logger(&config.log_level);
 
     // 3. Resolve search root
-    let search_root = if Path::new(&config.recipe_search_root).is_absolute() {
-        PathBuf::from(&config.recipe_search_root)
-    } else {
-        std::env::current_dir()
-            .unwrap_or_else(|_| PathBuf::from("."))
-            .join(&config.recipe_search_root)
-    };
+    let search_root = cook_docs::resolve_search_root(&config.recipe_search_root);
 
     // 4. Find recipe paths
     let search_root_str = search_root.to_string_lossy();
@@ -112,40 +120,11 @@ fn main() {
     );
 
     // 5. Parse and render recipes
-    let mut handles = Vec::new();
-    for path_str in recipe_paths_strs {
-        let config_clone = config.clone();
-        if config.dry_run {
-            // Serially render dry run
-            if let Err(e) = render_recipe(&path_str, &config_clone) {
-                log::warn!(
-                    "Error parsing file for recipe {}, skipping: {}",
-                    path_str,
-                    e
-                );
-            }
-        } else {
-            let handle = std::thread::spawn(move || {
-                if let Err(e) = render_recipe(&path_str, &config_clone) {
-                    log::warn!(
-                        "Error parsing file for recipe {}, skipping: {}",
-                        path_str,
-                        e
-                    );
-                }
-            });
-            handles.push(handle);
-        }
-    }
-
-    for h in handles {
-        let _ = h.join();
-    }
+    let _ = cook_docs::render_recipes(&recipe_paths, &config);
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::fs;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -171,8 +150,8 @@ mod tests {
             output_dir: "".to_string(),
         };
 
-        assert!(render_recipe(&recipe.to_string_lossy(), &cfg).is_ok());
-        assert!(render_recipe("/nonexistent/Test.cook", &cfg).is_err());
+        assert!(cook_docs::render_recipe(&recipe.to_string_lossy(), &cfg).is_ok());
+        assert!(cook_docs::render_recipe("/nonexistent/Test.cook", &cfg).is_err());
 
         let _ = fs::remove_dir_all(&dir);
     }

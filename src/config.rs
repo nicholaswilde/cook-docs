@@ -24,6 +24,19 @@ pub enum CliAction {
         yes: bool,
         version: Option<String>,
     },
+    Watch {
+        config: Config,
+        debounce_ms: u64,
+    },
+}
+
+fn debounce_arg() -> Arg {
+    Arg::new("debounce")
+        .long("debounce")
+        .value_name("MS")
+        .value_parser(clap::value_parser!(u64))
+        .default_value("300")
+        .help("debounce delay in milliseconds for watch mode (default 300)")
 }
 
 /// Build the clap CLI command definition for `cook-docs`.
@@ -45,11 +58,13 @@ pub fn build_cli() -> Command {
         .arg(Arg::new("dry-run")
             .short('d')
             .long("dry-run")
+            .global(true)
             .action(ArgAction::SetTrue)
             .help("don't actually render any markdown files just print to stdout passed"))
         .arg(Arg::new("jsonify")
             .short('j')
             .long("jsonify")
+            .global(true)
             .action(ArgAction::SetTrue)
             .help("parse the recipe and display it in json format"))
         .arg(Arg::new("ignore-file")
@@ -82,6 +97,16 @@ pub fn build_cli() -> Command {
             .long("output-dir")
             .global(true)
             .help("custom output directory to write generated markdown documentation"))
+        .arg(Arg::new("watch")
+            .long("watch")
+            .action(ArgAction::SetTrue)
+            .help("watch recipes and templates and re-render automatically on changes"))
+        .arg(debounce_arg())
+        .subcommand(
+            Command::new("watch")
+                .about("Watch recipes and templates and re-render automatically on changes")
+                .arg(debounce_arg()),
+        )
         .subcommand(
             Command::new("completions")
                 .about("Generate shell autocompletions script")
@@ -180,7 +205,8 @@ pub fn load_config(args: &[&str]) -> Result<Config, String> {
         CliAction::Completions(_)
         | CliAction::Man
         | CliAction::Doctor { .. }
-        | CliAction::SelfUpdate { .. } => Err("Subcommand cannot be used as config".to_string()),
+        | CliAction::SelfUpdate { .. }
+        | CliAction::Watch { .. } => Err("Subcommand cannot be used as config".to_string()),
     }
 }
 
@@ -275,9 +301,38 @@ where
             version,
         });
     }
+    if let Some(("watch", sub_matches)) = matches.subcommand() {
+        let debounce_ms = if sub_matches.value_source("debounce")
+            == Some(clap::parser::ValueSource::CommandLine)
+        {
+            *sub_matches
+                .get_one::<u64>("debounce")
+                .unwrap_or(&crate::watch::DEFAULT_DEBOUNCE_MS)
+        } else {
+            *matches
+                .get_one::<u64>("debounce")
+                .unwrap_or(&crate::watch::DEFAULT_DEBOUNCE_MS)
+        };
+        let (_, config_result) = resolve_config_with_source(&matches, config_paths, env_get);
+        return Ok(CliAction::Watch {
+            config: config_result?,
+            debounce_ms,
+        });
+    }
 
     let (_, config_result) = resolve_config_with_source(&matches, config_paths, env_get);
-    Ok(CliAction::Run(config_result?))
+    let config = config_result?;
+    if matches.get_flag("watch") {
+        let debounce_ms = *matches
+            .get_one::<u64>("debounce")
+            .unwrap_or(&crate::watch::DEFAULT_DEBOUNCE_MS);
+        return Ok(CliAction::Watch {
+            config,
+            debounce_ms,
+        });
+    }
+
+    Ok(CliAction::Run(config))
 }
 
 #[cfg(test)]
@@ -294,7 +349,8 @@ where
         CliAction::Completions(_)
         | CliAction::Man
         | CliAction::Doctor { .. }
-        | CliAction::SelfUpdate { .. } => Err("Subcommand cannot be used as config".to_string()),
+        | CliAction::SelfUpdate { .. }
+        | CliAction::Watch { .. } => Err("Subcommand cannot be used as config".to_string()),
     }
 }
 
@@ -548,7 +604,8 @@ outputDir: build
                 CliAction::Run(_)
                 | CliAction::Man
                 | CliAction::Doctor { .. }
-                | CliAction::SelfUpdate { .. } => {
+                | CliAction::SelfUpdate { .. }
+                | CliAction::Watch { .. } => {
                     panic!("expected Completions action for {name}")
                 }
             }
@@ -848,5 +905,70 @@ output_dir = \"toml_out\"
     #[test]
     fn test_cli_version_uses_project_version() {
         assert_eq!(build_cli().get_version(), Some(env!("PROJECT_VERSION")));
+    }
+
+    #[test]
+    fn test_load_action_watch_flag_and_subcommand() {
+        // 1. --watch flag on root command
+        let flag_action = load_action_with(&["cook-docs", "--watch"], &[], |_| None).unwrap();
+        match flag_action {
+            CliAction::Watch {
+                config,
+                debounce_ms,
+            } => {
+                assert_eq!(debounce_ms, crate::watch::DEFAULT_DEBOUNCE_MS);
+                assert!(!config.dry_run);
+            }
+            other => panic!("expected Watch action for --watch, got {other:?}"),
+        }
+
+        // 2. watch subcommand with --debounce and shared options
+        let sub_action = load_action_with(
+            &[
+                "cook-docs",
+                "watch",
+                "--debounce",
+                "150",
+                "--dry-run",
+                "-c",
+                "recipes",
+            ],
+            &[],
+            |_| None,
+        )
+        .unwrap();
+        match sub_action {
+            CliAction::Watch {
+                config,
+                debounce_ms,
+            } => {
+                assert_eq!(debounce_ms, 150);
+                assert!(config.dry_run);
+                assert_eq!(config.recipe_search_root, "recipes");
+            }
+            other => panic!("expected Watch action for watch subcommand, got {other:?}"),
+        }
+
+        // 3. --watch with --debounce on root command
+        let root_debounce =
+            load_action_with(&["cook-docs", "--watch", "--debounce", "500"], &[], |_| {
+                None
+            })
+            .unwrap();
+        assert!(matches!(
+            root_debounce,
+            CliAction::Watch {
+                debounce_ms: 500,
+                ..
+            }
+        ));
+
+        // 4. Invalid --debounce rejected
+        assert!(
+            load_action_with(&["cook-docs", "watch", "--debounce", "abc"], &[], |_| None).is_err()
+        );
+
+        // 5. watch subcommand rejected by load_config_with
+        assert!(load_config_with(&["cook-docs", "watch"], &[], |_| None).is_err());
     }
 }

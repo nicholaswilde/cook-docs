@@ -29,12 +29,14 @@ _cook-docs() {
 '--word-wrap=[word wrap line length for recipe steps section (default 120)]: :_default' \
 '-o+[custom output directory to write generated markdown documentation]: :_default' \
 '--output-dir=[custom output directory to write generated markdown documentation]: :_default' \
+'--debounce=[debounce delay in milliseconds for watch mode (default 300)]:MS:_default' \
 '-v[version for cook-docs]' \
 '--version[version for cook-docs]' \
 '-d[don'\''t actually render any markdown files just print to stdout passed]' \
 '--dry-run[don'\''t actually render any markdown files just print to stdout passed]' \
 '-j[parse the recipe and display it in json format]' \
 '--jsonify[parse the recipe and display it in json format]' \
+'--watch[watch recipes and templates and re-render automatically on changes]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ":: :_cook-docs_commands" \
@@ -46,7 +48,32 @@ _cook-docs() {
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:cook-docs-command-$line[1]:"
         case $line[1] in
-            (completions)
+            (watch)
+_arguments "${_arguments_options[@]}" : \
+'--debounce=[debounce delay in milliseconds for watch mode (default 300)]:MS:_default' \
+'-C+[path to configuration file (TOML, YAML, or JSON)]: :_default' \
+'--config=[path to configuration file (TOML, YAML, or JSON)]: :_default' \
+'-i+[filename to use as an ignore file to exclude recipe directories (default ".cookdocsignore")]: :_default' \
+'--ignore-file=[filename to use as an ignore file to exclude recipe directories (default ".cookdocsignore")]: :_default' \
+'-c+[directory to search recursively within for recipes (default ".")]: :_default' \
+'--recipe-search-root=[directory to search recursively within for recipes (default ".")]: :_default' \
+'-l+[level of logs that should printed, one of (panic, fatal, error, warning, info, debug, trace) (default "info")]: :_default' \
+'--log-level=[level of logs that should printed, one of (panic, fatal, error, warning, info, debug, trace) (default "info")]: :_default' \
+'-t+[gotemplate file paths relative to each recipe directory from which documentation will be generated (default "recipe.md.gotmpl")]: :_default' \
+'--template-files=[gotemplate file paths relative to each recipe directory from which documentation will be generated (default "recipe.md.gotmpl")]: :_default' \
+'-w+[word wrap line length for recipe steps section (default 120)]: :_default' \
+'--word-wrap=[word wrap line length for recipe steps section (default 120)]: :_default' \
+'-o+[custom output directory to write generated markdown documentation]: :_default' \
+'--output-dir=[custom output directory to write generated markdown documentation]: :_default' \
+'-d[don'\''t actually render any markdown files just print to stdout passed]' \
+'--dry-run[don'\''t actually render any markdown files just print to stdout passed]' \
+'-j[parse the recipe and display it in json format]' \
+'--jsonify[parse the recipe and display it in json format]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(completions)
 _arguments "${_arguments_options[@]}" : \
 '-C+[path to configuration file (TOML, YAML, or JSON)]: :_default' \
 '--config=[path to configuration file (TOML, YAML, or JSON)]: :_default' \
@@ -62,6 +89,10 @@ _arguments "${_arguments_options[@]}" : \
 '--word-wrap=[word wrap line length for recipe steps section (default 120)]: :_default' \
 '-o+[custom output directory to write generated markdown documentation]: :_default' \
 '--output-dir=[custom output directory to write generated markdown documentation]: :_default' \
+'-d[don'\''t actually render any markdown files just print to stdout passed]' \
+'--dry-run[don'\''t actually render any markdown files just print to stdout passed]' \
+'-j[parse the recipe and display it in json format]' \
+'--jsonify[parse the recipe and display it in json format]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ':shell -- Shell to generate completions for:(bash elvish fish powershell zsh)' \
@@ -83,6 +114,10 @@ _arguments "${_arguments_options[@]}" : \
 '--word-wrap=[word wrap line length for recipe steps section (default 120)]: :_default' \
 '-o+[custom output directory to write generated markdown documentation]: :_default' \
 '--output-dir=[custom output directory to write generated markdown documentation]: :_default' \
+'-d[don'\''t actually render any markdown files just print to stdout passed]' \
+'--dry-run[don'\''t actually render any markdown files just print to stdout passed]' \
+'-j[parse the recipe and display it in json format]' \
+'--jsonify[parse the recipe and display it in json format]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -104,6 +139,10 @@ _arguments "${_arguments_options[@]}" : \
 '-o+[custom output directory to write generated markdown documentation]: :_default' \
 '--output-dir=[custom output directory to write generated markdown documentation]: :_default' \
 '--json[Output doctor report in JSON format]' \
+'-d[don'\''t actually render any markdown files just print to stdout passed]' \
+'--dry-run[don'\''t actually render any markdown files just print to stdout passed]' \
+'-j[parse the recipe and display it in json format]' \
+'--jsonify[parse the recipe and display it in json format]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -128,6 +167,10 @@ _arguments "${_arguments_options[@]}" : \
 '--check[Check for available updates without installing]' \
 '-y[Skip confirmation prompt before installing]' \
 '--yes[Skip confirmation prompt before installing]' \
+'-d[don'\''t actually render any markdown files just print to stdout passed]' \
+'--dry-run[don'\''t actually render any markdown files just print to stdout passed]' \
+'-j[parse the recipe and display it in json format]' \
+'--jsonify[parse the recipe and display it in json format]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -144,7 +187,11 @@ _arguments "${_arguments_options[@]}" : \
         (( CURRENT += 1 ))
         curcontext="${curcontext%:*:*}:cook-docs-help-command-$line[1]:"
         case $line[1] in
-            (completions)
+            (watch)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(completions)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -176,6 +223,7 @@ esac
 (( $+functions[_cook-docs_commands] )) ||
 _cook-docs_commands() {
     local commands; commands=(
+'watch:Watch recipes and templates and re-render automatically on changes' \
 'completions:Generate shell autocompletions script' \
 'man:Generate UNIX roff man page' \
 'doctor:Validate configuration, inputs, templates, and output permissions' \
@@ -197,6 +245,7 @@ _cook-docs__subcmd__doctor_commands() {
 (( $+functions[_cook-docs__subcmd__help_commands] )) ||
 _cook-docs__subcmd__help_commands() {
     local commands; commands=(
+'watch:Watch recipes and templates and re-render automatically on changes' \
 'completions:Generate shell autocompletions script' \
 'man:Generate UNIX roff man page' \
 'doctor:Validate configuration, inputs, templates, and output permissions' \
@@ -230,6 +279,11 @@ _cook-docs__subcmd__help__subcmd__self-update_commands() {
     local commands; commands=()
     _describe -t commands 'cook-docs help self-update commands' commands "$@"
 }
+(( $+functions[_cook-docs__subcmd__help__subcmd__watch_commands] )) ||
+_cook-docs__subcmd__help__subcmd__watch_commands() {
+    local commands; commands=()
+    _describe -t commands 'cook-docs help watch commands' commands "$@"
+}
 (( $+functions[_cook-docs__subcmd__man_commands] )) ||
 _cook-docs__subcmd__man_commands() {
     local commands; commands=()
@@ -239,6 +293,11 @@ _cook-docs__subcmd__man_commands() {
 _cook-docs__subcmd__self-update_commands() {
     local commands; commands=()
     _describe -t commands 'cook-docs self-update commands' commands "$@"
+}
+(( $+functions[_cook-docs__subcmd__watch_commands] )) ||
+_cook-docs__subcmd__watch_commands() {
+    local commands; commands=()
+    _describe -t commands 'cook-docs watch commands' commands "$@"
 }
 
 if [ "$funcstack[1]" = "_cook-docs" ]; then
