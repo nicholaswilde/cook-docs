@@ -302,3 +302,45 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release edit ${{ github.ref_name }} --draft=false --repo ${{ github.repository }}
+
+  update-homebrew-tap:
+    name: update-homebrew-tap
+    needs: [create-release, publish-release]
+    runs-on: ubuntu-latest
+    if: github.ref_type == 'tag'
+    steps:
+      - name: Trigger Homebrew Tap update
+        env:
+          APT_REPO_TOKEN: ${{ secrets.APT_REPO_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          payload=$(printf \
+            '{"event_type":"update-formula","client_payload":{"formula":"cook-docs","version":"%s"}}' \
+            "${{ needs.create-release.outputs.version }}")
+          curl -f -X POST \
+            -H "Authorization: token ${APT_REPO_TOKEN}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/nicholaswilde/homebrew-tap/dispatches \
+            -d "$payload"
+
+  update-scoop-bucket:
+    name: update-scoop-bucket
+    needs: [create-release, publish-release]
+    runs-on: ubuntu-latest
+    if: github.ref_type == 'tag'
+    steps:
+      - name: Trigger Scoop Bucket update
+        env:
+          APT_REPO_TOKEN: ${{ secrets.APT_REPO_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          payload=$(printf \
+            '{"event_type":"update-manifest","client_payload":{"manifest":"cook-docs","version":"%s"}}' \
+            "${{ needs.create-release.outputs.version }}")
+          curl -f -X POST \
+            -H "Authorization: token ${APT_REPO_TOKEN}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/nicholaswilde/scoop-bucket/dispatches \
+            -d "$payload"
