@@ -971,4 +971,23 @@ output_dir = \"toml_out\"
         // 5. watch subcommand rejected by load_config_with
         assert!(load_config_with(&["cook-docs", "watch"], &[], |_| None).is_err());
     }
+
+    #[test]
+    fn test_load_config_rejects_subcommands_and_manpage_write_error() {
+        assert!(load_config(&["cook-docs", "man"]).is_err());
+        assert!(load_config(&["cook-docs", "watch"]).is_err());
+
+        struct FailingWriter;
+        impl Write for FailingWriter {
+            fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::other("disk full"))
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let err = generate_manpage(&mut FailingWriter).unwrap_err();
+        assert!(err.contains("Failed rendering man page"));
+    }
 }

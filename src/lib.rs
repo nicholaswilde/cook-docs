@@ -79,3 +79,54 @@ pub fn render_recipes(recipe_paths: &[PathBuf], config: &types::Config) -> (usiz
     }
     (ok, failed)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+    #[test]
+    fn test_resolve_search_root_absolute_and_relative() {
+        let abs = std::env::temp_dir().join("cook_docs_abs_check");
+        assert_eq!(resolve_search_root(&abs.to_string_lossy()), abs);
+
+        let rel = resolve_search_root("testdata");
+        assert!(rel.ends_with("testdata"));
+        assert!(rel.is_absolute());
+    }
+
+    #[test]
+    fn test_render_recipes_dry_run_and_threaded_ok_and_failed() {
+        let id = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!("cook_docs_lib_{}_{}", std::process::id(), id));
+        fs::create_dir_all(&dir).unwrap();
+
+        let valid = dir.join("Soup.cook");
+        fs::write(&valid, "Boil @water{1%l} for ~{5%minutes}.").unwrap();
+        let missing = dir.join("Missing.cook");
+
+        let mut cfg = types::Config {
+            dry_run: true,
+            jsonify: false,
+            ignore_file: ".cookdocsignore".to_string(),
+            recipe_search_root: dir.to_string_lossy().to_string(),
+            log_level: "info".to_string(),
+            template_files: vec!["recipe.md.gotmpl".to_string()],
+            word_wrap: 120,
+            output_dir: String::new(),
+        };
+
+        let paths = vec![valid.clone(), missing.clone()];
+        assert_eq!(render_recipes(&paths, &cfg), (1, 1));
+        assert!(!dir.join("soup.md").exists());
+
+        cfg.dry_run = false;
+        assert_eq!(render_recipes(&paths, &cfg), (1, 1));
+        assert!(dir.join("soup.md").exists());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+}

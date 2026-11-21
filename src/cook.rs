@@ -692,4 +692,106 @@ Add @flour{1/2%cup}, @sugar{1 1/2%tbsp}, @butter{1-2%sticks}, @salt{some}, and @
         assert!((step.timers[0].duration - 0.5).abs() < 1e-6);
         assert_eq!(step.timers[0].unit, "hour");
     }
+
+    #[test]
+    fn test_parse_file_yaml_frontmatter_fraction_ranges_and_inline_quantities() {
+        let dir = TempDir::new("yaml_frac");
+        let recipe_path = dir.0.join("Advanced.cook");
+        fs::write(
+            &recipe_path,
+            "\
+---
+title: Advanced Dish
+vegan: true
+rating: 4.5
+offset: -3
+tags:
+  - quick
+  - dinner
+123: numeric-key
+---
+Mix @milk{1/2-3/4%cup} and @cream{1 1/2-2 1/4%cup} in #bowl{1 1/2}, #pan{1/2-3/4}, and #pot{1 1/2-2 1/4}.
+
+Bake at 180°C for ~{10-15%minutes}.
+",
+        )
+        .unwrap();
+
+        let cfg = default_config();
+        let parsed = parse_file(&recipe_path.to_string_lossy(), &cfg).unwrap();
+        assert_eq!(
+            parsed.metadata.get("title"),
+            Some(&"Advanced Dish".to_string())
+        );
+        assert_eq!(parsed.metadata.get("vegan"), Some(&"true".to_string()));
+        assert_eq!(parsed.metadata.get("rating"), Some(&"4.5".to_string()));
+        assert_eq!(parsed.metadata.get("offset"), Some(&"-3".to_string()));
+        assert!(
+            parsed
+                .metadata
+                .get("tags")
+                .is_some_and(|v| v.contains("quick") && v.contains("dinner"))
+        );
+        assert_eq!(parsed.metadata.get("123"), Some(&"numeric-key".to_string()));
+
+        assert_eq!(parsed.steps.len(), 2);
+        let s0 = &parsed.steps[0];
+        assert_eq!(s0.ingredients[0].amount.quantity_raw, "1/2-3/4");
+        assert!((s0.ingredients[0].amount.quantity - 0.5).abs() < 1e-6);
+        assert_eq!(s0.ingredients[1].amount.quantity_raw, "1 1/2-2 1/4");
+        assert!((s0.ingredients[1].amount.quantity - 1.5).abs() < 1e-6);
+
+        assert_eq!(s0.cookware[0].quantity_raw, "1 1/2");
+        assert!((s0.cookware[0].quantity - 1.5).abs() < 1e-6);
+        assert_eq!(s0.cookware[1].quantity_raw, "1/2-3/4");
+        assert!((s0.cookware[1].quantity - 0.5).abs() < 1e-6);
+        assert_eq!(s0.cookware[2].quantity_raw, "1 1/2-2 1/4");
+        assert!((s0.cookware[2].quantity - 1.5).abs() < 1e-6);
+
+        let s1 = &parsed.steps[1];
+        assert!(
+            s1.directions.contains("180 °C"),
+            "expected inline temperature in directions: {}",
+            s1.directions
+        );
+        assert_eq!(s1.timers.len(), 1);
+        assert_eq!(s1.timers[0].duration, 0.0);
+        assert_eq!(s1.timers[0].unit, "minutes");
+
+        // Invalid timer syntax triggers Cooklang parse error
+        let invalid_path = dir.0.join("Invalid.cook");
+        fs::write(&invalid_path, "Wait for ~rest{}.").unwrap();
+        let err = parse_file(&invalid_path.to_string_lossy(), &cfg).unwrap_err();
+        assert!(err.contains("Failed to parse recipe content"));
+    }
+
+    #[test]
+    fn test_find_recipe_file_paths_invalid_ignore_and_path_fallbacks() {
+        let dir = TempDir::new("bad_ignore");
+        fs::write(dir.0.join("One.cook"), "Boil @water{1%l}.").unwrap();
+        let bad_ignore = dir.0.join(".badignore");
+        fs::write(&bad_ignore, b"\xff\xfe\n").unwrap();
+
+        // Absolute ignore_file path overrides git root join and exercises error warning path
+        let found = find_recipe_file_paths(&dir.0.to_string_lossy(), &bad_ignore.to_string_lossy());
+        assert!(found.iter().any(|p| p.ends_with("One.cook")));
+
+        // Bare filename & nonexistent root fallbacks in get_new_recipe_path / get_image_path
+        let mut cfg = default_config();
+        assert_eq!(
+            get_new_recipe_path("Soup.cook", "Soup", &cfg),
+            PathBuf::from("soup.md")
+        );
+        cfg.recipe_search_root = "/nonexistent_cook_docs_root_123".to_string();
+        cfg.output_dir = "/tmp/out".to_string();
+        assert_eq!(
+            get_new_recipe_path(
+                "/nonexistent_cook_docs_root_123/sub/Soup.cook",
+                "Soup",
+                &cfg
+            ),
+            PathBuf::from("/tmp/out/sub/soup.md")
+        );
+        assert_eq!(get_image_path("/", "Missing"), None);
+    }
 }

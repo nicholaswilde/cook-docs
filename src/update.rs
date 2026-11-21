@@ -222,9 +222,38 @@ fn download_checksum_asset(asset: &ReleaseAsset, archive_name: &str) -> Result<C
 pub fn run_self_update(opts: SelfUpdateOptions, out_writer: &mut dyn Write) -> Result<(), String> {
     let target = resolve_target(self_update::get_target()).to_string();
     let lookup_updater = build_updater(&opts, &target, None)?;
+    run_self_update_with(
+        &opts,
+        &target,
+        std::io::stdin().is_terminal(),
+        out_writer,
+        |version| fetch_target_release(&lookup_updater, version),
+        download_checksum_asset,
+        |checksum| {
+            let updater = build_updater(&opts, &target, checksum)?;
+            Ok(updater.update_extended())
+        },
+    )
+}
 
+fn run_self_update_with<FR, FC, FU>(
+    opts: &SelfUpdateOptions,
+    target: &str,
+    is_interactive: bool,
+    out_writer: &mut dyn Write,
+    fetch_release: FR,
+    fetch_checksum: FC,
+    perform_update: FU,
+) -> Result<(), String>
+where
+    FR: FnOnce(Option<&str>) -> Result<Release, String>,
+    FC: FnOnce(&ReleaseAsset, &str) -> Result<Checksum, String>,
+    FU: FnOnce(
+        Option<Checksum>,
+    ) -> Result<Result<ReleaseStatus, self_update::errors::Error>, String>,
+{
     if opts.check {
-        let release = fetch_target_release(&lookup_updater, opts.version.as_deref())?;
+        let release = fetch_release(opts.version.as_deref())?;
         let latest_ver = release.version();
         if is_newer_version(CURRENT_VERSION, latest_ver)? {
             writeln!(
@@ -243,7 +272,7 @@ pub fn run_self_update(opts: SelfUpdateOptions, out_writer: &mut dyn Write) -> R
             .map_err(|e| format!("Failed writing output: {e}"))?;
         }
 
-        match select_release_asset(release.assets(), &target) {
+        match select_release_asset(release.assets(), target) {
             Some(asset) => writeln!(out_writer, "Asset: {}", asset.name()),
             None => writeln!(
                 out_writer,
@@ -254,14 +283,14 @@ pub fn run_self_update(opts: SelfUpdateOptions, out_writer: &mut dyn Write) -> R
         return Ok(());
     }
 
-    if !opts.yes && !std::io::stdin().is_terminal() {
+    if !opts.yes && !is_interactive {
         return Err(
             "Cannot confirm update in non-interactive mode; pass --yes (-y) to skip confirmation."
                 .to_string(),
         );
     }
 
-    let release = fetch_target_release(&lookup_updater, opts.version.as_deref())?;
+    let release = fetch_release(opts.version.as_deref())?;
     if opts.version.is_none() && !is_newer_version(CURRENT_VERSION, release.version())? {
         writeln!(
             out_writer,
@@ -271,18 +300,17 @@ pub fn run_self_update(opts: SelfUpdateOptions, out_writer: &mut dyn Write) -> R
         return Ok(());
     }
 
-    let archive_asset = select_release_asset(release.assets(), &target).ok_or_else(|| {
+    let archive_asset = select_release_asset(release.assets(), target).ok_or_else(|| {
         format!(
             "No release asset found for target '{target}' in release v{}",
             release.version()
         )
     })?;
     let checksum = select_checksum_asset(release.assets(), archive_asset.name())
-        .map(|sha_asset| download_checksum_asset(&sha_asset, archive_asset.name()))
+        .map(|sha_asset| fetch_checksum(&sha_asset, archive_asset.name()))
         .transpose()?;
 
-    let updater = build_updater(&opts, &target, checksum)?;
-    match updater.update_extended() {
+    match perform_update(checksum)? {
         Ok(ReleaseStatus::UpToDate) => {
             writeln!(
                 out_writer,
@@ -549,5 +577,476 @@ CertUtil: -hashfile command completed successfully.\r\n";
             "9a49cefe852b30cf9e9b309a7d6f24afe6406e7e7e7f6205722e95b4f4742176".to_string(),
         );
         assert!(build_updater(&opts, target, Some(sum)).is_ok());
+    }
+
+    fn serve_http_once(
+        status: &'static str,
+        body: Vec<u8>,
+    ) -> (String, std::thread::JoinHandle<()>) {
+        use std::io::Read;
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let handle = std::thread::spawn(move || {
+            if let Ok((mut stream, _)) = listener.accept() {
+                let mut buf = [0u8; 4096];
+                let _ = stream.read(&mut buf);
+                let header = format!(
+                    "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body.len()
+                );
+                let _ = stream.write_all(header.as_bytes());
+                let _ = stream.write_all(&body);
+                let _ = stream.flush();
+            }
+        });
+        (format!("http://{addr}"), handle)
+    }
+
+    fn mock_release(version: &str, assets: Vec<ReleaseAsset>) -> Release {
+        let mut builder = Release::builder();
+        builder.version(version).name(format!("v{version}"));
+        for asset in assets {
+            builder.asset(asset);
+        }
+        builder.build().unwrap()
+    }
+
+    #[test]
+    fn test_bin_path_fallback_and_invalid_version_error() {
+        assert_eq!(
+            bin_path_in_archive_for_target("riscv64gc-unknown-linux-gnu"),
+            "{{ bin }}"
+        );
+        let err = is_newer_version("not-semver", "1.0.0").unwrap_err();
+        assert!(err.contains("Failed to compare versions"));
+    }
+
+    #[test]
+    fn test_download_checksum_asset_mock_http() {
+        let hash = "9a49cefe852b30cf9e9b309a7d6f24afe6406e7e7e7f6205722e95b4f4742176";
+        let archive = "cook-docs_9.9.9_Linux_x86_64.tar.gz";
+
+        // 1. Valid checksum download
+        let (base, h1) = serve_http_once("200 OK", format!("{hash}  {archive}\n").into_bytes());
+        let asset = ReleaseAsset::new(
+            format!("{archive}.sha256"),
+            format!("{base}/{archive}.sha256"),
+        );
+        let sum = download_checksum_asset(&asset, archive).unwrap();
+        assert!(matches!(sum, Checksum::Sha256(ref s) if s == hash));
+        h1.join().unwrap();
+
+        // 2. Non-UTF8 body returns error
+        let (base2, h2) = serve_http_once("200 OK", vec![0xff, 0xfe, 0xfd]);
+        let bad_utf8 = ReleaseAsset::new("checksums.txt", format!("{base2}/checksums.txt"));
+        let err_utf8 = download_checksum_asset(&bad_utf8, archive).unwrap_err();
+        assert!(err_utf8.contains("not valid UTF-8"));
+        h2.join().unwrap();
+
+        // 3. HTTP 404 returns download error
+        let (base3, h3) = serve_http_once("404 Not Found", b"not found".to_vec());
+        let missing = ReleaseAsset::new("checksums.txt", format!("{base3}/checksums.txt"));
+        let err_dl = download_checksum_asset(&missing, archive).unwrap_err();
+        assert!(err_dl.contains("Failed to download checksum asset"));
+        h3.join().unwrap();
+    }
+
+    #[test]
+    fn test_fetch_target_release_mock_http() {
+        let release_json = r#"{
+            "name": "v9.9.9",
+            "tag_name": "v9.9.9",
+            "created_at": "2026-01-01T00:00:00Z",
+            "published_at": "2026-01-01T00:00:00Z",
+            "body": "test release",
+            "html_url": "https://github.com/nicholaswilde/cook-docs/releases/tag/v9.9.9",
+            "assets": [
+                {
+                    "name": "cook-docs_9.9.9_Linux_x86_64.tar.gz",
+                    "url": "http://127.0.0.1:1/asset",
+                    "browser_download_url": "http://127.0.0.1:1/asset"
+                }
+            ]
+        }"#;
+
+        // 1. Latest release success
+        let (base1, h1) = serve_http_once("200 OK", release_json.as_bytes().to_vec());
+        let updater1 = self_update::backends::github::Update::configure()
+            .repo_owner(REPO_OWNER)
+            .repo_name(REPO_NAME)
+            .bin_name(BIN_NAME)
+            .current_version(CURRENT_VERSION)
+            .api_base_url(&base1)
+            .build()
+            .unwrap();
+        let rel = fetch_target_release(&updater1, None).unwrap();
+        assert_eq!(rel.version(), "9.9.9");
+        h1.join().unwrap();
+
+        // 2. Specific tag release success
+        let (base2, h2) = serve_http_once("200 OK", release_json.as_bytes().to_vec());
+        let updater2 = self_update::backends::github::Update::configure()
+            .repo_owner(REPO_OWNER)
+            .repo_name(REPO_NAME)
+            .bin_name(BIN_NAME)
+            .current_version(CURRENT_VERSION)
+            .api_base_url(&base2)
+            .build()
+            .unwrap();
+        let rel_tag = fetch_target_release(&updater2, Some("9.9.9")).unwrap();
+        assert_eq!(rel_tag.version(), "9.9.9");
+        h2.join().unwrap();
+
+        // 3. HTTP 404 error for both latest and specific tag
+        let (base3, h3) = serve_http_once("404 Not Found", b"{}".to_vec());
+        let updater3 = self_update::backends::github::Update::configure()
+            .repo_owner(REPO_OWNER)
+            .repo_name(REPO_NAME)
+            .bin_name(BIN_NAME)
+            .current_version(CURRENT_VERSION)
+            .api_base_url(&base3)
+            .build()
+            .unwrap();
+        let err_latest = fetch_target_release(&updater3, None).unwrap_err();
+        assert!(err_latest.contains("Failed to fetch latest release"));
+        h3.join().unwrap();
+
+        let (base4, h4) = serve_http_once("404 Not Found", b"{}".to_vec());
+        let updater4 = self_update::backends::github::Update::configure()
+            .repo_owner(REPO_OWNER)
+            .repo_name(REPO_NAME)
+            .bin_name(BIN_NAME)
+            .current_version(CURRENT_VERSION)
+            .api_base_url(&base4)
+            .build()
+            .unwrap();
+        let err_tag = fetch_target_release(&updater4, Some("9.9.9")).unwrap_err();
+        assert!(err_tag.contains("Failed to fetch release 9.9.9"));
+        h4.join().unwrap();
+    }
+
+    struct FailingWriter;
+    impl Write for FailingWriter {
+        fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
+            Err(std::io::Error::other("write failed"))
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    fn run_update_case(
+        opts: SelfUpdateOptions,
+        is_interactive: bool,
+        writer: &mut dyn Write,
+        release: Release,
+        checksum: Result<Checksum, String>,
+        outcome: Result<ReleaseStatus, self_update::errors::Error>,
+    ) -> Result<(), String> {
+        run_self_update_with(
+            &opts,
+            "x86_64-unknown-linux-musl",
+            is_interactive,
+            writer,
+            |_| Ok(release),
+            |_, _| checksum,
+            |_| Ok(outcome),
+        )
+    }
+
+    #[test]
+    fn test_run_self_update_with_check_and_install_branches() {
+        let linux_asset = mock_asset("cook-docs_99.0.0_Linux_x86_64.tar.gz");
+        let sha_asset = mock_asset("cook-docs_99.0.0_Linux_x86_64.tar.gz.sha256");
+        let expected_sum = Checksum::Sha256("a".repeat(64));
+        let newer = mock_release("99.0.0", vec![linux_asset.clone(), sha_asset.clone()]);
+        let current = mock_release(CURRENT_VERSION, vec![]);
+        let older = mock_release("0.1.0", vec![]);
+
+        // 1. --check: newer version with matching asset
+        let mut out = Vec::new();
+        run_update_case(
+            SelfUpdateOptions {
+                check: true,
+                yes: false,
+                version: None,
+            },
+            false,
+            &mut out,
+            mock_release("99.0.0", vec![linux_asset.clone()]),
+            Ok(expected_sum.clone()),
+            Ok(ReleaseStatus::UpToDate),
+        )
+        .unwrap();
+        let s = String::from_utf8(out).unwrap();
+        assert!(s.contains("Update available:"));
+        assert!(s.contains("Asset: cook-docs_99.0.0_Linux_x86_64.tar.gz"));
+
+        // 2. --check: current version with missing asset
+        let mut out = Vec::new();
+        run_update_case(
+            SelfUpdateOptions {
+                check: true,
+                yes: false,
+                version: None,
+            },
+            false,
+            &mut out,
+            current.clone(),
+            Ok(expected_sum.clone()),
+            Ok(ReleaseStatus::UpToDate),
+        )
+        .unwrap();
+        let s = String::from_utf8(out).unwrap();
+        assert!(s.contains("cook-docs is up to date"));
+        assert!(s.contains("Warning: no release asset found"));
+
+        // 3. --check: older release found
+        let mut out = Vec::new();
+        run_update_case(
+            SelfUpdateOptions {
+                check: true,
+                yes: false,
+                version: Some("0.1.0".to_string()),
+            },
+            false,
+            &mut out,
+            older.clone(),
+            Ok(expected_sum.clone()),
+            Ok(ReleaseStatus::UpToDate),
+        )
+        .unwrap();
+        assert!(
+            String::from_utf8(out)
+                .unwrap()
+                .contains("Release v0.1.0 found")
+        );
+
+        // 4. Non-interactive guard without --yes
+        let mut out = Vec::new();
+        let err = run_update_case(
+            SelfUpdateOptions {
+                check: false,
+                yes: false,
+                version: None,
+            },
+            false,
+            &mut out,
+            current.clone(),
+            Ok(expected_sum.clone()),
+            Ok(ReleaseStatus::UpToDate),
+        )
+        .unwrap_err();
+        assert!(err.contains("--yes"));
+
+        // 5. Already up to date (no version override)
+        let mut out = Vec::new();
+        run_update_case(
+            SelfUpdateOptions {
+                check: false,
+                yes: true,
+                version: None,
+            },
+            false,
+            &mut out,
+            current.clone(),
+            Ok(expected_sum.clone()),
+            Ok(ReleaseStatus::UpToDate),
+        )
+        .unwrap();
+        assert!(
+            String::from_utf8(out)
+                .unwrap()
+                .contains("already up to date")
+        );
+
+        // 6. Newer release missing asset for target
+        let mut out = Vec::new();
+        let err_asset = run_update_case(
+            SelfUpdateOptions {
+                check: false,
+                yes: true,
+                version: None,
+            },
+            false,
+            &mut out,
+            mock_release("99.0.0", vec![]),
+            Ok(expected_sum.clone()),
+            Ok(ReleaseStatus::UpToDate),
+        )
+        .unwrap_err();
+        assert!(err_asset.contains("No release asset found"));
+
+        // 7. Checksum fetch failure propagates
+        let mut out = Vec::new();
+        let err_sum = run_update_case(
+            SelfUpdateOptions {
+                check: false,
+                yes: true,
+                version: None,
+            },
+            false,
+            &mut out,
+            newer.clone(),
+            Err("checksum download failed".to_string()),
+            Ok(ReleaseStatus::UpToDate),
+        )
+        .unwrap_err();
+        assert!(err_sum.contains("checksum download failed"));
+
+        // 8. Full update outcomes: Updated, UpToDate, Aborted, Error
+        let mut out = Vec::new();
+        run_update_case(
+            SelfUpdateOptions {
+                check: false,
+                yes: true,
+                version: None,
+            },
+            false,
+            &mut out,
+            newer.clone(),
+            Ok(expected_sum.clone()),
+            Ok(ReleaseStatus::Updated(newer.clone())),
+        )
+        .unwrap();
+        assert!(
+            String::from_utf8(out)
+                .unwrap()
+                .contains("Successfully updated cook-docs")
+        );
+
+        let mut out = Vec::new();
+        run_update_case(
+            SelfUpdateOptions {
+                check: false,
+                yes: true,
+                version: None,
+            },
+            false,
+            &mut out,
+            newer.clone(),
+            Ok(expected_sum.clone()),
+            Ok(ReleaseStatus::UpToDate),
+        )
+        .unwrap();
+        assert!(
+            String::from_utf8(out)
+                .unwrap()
+                .contains("already up to date")
+        );
+
+        let mut out = Vec::new();
+        run_update_case(
+            SelfUpdateOptions {
+                check: false,
+                yes: false,
+                version: None,
+            },
+            true,
+            &mut out,
+            newer.clone(),
+            Ok(expected_sum.clone()),
+            Err(self_update::errors::Error::Aborted),
+        )
+        .unwrap();
+        assert!(
+            String::from_utf8(out)
+                .unwrap()
+                .contains("Update cancelled.")
+        );
+
+        let mut out = Vec::new();
+        let err_upd = run_update_case(
+            SelfUpdateOptions {
+                check: false,
+                yes: true,
+                version: None,
+            },
+            false,
+            &mut out,
+            newer.clone(),
+            Ok(expected_sum.clone()),
+            Err(self_update::errors::Error::no_release_found()),
+        )
+        .unwrap_err();
+        assert!(err_upd.contains("Failed to self-update cook-docs"));
+
+        // 9. Writer failures return formatted output errors
+        for (opts, rel, outcome) in [
+            (
+                SelfUpdateOptions {
+                    check: true,
+                    yes: false,
+                    version: None,
+                },
+                newer.clone(),
+                Ok(ReleaseStatus::UpToDate),
+            ),
+            (
+                SelfUpdateOptions {
+                    check: true,
+                    yes: false,
+                    version: None,
+                },
+                current.clone(),
+                Ok(ReleaseStatus::UpToDate),
+            ),
+            (
+                SelfUpdateOptions {
+                    check: true,
+                    yes: false,
+                    version: Some("0.1.0".to_string()),
+                },
+                older,
+                Ok(ReleaseStatus::UpToDate),
+            ),
+            (
+                SelfUpdateOptions {
+                    check: false,
+                    yes: true,
+                    version: None,
+                },
+                current,
+                Ok(ReleaseStatus::UpToDate),
+            ),
+            (
+                SelfUpdateOptions {
+                    check: false,
+                    yes: true,
+                    version: None,
+                },
+                newer.clone(),
+                Ok(ReleaseStatus::UpToDate),
+            ),
+            (
+                SelfUpdateOptions {
+                    check: false,
+                    yes: true,
+                    version: None,
+                },
+                newer.clone(),
+                Ok(ReleaseStatus::Updated(newer.clone())),
+            ),
+            (
+                SelfUpdateOptions {
+                    check: false,
+                    yes: true,
+                    version: None,
+                },
+                newer,
+                Err(self_update::errors::Error::Aborted),
+            ),
+        ] {
+            let err = run_update_case(
+                opts,
+                false,
+                &mut FailingWriter,
+                rel,
+                Ok(expected_sum.clone()),
+                outcome,
+            )
+            .unwrap_err();
+            assert!(err.contains("Failed writing output"));
+        }
     }
 }

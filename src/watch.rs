@@ -705,4 +705,130 @@ mod tests {
             .expect("watch thread panicked")
             .expect("run_watch failed");
     }
+
+    #[test]
+    fn test_normalize_helpers_and_candidate_paths() {
+        assert_eq!(
+            normalize_lexical(Path::new("./a/./b/../c")),
+            PathBuf::from("a/c")
+        );
+        assert_eq!(
+            normalize_lexical(Path::new("../a/b")),
+            PathBuf::from("../a/b")
+        );
+        assert_eq!(
+            normalize_path(Path::new("nonexistent_watch_rel_xyz")),
+            PathBuf::from("nonexistent_watch_rel_xyz")
+        );
+        assert_eq!(normalize_path(Path::new("")), PathBuf::new());
+
+        let dir = TempDir::new("candidates");
+        let root = dir.path().join("recipes");
+        let ext = dir.path().join("shared");
+        fs::create_dir_all(&root).unwrap();
+        fs::create_dir_all(&ext).unwrap();
+
+        let targets = collect_watch_targets(
+            &root,
+            dir.path(),
+            &[
+                "   ".to_string(),
+                "recipe.md.gotmpl".to_string(),
+                "shared/header.gotmpl".to_string(),
+            ],
+        );
+        assert_eq!(targets.base_template_names, vec!["recipe.md.gotmpl"]);
+        assert_eq!(
+            targets.exact_template_paths,
+            vec![normalize_path(&ext.join("header.gotmpl"))]
+        );
+        assert_eq!(targets.external_dirs, vec![normalize_path(&ext)]);
+
+        assert!(!is_candidate_path(&root.join(".git/index"), &targets));
+        assert!(is_candidate_path(&ext.join("header.gotmpl"), &targets));
+        assert!(is_candidate_path(&root.join("Soup.cook"), &targets));
+        assert!(is_candidate_path(&root.join("recipe.md.gotmpl"), &targets));
+        assert!(!is_candidate_path(&root.join("soup.md"), &targets));
+        assert!(!is_candidate_path(&ext.join("other.txt"), &targets));
+    }
+
+    #[test]
+    fn test_process_debounced_events_empty_and_zero_debounce() {
+        let (tx, rx) = mpsc::channel();
+        tx.send(Some(vec![])).unwrap();
+        tx.send(Some(vec![PathBuf::from("a.cook")])).unwrap();
+        tx.send(None).unwrap();
+
+        let mut batches = Vec::new();
+        process_debounced_events(&rx, Duration::ZERO, |b| batches.push(b));
+        assert_eq!(batches, vec![vec![PathBuf::from("a.cook")]]);
+
+        // Empty event followed by stop signal inside active debounce window
+        let (tx2, rx2) = mpsc::channel();
+        tx2.send(Some(vec![PathBuf::from("b.cook")])).unwrap();
+        tx2.send(Some(vec![])).unwrap();
+        tx2.send(None).unwrap();
+
+        let mut batches2 = Vec::new();
+        process_debounced_events(&rx2, Duration::from_millis(200), |b| batches2.push(b));
+        assert_eq!(batches2, vec![vec![PathBuf::from("b.cook")]]);
+    }
+
+    #[test]
+    fn test_run_watch_non_dir_and_external_template_dirs() {
+        let dir = TempDir::new("ext_and_err");
+        let file_root = dir.path().join("not_a_dir.cook");
+        fs::write(&file_root, "Boil @water{1%l}.").unwrap();
+        let file_cfg = base_config(&file_root);
+        let err = run_watch(&file_cfg, WatchOptions::default()).unwrap_err();
+        assert!(err.contains("not a directory"));
+
+        let recipes = dir.path().join("recipes");
+        let ext_existing = dir.path().join("ext_tpl");
+        let ext_missing = dir.path().join("missing_tpl_dir");
+        fs::create_dir_all(&recipes).unwrap();
+        fs::create_dir_all(&ext_existing).unwrap();
+        fs::write(recipes.join("Dish.cook"), "Boil @water{1%l}.").unwrap();
+        let ext_tpl = ext_existing.join("custom.gotmpl");
+        fs::write(&ext_tpl, "# {{ .Info.RecipeName }}\n").unwrap();
+
+        let mut cfg = base_config(&recipes);
+        cfg.template_files = vec![
+            ext_tpl.to_string_lossy().to_string(),
+            ext_missing
+                .join("absent.gotmpl")
+                .to_string_lossy()
+                .to_string(),
+        ];
+
+        let (ready_tx, ready_rx) = mpsc::channel();
+        let handle = thread::spawn({
+            let cfg = cfg.clone();
+            move || {
+                run_watch_with_ready(
+                    &cfg,
+                    WatchOptions {
+                        debounce: Duration::from_millis(30),
+                    },
+                    move |stop_tx| {
+                        let _ = ready_tx.send(stop_tx);
+                    },
+                )
+            }
+        });
+
+        let stop_tx = ready_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("watcher should start");
+
+        // Send a path that matches no active recipe to cover empty affected branch
+        let _ = stop_tx.send(Some(vec![recipes.join("unmatched.md")]));
+        thread::sleep(Duration::from_millis(60));
+        let _ = stop_tx.send(None);
+
+        handle
+            .join()
+            .expect("watch thread panicked")
+            .expect("run_watch failed");
+    }
 }

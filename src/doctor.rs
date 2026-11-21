@@ -194,6 +194,10 @@ fn check_ignore_file(ignore_file: &str) -> Vec<DoctorCheck> {
             .canonicalize()
             .unwrap_or_else(|_| PathBuf::from("."))
     });
+    check_ignore_file_in(&base_dir, ignore_file)
+}
+
+fn check_ignore_file_in(base_dir: &Path, ignore_file: &str) -> Vec<DoctorCheck> {
     let ignore_path = base_dir.join(ignore_file);
 
     if !ignore_path.exists() {
@@ -234,7 +238,7 @@ fn check_ignore_file(ignore_file: &str) -> Vec<DoctorCheck> {
         }];
     }
 
-    let mut builder = GitignoreBuilder::new(&base_dir);
+    let mut builder = GitignoreBuilder::new(base_dir);
     if let Some(err) = builder.add(&ignore_path) {
         return vec![DoctorCheck {
             category: "ignore_file".into(),
@@ -659,6 +663,186 @@ mod tests {
         assert!(!report_cfg_err.healthy);
         assert_eq!(report_cfg_err.checks.len(), 1);
         assert_eq!(report_cfg_err.checks[0].category, "config");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_resolve_search_root_and_recipe_root_edge_cases() {
+        let rel = resolve_search_root("testdata");
+        assert!(rel.is_absolute());
+        assert!(rel.ends_with("testdata"));
+
+        let dir = temp_dir("root_edges");
+        let file_root = dir.join("not_a_dir.cook");
+        fs::write(&file_root, "").unwrap();
+
+        let mut checks = Vec::new();
+        let found = check_recipe_search_root(&file_root, "", &mut checks);
+        assert!(found.is_empty());
+        assert_eq!(checks.len(), 1);
+        assert_eq!(checks[0].severity, CheckSeverity::Error);
+        assert!(checks[0].message.contains("not a directory"));
+
+        let empty_dir = dir.join("empty");
+        fs::create_dir_all(&empty_dir).unwrap();
+        let mut empty_checks = Vec::new();
+        let empty_found = check_recipe_search_root(&empty_dir, "", &mut empty_checks);
+        assert!(empty_found.is_empty());
+        assert_eq!(empty_checks.len(), 1);
+        assert_eq!(empty_checks[0].severity, CheckSeverity::Warning);
+        assert!(empty_checks[0].message.contains("0 .cook files"));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_check_ignore_file_all_variants() {
+        let dir = temp_dir("ignore_variants");
+
+        // 1. Default missing .cookdocsignore is optional (Ok)
+        let missing_default = check_ignore_file_in(&dir, ".cookdocsignore");
+        assert_eq!(missing_default[0].severity, CheckSeverity::Ok);
+        assert!(missing_default[0].message.contains("optional"));
+
+        // 2. Missing custom ignore file is a Warning
+        let missing_custom = check_ignore_file_in(&dir, ".myignore");
+        assert_eq!(missing_custom[0].severity, CheckSeverity::Warning);
+        assert!(missing_custom[0].message.contains("not found"));
+
+        // 3. Directory instead of regular file is an Error
+        let as_dir = dir.join("dir_ignore");
+        fs::create_dir_all(&as_dir).unwrap();
+        let dir_res = check_ignore_file_in(&dir, "dir_ignore");
+        assert_eq!(dir_res[0].severity, CheckSeverity::Error);
+        assert!(dir_res[0].message.contains("not a regular file"));
+
+        // 4. Non-UTF8 ignore file fails parsing with Error
+        let bad_file = dir.join(".badignore");
+        fs::write(&bad_file, b"\xff\xfe\n").unwrap();
+        let bad_res = check_ignore_file_in(&dir, ".badignore");
+        assert_eq!(bad_res[0].severity, CheckSeverity::Error);
+        assert!(bad_res[0].message.contains("Failed to parse ignore file"));
+
+        // 5. Valid ignore file is Ok
+        let good_file = dir.join(".goodignore");
+        fs::write(&good_file, "drafts/\n").unwrap();
+        let good_res = check_ignore_file_in(&dir, ".goodignore");
+        assert_eq!(good_res[0].severity, CheckSeverity::Ok);
+        assert!(good_res[0].message.contains("Ignore file valid"));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_check_templates_missing_explicit_and_empty_recipes() {
+        let dir = temp_dir("tpl_edges");
+
+        let checks = check_templates(
+            &dir,
+            &[],
+            &[
+                "./missing.gotmpl".to_string(),
+                "recipe.md.gotmpl".to_string(),
+            ],
+        );
+        assert!(checks.iter().any(|c| {
+            c.severity == CheckSeverity::Warning
+                && c.message.contains("Configured template file not found")
+        }));
+        assert!(checks.iter().any(|c| {
+            c.severity == CheckSeverity::Ok
+                && c.message.contains("built-in/configured templates valid")
+        }));
+
+        // Broken template compilation error
+        fs::write(dir.join("recipe.md.gotmpl"), "{{ .Unclosed").unwrap();
+        let err_checks = check_templates(&dir, &[], &["recipe.md.gotmpl".to_string()]);
+        assert!(
+            err_checks
+                .iter()
+                .any(|c| c.severity == CheckSeverity::Error)
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_check_output_dir_all_variants() {
+        let dir = temp_dir("out_variants");
+        let file_path = dir.join("regular_file");
+        fs::write(&file_path, "x").unwrap();
+
+        // 1. Empty output_dir with non-directory search_root returns no checks
+        assert!(check_output_dir("", &file_path).is_empty());
+
+        // 2. Empty output_dir with writable search_root returns Ok in-place
+        let in_place = check_output_dir("", &dir);
+        assert_eq!(in_place[0].severity, CheckSeverity::Ok);
+        assert!(in_place[0].message.contains("in-place"));
+
+        // 3. Existing file as output_dir returns Error
+        let file_out = check_output_dir(&file_path.to_string_lossy(), &dir);
+        assert_eq!(file_out[0].severity, CheckSeverity::Error);
+        assert!(file_out[0].message.contains("not a directory"));
+
+        // 4. Existing writable directory returns Ok
+        let existing_out = check_output_dir(&dir.to_string_lossy(), &dir);
+        assert_eq!(existing_out[0].severity, CheckSeverity::Ok);
+        assert!(existing_out[0].message.contains("is writable"));
+
+        // 5. Bare non-existent relative name checks working directory "."
+        let rel_out = check_output_dir("nonexistent_doctor_rel_out_xyz", &dir);
+        assert_eq!(rel_out[0].severity, CheckSeverity::Ok);
+        assert!(rel_out[0].message.contains("working directory is writable"));
+
+        // 6. Non-existent output_dir whose ancestor is a regular file returns Error
+        let under_file = file_path.join("nested/out");
+        let bad_ancestor = check_output_dir(&under_file.to_string_lossy(), &dir);
+        assert_eq!(bad_ancestor[0].severity, CheckSeverity::Error);
+        assert!(bad_ancestor[0].message.contains("ancestor"));
+
+        // 7. Read-only directory checks (Unix non-root)
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let ro_dir = dir.join("readonly");
+            fs::create_dir_all(&ro_dir).unwrap();
+            fs::set_permissions(&ro_dir, fs::Permissions::from_mode(0o555)).unwrap();
+
+            if check_dir_writable(&ro_dir).is_err() {
+                let ro_in_place = check_output_dir("", &ro_dir);
+                assert_eq!(ro_in_place[0].severity, CheckSeverity::Error);
+                assert!(ro_in_place[0].message.contains("not writable"));
+
+                let ro_existing = check_output_dir(&ro_dir.to_string_lossy(), &dir);
+                assert_eq!(ro_existing[0].severity, CheckSeverity::Error);
+                assert!(ro_existing[0].message.contains("not writable"));
+
+                let ro_nested = ro_dir.join("sub/out");
+                let ro_parent = check_output_dir(&ro_nested.to_string_lossy(), &dir);
+                assert_eq!(ro_parent[0].severity, CheckSeverity::Error);
+                assert!(ro_parent[0].message.contains("not writable"));
+            }
+
+            let _ = fs::set_permissions(&ro_dir, fs::Permissions::from_mode(0o755));
+        }
+
+        // Also cover run_doctor with explicit Some(config_path)
+        let cfg = Config {
+            dry_run: false,
+            jsonify: false,
+            ignore_file: "".to_string(),
+            recipe_search_root: dir.to_string_lossy().to_string(),
+            log_level: "info".to_string(),
+            template_files: vec!["recipe.md.gotmpl".to_string()],
+            word_wrap: 120,
+            output_dir: "".to_string(),
+        };
+        let cfg_file = dir.join(".cookdocs.toml");
+        let rep = run_doctor(Some(&cfg_file), &Ok(cfg));
+        assert!(rep.healthy);
+        assert!(rep.checks[0].message.contains("Configuration file valid:"));
 
         let _ = fs::remove_dir_all(&dir);
     }

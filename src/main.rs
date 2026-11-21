@@ -1,15 +1,19 @@
 use std::io::IsTerminal;
 use std::time::Duration;
 
-fn init_logger(level: &str) {
-    let log_level = match level.to_lowercase().as_str() {
+fn parse_log_level(level: &str) -> log::LevelFilter {
+    match level.to_lowercase().as_str() {
         "trace" => log::LevelFilter::Trace,
         "debug" => log::LevelFilter::Debug,
         "info" => log::LevelFilter::Info,
         "warn" | "warning" => log::LevelFilter::Warn,
         "error" => log::LevelFilter::Error,
         _ => log::LevelFilter::Info,
-    };
+    }
+}
+
+fn init_logger(level: &str) {
+    let log_level = parse_log_level(level);
     env_logger::Builder::new().filter_level(log_level).init();
 }
 
@@ -154,5 +158,16 @@ mod tests {
         assert!(cook_docs::render_recipe("/nonexistent/Test.cook", &cfg).is_err());
 
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_parse_log_level_variants() {
+        assert_eq!(super::parse_log_level("trace"), log::LevelFilter::Trace);
+        assert_eq!(super::parse_log_level("DEBUG"), log::LevelFilter::Debug);
+        assert_eq!(super::parse_log_level("info"), log::LevelFilter::Info);
+        assert_eq!(super::parse_log_level("warn"), log::LevelFilter::Warn);
+        assert_eq!(super::parse_log_level("WARNING"), log::LevelFilter::Warn);
+        assert_eq!(super::parse_log_level("error"), log::LevelFilter::Error);
+        assert_eq!(super::parse_log_level("unknown"), log::LevelFilter::Info);
     }
 }

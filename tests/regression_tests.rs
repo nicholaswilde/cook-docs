@@ -511,6 +511,22 @@ fn regression_log_level_and_error_resilience() {
     assert!(String::from_utf8_lossy(&out_warn.stdout).contains("# My Test Recipe"));
     assert!(!String::from_utf8_lossy(&out_warn.stderr).contains("INFO"));
 
+    let out_debug = run_cli(
+        bin,
+        None,
+        &[
+            "--recipe-search-root",
+            "testdata",
+            "--dry-run",
+            "--log-level",
+            "debug",
+        ],
+        &[],
+    );
+    assert!(out_debug.status.success());
+    assert!(String::from_utf8_lossy(&out_debug.stdout).contains("# My Test Recipe"));
+    assert!(String::from_utf8_lossy(&out_debug.stderr).contains("DEBUG"));
+
     let out_missing_root = run_cli(
         bin,
         None,

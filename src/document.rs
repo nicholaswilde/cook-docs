@@ -962,4 +962,121 @@ mod tests {
             blocking_file.join("out.md").to_string_lossy().to_string();
         print_documentation(&bad_out);
     }
+
+    #[test]
+    fn test_template_helpers_fallback_and_edge_cases() {
+        // u64 value_to_f64 branch (value > i64::MAX so as_f64 still succeeds or exercises fallback)
+        assert_eq!(value_to_f64(&Value::Number(42u64.into())), 42.0);
+        assert_eq!(value_to_f64(&Value::Nil), 0.0);
+
+        // Non-string argument fallbacks across helpers
+        assert_eq!(
+            lower(&[Value::Bool(true)]).unwrap(),
+            Value::String(String::new())
+        );
+        assert_eq!(
+            replace(&[
+                Value::Bool(true),
+                Value::Bool(false),
+                Value::Number(1.into())
+            ])
+            .unwrap(),
+            Value::String(String::new())
+        );
+        assert_eq!(
+            round(&[
+                Value::Number(1.6f64.into()),
+                Value::String("bad".to_string()),
+            ])
+            .unwrap(),
+            Value::Number(2.0f64.into())
+        );
+        assert_eq!(
+            add1(&[Value::String("bad".to_string())]).unwrap(),
+            Value::Number(1i64.into())
+        );
+        assert_eq!(
+            wrap(&[Value::String("solo".to_string())]).unwrap(),
+            Value::String("solo".to_string())
+        );
+        assert_eq!(
+            wrap(&[Value::String("bad".to_string()), Value::Bool(false)]).unwrap(),
+            Value::String(String::new())
+        );
+        assert_eq!(
+            wrap(&[
+                Value::Number(10i64.into()),
+                Value::String("ends with newline\n".to_string()),
+            ])
+            .unwrap(),
+            Value::String("ends with\nnewline\n\n".to_string())
+        );
+        assert_eq!(
+            indent(&[Value::String("bad".to_string()), Value::Bool(false)]).unwrap(),
+            Value::String(String::new())
+        );
+
+        // sum_timers with non-map step, non-map timer, missing Duration/Unit
+        let mut empty_timer = HashMap::new();
+        empty_timer.insert("Other".to_string(), Value::Bool(true));
+        let mut step_with_weird_timers = HashMap::new();
+        step_with_weird_timers.insert(
+            "Timers".to_string(),
+            Value::Array(vec![Value::Nil, Value::Map(empty_timer)]),
+        );
+        assert_eq!(
+            sum_timers(&[Value::Array(vec![
+                Value::String("not-a-map".to_string()),
+                Value::Map(step_with_weird_timers),
+            ])])
+            .unwrap(),
+            Value::String("0 minutes".to_string())
+        );
+
+        // resolve_template_path with root path whose parent() is None
+        assert_eq!(
+            resolve_template_path(".", "/", "recipe.md.gotmpl"),
+            PathBuf::from("recipe.md.gotmpl")
+        );
+    }
+
+    #[test]
+    fn test_print_documentation_render_and_write_error_paths() {
+        let dir = TempDir::new("render_errs");
+
+        // 1. Template parses cleanly but fails at execution time (sumTimers expects array)
+        let bad_exec_tpl = dir.0.join("bad_exec.gotmpl");
+        fs::write(&bad_exec_tpl, r#"{{ sumTimers "not-an-array" }}"#).unwrap();
+        let mut exec_err_recipe = sample_recipe(&dir.0, false, false);
+        exec_err_recipe.config.template_files = vec!["bad_exec.gotmpl".to_string()];
+        print_documentation(&exec_err_recipe);
+        assert!(!Path::new(&exec_err_recipe.info.new_recipe_file_path).exists());
+
+        // 2. fs::write error when target output path is an existing directory
+        let out_is_dir = dir.0.join("out_as_dir.md");
+        fs::create_dir_all(&out_is_dir).unwrap();
+        let mut write_err_recipe = sample_recipe(&dir.0, false, false);
+        write_err_recipe.info.new_recipe_file_path = out_is_dir.to_string_lossy().to_string();
+        print_documentation(&write_err_recipe);
+        assert!(out_is_dir.is_dir());
+
+        // 3. Unreadable template file error (Unix non-root)
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let unreadable = dir.0.join("secret.gotmpl");
+            fs::write(&unreadable, "# secret").unwrap();
+            fs::set_permissions(&unreadable, fs::Permissions::from_mode(0o000)).unwrap();
+            if fs::read_to_string(&unreadable).is_err() {
+                let err = get_documentation_template(
+                    &dir.0.to_string_lossy(),
+                    &dir.0.join("Dish.cook").to_string_lossy(),
+                    &["secret.gotmpl".to_string()],
+                )
+                .unwrap_err();
+                assert!(err.contains("Failed to read template file"));
+            }
+            let _ = fs::set_permissions(&unreadable, fs::Permissions::from_mode(0o644));
+        }
+    }
 }
