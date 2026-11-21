@@ -579,29 +579,30 @@ mod tests {
     #[test]
     fn test_process_debounced_events_coalesces_burst_and_splits_batches() {
         let (tx, rx) = mpsc::channel();
+        let (batch_tx, batch_rx) = mpsc::channel();
         let p1 = PathBuf::from("a.cook");
         let p2 = PathBuf::from("b.cook");
 
+        // Burst 1: queue three rapid events before draining so they always coalesce
+        tx.send(Some(vec![p1.clone()])).unwrap();
+        tx.send(Some(vec![p1.clone(), p2.clone()])).unwrap();
+        tx.send(Some(vec![p2.clone()])).unwrap();
+
         let producer = thread::spawn({
             let p1 = p1.clone();
-            let p2 = p2.clone();
             move || {
-                // Burst 1: three rapid events should coalesce into one batch
-                tx.send(Some(vec![p1.clone()])).unwrap();
-                thread::sleep(Duration::from_millis(15));
-                tx.send(Some(vec![p1.clone(), p2.clone()])).unwrap();
-                thread::sleep(Duration::from_millis(15));
-                tx.send(Some(vec![p2.clone()])).unwrap();
-
-                // Wait past debounce window, then send burst 2
-                thread::sleep(Duration::from_millis(120));
-                tx.send(Some(vec![p1.clone()])).unwrap();
+                // Wait until Burst 1 has flushed after the debounce window before sending Burst 2
+                batch_rx
+                    .recv_timeout(Duration::from_secs(5))
+                    .expect("expected first debounced batch");
+                tx.send(Some(vec![p1])).unwrap();
             }
         });
 
         let mut batches = Vec::new();
-        process_debounced_events(&rx, Duration::from_millis(60), |batch| {
+        process_debounced_events(&rx, Duration::from_millis(40), |batch| {
             batches.push(batch);
+            let _ = batch_tx.send(());
         });
         producer.join().unwrap();
 
