@@ -169,6 +169,16 @@ def main() -> None:
         action="store_true",
         help="Print summary without updating GitHub release",
     )
+    parser.add_argument(
+        "--draft",
+        action="store_true",
+        help="Explicitly mark the release as a draft when editing",
+    )
+    parser.add_argument(
+        "--prerelease",
+        action="store_true",
+        help="Explicitly mark the release as a pre-release when editing",
+    )
     args = parser.parse_args()
 
     repo_slug = get_repo_slug()
@@ -191,12 +201,17 @@ def main() -> None:
             tmp_file.write(notes)
             tmp_path = tmp_file.name
 
-        print(f"Updating draft release for {latest}...")
+        print(f"Updating GitHub release for {latest}...")
+        edit_cmd = ["gh", "release", "edit", latest, "-F", tmp_path]
+        if args.draft:
+            edit_cmd.append("--draft")
+        if args.prerelease:
+            edit_cmd.append("--prerelease")
         try:
-            url = run_cmd(["gh", "release", "edit", latest, "--draft", "-F", tmp_path])
-            print(f"Draft release updated: {url}")
+            url = run_cmd(edit_cmd)
+            print(f"Release updated: {url}")
         except Exception as err:
-            print(f"Failed to edit release ({err}), attempting to create draft release...")
+            print(f"Failed to edit release ({err}), attempting to create draft pre-release...")
             try:
                 title = latest.lstrip("v")
                 url = run_cmd(
@@ -206,13 +221,14 @@ def main() -> None:
                         "create",
                         latest,
                         "--draft",
+                        "--prerelease",
                         "--title",
                         title,
                         "-F",
                         tmp_path,
                     ]
                 )
-                print(f"Draft release created: {url}")
+                print(f"Draft pre-release created: {url}")
             except Exception as err_create:
                 print(f"Failed to create release: {err_create}")
     finally:

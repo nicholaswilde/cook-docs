@@ -160,7 +160,7 @@ tasks:
     cmds:
       - ./scripts/release.sh {{.CLI_ARGS}}
   release:summary:
-    desc: Generate categorized release notes and update draft release (./scripts/release_summary.py)
+    desc: Generate categorized release notes and update GitHub release (./scripts/release_summary.py)
     cmds:
       - uv run python3 scripts/release_summary.py {{.CLI_ARGS}}
   default:

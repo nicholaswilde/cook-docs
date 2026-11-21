@@ -1,49 +1,50 @@
 ---
 name: release-summary
-description: Generates a categorized GitHub release summary from git commit logs between tags. Trigger: /release-summary, "release summary", "generate release notes".
+description: Generates clean GitHub release summary based on git logs using scripts/release_summary.py and updates the GitHub draft or pre-release via gh. Trigger: /release-summary, "release summary", "generate release notes".
 ---
 
 # /release-summary [range]
 
-Generates a clean, professional GitHub release summary based on git logs.
+Generates a clean, professional GitHub release summary based on git logs and updates the target GitHub release (draft, pre-release, or published) via `gh`.
 
 ## Description
 
-This skill retrieves the git commit logs for a specified range (or defaults to the latest two tags) and formats them into a categorized, structured release summary suitable for GitHub.
+This skill uses `scripts/release_summary.py` to retrieve git commit logs, format them into a structured Markdown summary (New Features, Bug Fixes, Improvements, Documentation, Special Thanks, Full Changelog), and update the existing GitHub release via `gh release edit` (preserving its draft/pre-release status, or creating a draft pre-release if none exists yet).
 
 ## Protocol
 
-1. **Determine the Git Log Range:**
-   - Check if a `[range]` argument (e.g., `v0.9.0..v0.9.1` or `HEAD`) is provided.
-   - If no range is specified, execute git commands to detect the latest two tags:
-     - Run `git tag --sort=-v:refname | head -n 2`
-     - Extract `LATEST` (the first line) and `PREVIOUS` (the second line).
-     - If `PREVIOUS` is empty (only one tag or no tags), default `range` to `HEAD`.
-     - Otherwise, set `range` to `PREVIOUS..LATEST`.
+1. Execute the Python script via `uv run` (or `task`). If no range is provided, it automatically detects the latest two tags.
 
-2. **Retrieve Git Log Entries:**
-   - Run `git log --pretty=format:"- %s" <range>` where `<range>` is the determined range.
+   ```bash
+   rtk uv run python3 scripts/release_summary.py [range]
+   # or
+   task release:summary -- [range]
+   ```
 
-3. **Generate and Format the Release Summary:**
-   - Categorize the commit messages into the following markdown sections (using `###` for headers):
-     - `### 🚀 **New Features**` (for commits starting with `feat`)
-     - `### 🐛 **Bug Fixes**` (for commits starting with `fix`)
-     - `### ✨ **Improvements**` (for commits starting with `refactor`, `perf`, `style`)
-     - `### 📝 **Documentation**` (for commits starting with `docs`)
-   - Clean up the commit messages:
-     - Exclude any commit messages related to `conductor` or `checkpoint` tasks (e.g., commits containing `conductor` or `checkpoint` in their type, scope, or message body).
-     - Strip the type prefix (e.g. "feat:", "fix:").
-     - If a scope is present (e.g., "auth:"), keep it (e.g., `auth: add token validation` -> `auth: Add token validation`).
-     - Ensure the first letter of each bullet is capitalized.
-     - Use backticks for technical terms (e.g., `cooklang`, `gtmpl-ng`, `clap`, `figment`, `serde`, `serde_json`, `walkdir`).
-   - Format restrictions:
-     - Do not include line numbers in the output.
-     - Use standard triple backticks (```) for any code blocks.
-     - Omit sections that have no matching changes.
-     - Do not include git commit hashes.
-     - Maintain a direct, professional, and technical tone.
+   Supported range formats: `v0.9.2..v0.9.4`, `v0.9.2 to v0.9.4`, `v0.9.4` (diff from previous tag), or omitted (latest two tags).
 
-4. **Add Changelog Comparison Link:**
-   - At the bottom of the summary, add a comparison link:
-     `**Full Changelog**: https://github.com/nicholaswilde/cook-docs/compare/<url_range>`
-     where `<url_range>` is the range with `..` replaced by `...` (e.g., `v0.9.0...v0.9.1` or `HEAD`).
+2. **Preview Without Updating (`--dry-run`)**: Print generated Markdown without calling `gh`:
+
+   ```bash
+   rtk uv run python3 scripts/release_summary.py [range] --dry-run
+   ```
+
+3. **Special Thanks**: If the user asks to add special thanks (e.g. to a contributor or tester), pass `--thanks` (and optionally `--for` / reason):
+
+   ```bash
+   # Name and reason
+   rtk uv run python3 scripts/release_summary.py [range] --thanks "<Name>" --for "<reason>"
+
+   # Or full message
+   rtk uv run python3 scripts/release_summary.py [range] --thanks "Huge thanks to **<Name>** for <reason>!"
+   ```
+
+   This generates the section:
+
+   ```markdown
+   ### 🙏 **Special Thanks**
+
+   Huge thanks to **<Name>** for <reason>!
+   ```
+
+4. **Update Release State (Optional)**: By default, `gh release edit` updates notes in-place while preserving whether the release is a draft, pre-release, or published release. Pass `--draft` or `--prerelease` to explicitly set those flags on edit. If no GitHub release exists for the target tag yet, the script creates a draft pre-release (`gh release create --draft --prerelease`).
