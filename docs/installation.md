@@ -12,21 +12,37 @@ brew install nicholaswilde/tap/cook-docs
 
 ## :package: APT (Debian / Ubuntu)
 
-Install `.deb` packages (`amd64`, `arm64`, `armhf`, `armel`) from [`nicholaswilde/apt`](https://nicholaswilde.io/apt) (includes binary, man page, and shell completions):
+Install `.deb` packages (`amd64`, `arm64`, `armhf`, `armel`) from the [`nicholaswilde/apt`](https://github.com/nicholaswilde/apt) repository ([nicholaswilde.io/apt](https://nicholaswilde.io/apt)), which bundles the binary, man page, and shell completions:
+
+### 1. Add Repository Signing Key
 
 ```bash
 sudo install -m 0755 -d /etc/apt/keyrings
 curl -fsSL https://nicholaswilde.io/apt/public.key | sudo gpg --dearmor -o /etc/apt/keyrings/nicholaswilde-apt.gpg
 sudo chmod a+r /etc/apt/keyrings/nicholaswilde-apt.gpg
+```
 
-sudo tee /etc/apt/sources.list.d/nicholaswilde.sources << 'EOF'
-Types: deb
-URIs: https://nicholaswilde.io/apt
-Suites: stable
-Components: main
-Signed-By: /etc/apt/keyrings/nicholaswilde-apt.gpg
-EOF
+### 2. Add APT Source
 
+=== "Deb822 (Debian 12+ / Ubuntu 22.04+)"
+    ```bash
+    sudo tee /etc/apt/sources.list.d/nicholaswilde.sources << 'EOF'
+    Types: deb
+    URIs: https://nicholaswilde.io/apt
+    Suites: stable
+    Components: main
+    Signed-By: /etc/apt/keyrings/nicholaswilde-apt.gpg
+    EOF
+    ```
+
+=== "Traditional One-Line (`.list`)"
+    ```bash
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/nicholaswilde-apt.gpg] https://nicholaswilde.io/apt stable main" | sudo tee /etc/apt/sources.list.d/nicholaswilde-apt.list
+    ```
+
+### 3. Update & Install
+
+```bash
 sudo apt update
 sudo apt install cook-docs
 ```
