@@ -2,11 +2,14 @@ pub mod config;
 pub mod cook;
 pub mod doctor;
 pub mod document;
+pub mod enrichment;
+pub mod merge;
 pub mod types;
 pub mod update;
 pub mod watch;
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 /// Resolve configured `recipe_search_root` against the current working directory when relative.
 pub fn resolve_search_root(recipe_search_root: &str) -> PathBuf {
@@ -23,6 +26,16 @@ pub fn resolve_search_root(recipe_search_root: &str) -> PathBuf {
 pub fn render_recipe(path: &str, config: &types::Config) -> Result<(), String> {
     let recipe = cook::parse_file(path, config)?;
     document::print_documentation(&recipe);
+    Ok(())
+}
+
+fn render_recipe_with_resources(
+    path: &str,
+    config: &types::Config,
+    resources: &Arc<enrichment::RenderResources>,
+) -> Result<(), String> {
+    let recipe = cook::parse_file(path, config)?;
+    document::print_documentation_with_resources(&recipe, resources);
     Ok(())
 }
 
@@ -65,11 +78,13 @@ pub fn render_recipes(recipe_paths: &[PathBuf], config: &types::Config) -> (usiz
         return (ok, failed);
     }
 
+    let resources = Arc::new(enrichment::RenderResources::from_config(config));
+
     if config.dry_run {
         let mut ok = 0;
         let mut failed = 0;
         for path_str in recipe_paths_strs {
-            if let Err(e) = render_recipe(&path_str, config) {
+            if let Err(e) = render_recipe_with_resources(&path_str, config, &resources) {
                 log::warn!(
                     "Error parsing file for recipe {}, skipping: {}",
                     path_str,
@@ -86,8 +101,10 @@ pub fn render_recipes(recipe_paths: &[PathBuf], config: &types::Config) -> (usiz
     let mut handles = Vec::with_capacity(recipe_paths_strs.len());
     for path_str in recipe_paths_strs {
         let config_clone = config.clone();
+        let resources_clone = Arc::clone(&resources);
         handles.push(std::thread::spawn(move || {
-            if let Err(e) = render_recipe(&path_str, &config_clone) {
+            if let Err(e) = render_recipe_with_resources(&path_str, &config_clone, &resources_clone)
+            {
                 log::warn!(
                     "Error parsing file for recipe {}, skipping: {}",
                     path_str,
@@ -141,16 +158,8 @@ mod tests {
 
         let mut cfg = types::Config {
             dry_run: true,
-            jsonify: false,
-            ignore_file: ".cookdocsignore".to_string(),
             recipe_search_root: dir.to_string_lossy().to_string(),
-            log_level: "info".to_string(),
-            template_files: vec!["recipe.md.gotmpl".to_string()],
-            word_wrap: 120,
-            output_dir: String::new(),
-            assets_dir: String::new(),
-            image_ext: String::new(),
-            recipe_files: Vec::new(),
+            ..types::Config::default()
         };
 
         let paths = vec![valid.clone(), missing.clone()];

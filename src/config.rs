@@ -16,6 +16,7 @@ pub enum CliAction {
     Man,
     Doctor {
         json: bool,
+        check_recipes: bool,
         config_path: Option<PathBuf>,
         config_result: Result<Config, String>,
     },
@@ -105,6 +106,32 @@ pub fn build_cli() -> Command {
             .long("image-ext")
             .global(true)
             .help("optional image extension override for Info.ImageSlug (e.g. webp)"))
+        .arg(Arg::new("emoji-file")
+            .long("emoji-file")
+            .global(true)
+            .help("optional YAML/TOML/JSON file mapping ingredients and cookware to emojis"))
+        .arg(Arg::new("weights-file")
+            .long("weights-file")
+            .global(true)
+            .help("optional YAML/TOML/JSON ingredient density file for toGrams volume-to-weight conversion"))
+        .arg(Arg::new("link-dirs")
+            .long("link-dirs")
+            .global(true)
+            .help("comma-separated recipe subdirectories eligible for linkRecipe cross-linking"))
+        .arg(Arg::new("required-metadata")
+            .long("required-metadata")
+            .global(true)
+            .help("comma-separated metadata keys required by doctor --check-recipes (e.g. source,serves)"))
+        .arg(Arg::new("merge")
+            .long("merge")
+            .global(true)
+            .action(ArgAction::SetTrue)
+            .help("merge generated content into existing Markdown files without clobbering manual edits"))
+        .arg(Arg::new("force")
+            .long("force")
+            .global(true)
+            .action(ArgAction::SetTrue)
+            .help("force full overwrite of existing Markdown files even when --merge / merge is enabled"))
         .arg(Arg::new("files")
             .value_name("FILES")
             .num_args(0..)
@@ -140,6 +167,18 @@ pub fn build_cli() -> Command {
                         .long("json")
                         .action(ArgAction::SetTrue)
                         .help("Output doctor report in JSON format"),
+                )
+                .arg(
+                    Arg::new("check-recipes")
+                        .long("check-recipes")
+                        .action(ArgAction::SetTrue)
+                        .help("Validate recipe syntax, companion images, required metadata, and emoji mappings"),
+                )
+                .arg(
+                    Arg::new("doctor-files")
+                        .value_name("FILES")
+                        .num_args(0..)
+                        .help("Optional recipe files or subdirectories to validate"),
                 ),
         )
         .subcommand(
@@ -183,7 +222,7 @@ pub fn generate_manpage(writer: &mut dyn Write) -> Result<(), String> {
         .map_err(|e| format!("Failed rendering man page: {e}"))
 }
 
-#[derive(Deserialize, Debug, Default, PartialEq, Eq)]
+#[derive(Deserialize, Debug, Default, PartialEq)]
 struct ConfigFile {
     #[serde(alias = "dry-run", alias = "dry_run", alias = "dryRun")]
     pub dry_run: Option<bool>,
@@ -213,6 +252,29 @@ struct ConfigFile {
     pub assets_dir: Option<String>,
     #[serde(alias = "image-ext", alias = "image_ext", alias = "imageExt")]
     pub image_ext: Option<String>,
+    #[serde(alias = "emoji-file", alias = "emoji_file", alias = "emojiFile")]
+    pub emoji_file: Option<String>,
+    #[serde(alias = "emoji")]
+    pub emoji: Option<serde_json::Value>,
+    #[serde(alias = "weights-file", alias = "weights_file", alias = "weightsFile")]
+    pub weights_file: Option<String>,
+    #[serde(alias = "link-dirs", alias = "link_dirs", alias = "linkDirs")]
+    pub link_dirs: Option<Vec<String>>,
+    #[serde(
+        alias = "required-metadata",
+        alias = "required_metadata",
+        alias = "requiredMetadata"
+    )]
+    pub required_metadata: Option<Vec<String>>,
+    #[serde(alias = "merge")]
+    pub merge: Option<bool>,
+}
+
+fn parse_csv_list(raw: &str) -> Vec<String> {
+    raw.split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
 }
 
 pub fn load_config(args: &[&str]) -> Result<Config, String> {
@@ -299,10 +361,17 @@ where
     }
     if let Some(("doctor", sub_matches)) = matches.subcommand() {
         let json = sub_matches.get_flag("json");
-        let (config_path, config_result) =
+        let check_recipes = sub_matches.get_flag("check-recipes");
+        let (config_path, mut config_result) =
             resolve_config_with_source(&matches, config_paths, env_get);
+        if let Ok(ref mut cfg) = config_result
+            && let Some(files) = sub_matches.get_many::<String>("doctor-files")
+        {
+            cfg.recipe_files = files.cloned().collect();
+        }
         return Ok(CliAction::Doctor {
             json,
+            check_recipes,
             config_path,
             config_result,
         });
@@ -379,19 +448,7 @@ where
     F: Fn(&str) -> Option<String>,
 {
     // 1. Set default configuration values
-    let mut config = Config {
-        dry_run: false,
-        jsonify: false,
-        ignore_file: ".cookdocsignore".to_string(),
-        recipe_search_root: ".".to_string(),
-        log_level: "info".to_string(),
-        template_files: vec!["recipe.md.gotmpl".to_string()],
-        word_wrap: 120,
-        output_dir: "".to_string(),
-        assets_dir: "".to_string(),
-        image_ext: "".to_string(),
-        recipe_files: Vec::new(),
-    };
+    let mut config = Config::default();
 
     // 2. Resolve the config file: explicit -C/--config or COOK_DOCS_CONFIG, else default discovery
     let explicit_config = matches
@@ -471,6 +528,24 @@ where
         if let Some(val) = config_file.image_ext {
             config.image_ext = val;
         }
+        if let Some(val) = config_file.emoji_file {
+            config.emoji_file = val;
+        }
+        if let Some(val) = config_file.emoji {
+            config.emoji = Some(val);
+        }
+        if let Some(val) = config_file.weights_file {
+            config.weights_file = val;
+        }
+        if let Some(val) = config_file.link_dirs {
+            config.link_dirs = val;
+        }
+        if let Some(val) = config_file.required_metadata {
+            config.required_metadata = val;
+        }
+        if let Some(val) = config_file.merge {
+            config.merge = val;
+        }
     }
 
     // 4. Merge environment variables
@@ -503,6 +578,24 @@ where
     }
     if let Some(val) = env_get("COOK_DOCS_IMAGE_EXT") {
         config.image_ext = val;
+    }
+    if let Some(val) = env_get("COOK_DOCS_EMOJI_FILE") {
+        config.emoji_file = val;
+    }
+    if let Some(val) = env_get("COOK_DOCS_WEIGHTS_FILE") {
+        config.weights_file = val;
+    }
+    if let Some(val) = env_get("COOK_DOCS_LINK_DIRS") {
+        config.link_dirs = parse_csv_list(&val);
+    }
+    if let Some(val) = env_get("COOK_DOCS_REQUIRED_METADATA") {
+        config.required_metadata = parse_csv_list(&val);
+    }
+    if let Some(val) = env_get("COOK_DOCS_MERGE") {
+        config.merge = val.parse().unwrap_or(config.merge);
+    }
+    if let Some(val) = env_get("COOK_DOCS_FORCE") {
+        config.force = val.parse().unwrap_or(config.force);
     }
 
     // 5. Merge CLI arguments
@@ -538,6 +631,24 @@ where
     }
     if let Some(val) = matches.get_one::<String>("image-ext") {
         config.image_ext = val.clone();
+    }
+    if let Some(val) = matches.get_one::<String>("emoji-file") {
+        config.emoji_file = val.clone();
+    }
+    if let Some(val) = matches.get_one::<String>("weights-file") {
+        config.weights_file = val.clone();
+    }
+    if let Some(val) = matches.get_one::<String>("link-dirs") {
+        config.link_dirs = parse_csv_list(val);
+    }
+    if let Some(val) = matches.get_one::<String>("required-metadata") {
+        config.required_metadata = parse_csv_list(val);
+    }
+    if matches.value_source("merge") == Some(clap::parser::ValueSource::CommandLine) {
+        config.merge = matches.get_flag("merge");
+    }
+    if matches.value_source("force") == Some(clap::parser::ValueSource::CommandLine) {
+        config.force = matches.get_flag("force");
     }
     if let Some(files) = matches.get_many::<String>("files") {
         config.recipe_files = files.cloned().collect();
@@ -850,7 +961,12 @@ output_dir = \"toml_out\"
                         || rest.starts_with("word_wrap =")
                         || rest.starts_with("output_dir =")
                         || rest.starts_with("assets_dir =")
-                        || rest.starts_with("image_ext ="))
+                        || rest.starts_with("image_ext =")
+                        || rest.starts_with("emoji_file =")
+                        || rest.starts_with("weights_file =")
+                        || rest.starts_with("link_dirs =")
+                        || rest.starts_with("required_metadata =")
+                        || rest.starts_with("merge ="))
                 {
                     return rest.to_string();
                 }
@@ -876,6 +992,11 @@ output_dir = \"toml_out\"
         assert_eq!(parsed.output_dir.as_deref(), Some(""));
         assert_eq!(parsed.assets_dir.as_deref(), Some(""));
         assert_eq!(parsed.image_ext.as_deref(), Some(""));
+        assert_eq!(parsed.emoji_file.as_deref(), Some(""));
+        assert_eq!(parsed.weights_file.as_deref(), Some(""));
+        assert_eq!(parsed.link_dirs.as_deref(), Some(&[][..]));
+        assert_eq!(parsed.required_metadata.as_deref(), Some(&[][..]));
+        assert_eq!(parsed.merge, Some(false));
     }
 
     #[test]
@@ -885,10 +1006,12 @@ output_dir = \"toml_out\"
             match action {
                 CliAction::Doctor {
                     json,
+                    check_recipes,
                     config_path,
                     config_result,
                 } => {
                     assert!(!json);
+                    assert!(!check_recipes);
                     assert!(config_path.is_none());
                     assert!(config_result.is_ok());
                 }
@@ -896,9 +1019,35 @@ output_dir = \"toml_out\"
             }
         }
 
-        let action_json =
-            load_action_with(&["cook-docs", "doctor", "--json"], &[], |_| None).unwrap();
-        assert!(matches!(action_json, CliAction::Doctor { json: true, .. }));
+        let action_json = load_action_with(
+            &[
+                "cook-docs",
+                "doctor",
+                "--json",
+                "--check-recipes",
+                "--required-metadata",
+                "source,serves",
+                "recipes/A.cook",
+            ],
+            &[],
+            |_| None,
+        )
+        .unwrap();
+        match action_json {
+            CliAction::Doctor {
+                json,
+                check_recipes,
+                config_result,
+                ..
+            } => {
+                assert!(json);
+                assert!(check_recipes);
+                let cfg = config_result.unwrap();
+                assert_eq!(cfg.required_metadata, vec!["source", "serves"]);
+                assert_eq!(cfg.recipe_files, vec!["recipes/A.cook"]);
+            }
+            _ => panic!("expected Doctor action"),
+        }
         assert!(load_config_with(&["cook-docs", "doctor"], &[], |_| None).is_err());
     }
 
@@ -1085,5 +1234,102 @@ output_dir = \"toml_out\"
             load_action_with(&["cook-docs", "watch"], &[], |_| None).unwrap(),
             CliAction::Watch { .. }
         ));
+    }
+
+    #[test]
+    fn test_batch_c_config_env_and_cli_precedence() {
+        let id = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let dir =
+            std::env::temp_dir().join(format!("cook_docs_batch_c_{}_{}", std::process::id(), id));
+        fs::create_dir_all(&dir).unwrap();
+        let cfg_file = dir.join(".cookdocs.yaml");
+        fs::write(
+            &cfg_file,
+            "\
+emojiFile: file_emoji.yaml
+weightsFile: file_weights.yaml
+linkDirs:
+  - sauces
+  - ingredients
+requiredMetadata:
+  - source
+emoji:
+  ingredients:
+    - herb:
+        - cilantro
+",
+        )
+        .unwrap();
+
+        let from_file =
+            load_config_with(&["cook-docs"], std::slice::from_ref(&cfg_file), |_| None).unwrap();
+        assert_eq!(from_file.emoji_file, "file_emoji.yaml");
+        assert_eq!(from_file.weights_file, "file_weights.yaml");
+        assert_eq!(from_file.link_dirs, vec!["sauces", "ingredients"]);
+        assert_eq!(from_file.required_metadata, vec!["source"]);
+        assert!(from_file.emoji.is_some());
+
+        let mut env = HashMap::new();
+        env.insert("COOK_DOCS_EMOJI_FILE", "env_emoji.yaml");
+        env.insert("COOK_DOCS_WEIGHTS_FILE", "env_weights.yaml");
+        env.insert("COOK_DOCS_LINK_DIRS", "breads, sauces");
+        env.insert("COOK_DOCS_REQUIRED_METADATA", "source, serves");
+        let from_env = load_config_with(&["cook-docs"], std::slice::from_ref(&cfg_file), |k| {
+            env.get(k).map(|s| s.to_string())
+        })
+        .unwrap();
+        assert_eq!(from_env.emoji_file, "env_emoji.yaml");
+        assert_eq!(from_env.weights_file, "env_weights.yaml");
+        assert_eq!(from_env.link_dirs, vec!["breads", "sauces"]);
+        assert_eq!(from_env.required_metadata, vec!["source", "serves"]);
+
+        let from_cli = load_config_with(
+            &[
+                "cook-docs",
+                "--emoji-file",
+                "cli_emoji.toml",
+                "--weights-file",
+                "cli_weights.toml",
+                "--link-dirs",
+                "condiments",
+                "--required-metadata",
+                "title",
+            ],
+            &[cfg_file],
+            |k| env.get(k).map(|s| s.to_string()),
+        )
+        .unwrap();
+        assert_eq!(from_cli.emoji_file, "cli_emoji.toml");
+        assert_eq!(from_cli.weights_file, "cli_weights.toml");
+        assert_eq!(from_cli.link_dirs, vec!["condiments"]);
+        assert_eq!(from_cli.required_metadata, vec!["title"]);
+
+        // Merge & force precedence across config file, env, and CLI
+        let merge_cfg = dir.join(".cookdocs.toml");
+        fs::write(&merge_cfg, "merge = true\n").unwrap();
+        let cfg_m =
+            load_config_with(&["cook-docs"], std::slice::from_ref(&merge_cfg), |_| None).unwrap();
+        assert!(cfg_m.merge);
+        assert!(!cfg_m.force);
+
+        let cfg_f = load_config_with(
+            &["cook-docs", "--force"],
+            std::slice::from_ref(&merge_cfg),
+            |_| None,
+        )
+        .unwrap();
+        assert!(cfg_f.merge);
+        assert!(cfg_f.force);
+
+        let cfg_env_mf = load_config_with(&["cook-docs"], &[], |k| match k {
+            "COOK_DOCS_MERGE" => Some("true".to_string()),
+            "COOK_DOCS_FORCE" => Some("true".to_string()),
+            _ => None,
+        })
+        .unwrap();
+        assert!(cfg_env_mf.merge);
+        assert!(cfg_env_mf.force);
+
+        let _ = fs::remove_dir_all(&dir);
     }
 }

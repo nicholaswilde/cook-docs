@@ -1,7 +1,43 @@
+use crate::enrichment::RenderResources;
 use crate::types::Recipe;
 use gtmpl_ng::{FuncError, Template, Value};
+use std::cell::RefCell;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+
+struct ActiveRenderContext {
+    resources: Arc<RenderResources>,
+    current_output_path: PathBuf,
+}
+
+thread_local! {
+    static RENDER_CTX: RefCell<Option<ActiveRenderContext>> = const { RefCell::new(None) };
+}
+
+struct RenderContextGuard {
+    previous: Option<ActiveRenderContext>,
+}
+
+impl RenderContextGuard {
+    fn enter(resources: Arc<RenderResources>, current_output_path: PathBuf) -> Self {
+        let previous = RENDER_CTX.with(|cell| {
+            cell.borrow_mut().replace(ActiveRenderContext {
+                resources,
+                current_output_path,
+            })
+        });
+        Self { previous }
+    }
+}
+
+impl Drop for RenderContextGuard {
+    fn drop(&mut self) {
+        RENDER_CTX.with(|cell| {
+            *cell.borrow_mut() = self.previous.take();
+        });
+    }
+}
 
 const DEFAULT_DOCUMENTATION_TEMPLATE: &str = r#"{{ template "cook.headerSection" . }}
  
@@ -41,9 +77,11 @@ fn get_table_template() -> String {
 fn get_ingredients_template() -> String {
     let mut s = String::new();
     s.push_str(r#"{{ define "cook.ingredientsHeader" }}## :salt: Ingredients{{ end }}"#);
-    s.push_str(r#"{{ define "cook.ingredients" }}{{ range .Steps }}{{- range .Ingredients }}"#);
+    s.push_str(r#"{{ define "cook.ingredients" }}{{ if .Ingredients }}{{- range .Ingredients }}"#);
     s.push('\n');
-    s.push_str(r#"- {{ if .Amount.Quantity }}{{ round .Amount.Quantity 2 }}{{ if .Amount.Unit }} {{ .Amount.Unit }}{{ end }}{{ else }}some{{ end }} {{ .Name }}{{- end }}{{- end }}{{ end }}"#);
+    s.push_str(r#"- {{ with ingredientEmoji .Name }}{{ . }} {{ end }}{{ if .Amount.Quantity }}{{ round .Amount.Quantity 2 }}{{ if .Amount.Unit }} {{ .Amount.Unit }}{{ end }}{{ with toGrams .Amount .Name }} ({{ . }} g){{ end }}{{ else }}some{{ end }} {{ if $.Config.LinkDirs }}{{ linkRecipe .Name }}{{ else }}{{ .Name }}{{ end }}{{- end }}{{ else }}{{ range .Steps }}{{- range .Ingredients }}"#);
+    s.push('\n');
+    s.push_str(r#"- {{ with ingredientEmoji .Name }}{{ . }} {{ end }}{{ if .Amount.Quantity }}{{ round .Amount.Quantity 2 }}{{ if .Amount.Unit }} {{ .Amount.Unit }}{{ end }}{{ with toGrams .Amount .Name }} ({{ . }} g){{ end }}{{ else }}some{{ end }} {{ if $.Config.LinkDirs }}{{ linkRecipe .Name }}{{ else }}{{ .Name }}{{ end }}{{- end }}{{- end }}{{ end }}{{ end }}"#);
     s.push_str(
         r#"{{ define "cook.ingredientsSection" }}{{ template "cook.ingredientsHeader" . }}"#,
     );
@@ -55,9 +93,11 @@ fn get_ingredients_template() -> String {
 fn get_cookware_template() -> String {
     let mut s = String::new();
     s.push_str(r#"{{ define "cook.cookwareHeader" }}## :cooking: Cookware{{ end }}"#);
-    s.push_str(r#"{{ define "cook.cookware" }}{{ range .Steps }}{{- range .Cookware }}"#);
+    s.push_str(r#"{{ define "cook.cookware" }}{{ if .Cookware }}{{- range .Cookware }}"#);
     s.push('\n');
-    s.push_str(r#"- {{.Quantity}} {{.Name}}{{- end }}{{- end }}{{ end }}"#);
+    s.push_str(r#"- {{ with cookwareEmoji .Name }}{{ . }} {{ end }}{{.Quantity}} {{.Name}}{{- end }}{{ else }}{{ range .Steps }}{{- range .Cookware }}"#);
+    s.push('\n');
+    s.push_str(r#"- {{ with cookwareEmoji .Name }}{{ . }} {{ end }}{{.Quantity}} {{.Name}}{{- end }}{{- end }}{{ end }}{{ end }}"#);
     s.push_str(r#"{{ define "cook.cookwareSection" }}{{ template "cook.cookwareHeader" . }}"#);
     s.push('\n');
     s.push_str(r#"{{ template "cook.cookware" . }}{{ end }}"#);
@@ -480,6 +520,413 @@ fn to_yaml(args: &[Value]) -> Result<Value, FuncError> {
     Ok(Value::String(format_yaml_value(&args[0], 0)))
 }
 
+fn emoji_fn(args: &[Value]) -> Result<Value, FuncError> {
+    if args.is_empty() {
+        return Ok(Value::String(String::new()));
+    }
+    let (category, name) = if args.len() >= 2 {
+        let cat = match &args[0] {
+            Value::String(s) => s.as_str(),
+            _ => "",
+        };
+        let n = match &args[1] {
+            Value::String(s) => s.as_str(),
+            _ => "",
+        };
+        (Some(cat), n)
+    } else {
+        let n = match &args[0] {
+            Value::String(s) => s.as_str(),
+            _ => "",
+        };
+        (None, n)
+    };
+    if name.is_empty() {
+        return Ok(Value::String(String::new()));
+    }
+
+    let found = RENDER_CTX.with(|cell| {
+        let borrow = cell.borrow();
+        let ctx = borrow.as_ref()?;
+        match category.map(|c| c.to_ascii_lowercase()).as_deref() {
+            Some("ingredient" | "ingredients") => ctx.resources.emoji.lookup_ingredient(name),
+            Some("cookware") => ctx.resources.emoji.lookup_cookware(name),
+            _ => ctx.resources.emoji.lookup_any(name),
+        }
+        .map(str::to_string)
+    });
+
+    Ok(Value::String(found.unwrap_or_default()))
+}
+
+fn ingredient_emoji_fn(args: &[Value]) -> Result<Value, FuncError> {
+    let Some(Value::String(name)) = args.first() else {
+        return Ok(Value::String(String::new()));
+    };
+    let found = RENDER_CTX.with(|cell| {
+        cell.borrow()
+            .as_ref()
+            .and_then(|ctx| ctx.resources.emoji.lookup_ingredient(name))
+            .map(str::to_string)
+    });
+    Ok(Value::String(found.unwrap_or_default()))
+}
+
+fn cookware_emoji_fn(args: &[Value]) -> Result<Value, FuncError> {
+    let Some(Value::String(name)) = args.first() else {
+        return Ok(Value::String(String::new()));
+    };
+    let found = RENDER_CTX.with(|cell| {
+        cell.borrow()
+            .as_ref()
+            .and_then(|ctx| ctx.resources.emoji.lookup_cookware(name))
+            .map(str::to_string)
+    });
+    Ok(Value::String(found.unwrap_or_default()))
+}
+
+fn extract_amount_fields(val: &Value) -> Option<(f64, String)> {
+    let (Value::Map(map) | Value::Object(map)) = val else {
+        return None;
+    };
+    if let Some(Value::Bool(false)) = map.get("IsNumeric") {
+        return None;
+    }
+    let qty = map.get("Quantity").map(value_to_f64).unwrap_or(0.0);
+    let unit = match map.get("Unit") {
+        Some(Value::String(s)) => s.clone(),
+        _ => String::new(),
+    };
+    Some((qty, unit))
+}
+
+fn to_grams_fn(args: &[Value]) -> Result<Value, FuncError> {
+    let (qty, unit, name) = match args {
+        // 2-arg form: `toGrams .Amount .Name`
+        [amount_val, Value::String(name), ..]
+            if matches!(amount_val, Value::Map(_) | Value::Object(_)) =>
+        {
+            let Some((q, u)) = extract_amount_fields(amount_val) else {
+                return Ok(Value::String(String::new()));
+            };
+            (q, u, name.as_str())
+        }
+        // 3-arg form: `toGrams .Amount.Quantity .Amount.Unit .Name`
+        [qty_val, Value::String(unit), Value::String(name), ..] => {
+            (value_to_f64(qty_val), unit.clone(), name.as_str())
+        }
+        // 1-arg form: `toGrams .` (Ingredient map containing Amount and Name)
+        [Value::Map(ing) | Value::Object(ing)] => {
+            let Some(amount_val) = ing.get("Amount") else {
+                return Ok(Value::String(String::new()));
+            };
+            let Some((q, u)) = extract_amount_fields(amount_val) else {
+                return Ok(Value::String(String::new()));
+            };
+            let Some(Value::String(name)) = ing.get("Name") else {
+                return Ok(Value::String(String::new()));
+            };
+            (q, u, name.as_str())
+        }
+        _ => return Ok(Value::String(String::new())),
+    };
+
+    let grams = RENDER_CTX.with(|cell| {
+        cell.borrow()
+            .as_ref()
+            .and_then(|ctx| ctx.resources.weights.to_grams(qty, &unit, name))
+    });
+
+    Ok(Value::String(
+        grams.map(|g| g.to_string()).unwrap_or_default(),
+    ))
+}
+
+pub(crate) fn format_yaml_from_gtmpl(val: &Value) -> String {
+    format_yaml_value(val, 0)
+}
+
+pub(crate) fn json_to_gtmpl_value(val: serde_json::Value) -> Value {
+    json_to_gtmpl(val)
+}
+
+pub(crate) fn normalize_markdown_spacing(input: &str) -> String {
+    apply_markdown_format(input)
+}
+
+fn parse_fraction_or_float(raw: &str) -> Option<f64> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let parse_piece = |s: &str| -> Option<f64> {
+        if let Some((n, d)) = s.split_once('/') {
+            let num: f64 = n.trim().parse().ok()?;
+            let den: f64 = d.trim().parse().ok()?;
+            (den != 0.0).then_some(num / den)
+        } else {
+            s.parse::<f64>().ok()
+        }
+    };
+    let mut parts = trimmed.split_whitespace();
+    let first = parse_piece(parts.next()?)?;
+    match (parts.next(), parts.next()) {
+        (None, _) => Some(first),
+        (Some(second), None) if second.contains('/') => Some(first + parse_piece(second)?),
+        _ => None,
+    }
+}
+
+fn parse_scale_factor(val: &Value) -> Option<f64> {
+    let factor = match val {
+        Value::Number(_) => value_to_f64(val),
+        Value::String(s) => parse_fraction_or_float(s)?,
+        _ => return None,
+    };
+    (factor.is_finite() && factor > 0.0).then_some(factor)
+}
+
+fn prefers_fraction(unit: &str, raw_was_fraction: bool) -> bool {
+    if raw_was_fraction {
+        return true;
+    }
+    let u = unit.trim();
+    if u.is_empty() {
+        return true;
+    }
+    let converter = cooklang::Converter::bundled();
+    let found = converter
+        .find_unit(u)
+        .or_else(|| converter.find_unit(&u.to_ascii_lowercase()));
+    matches!(
+        found.and_then(|unit_info| unit_info.system),
+        Some(cooklang::convert::System::Imperial)
+    )
+}
+
+fn format_scaled_number(val: f64, prefer_fraction: bool) -> String {
+    let snapped = (val * 1e5).round() / 1e5;
+    if (snapped - snapped.round()).abs() < 1e-4 {
+        return format!("{}", snapped.round() as i64);
+    }
+    if prefer_fraction
+        && snapped > 0.0
+        && let Some(cooklang::quantity::Number::Fraction {
+            whole, num, den, ..
+        }) = cooklang::quantity::Number::new_approx(snapped, 0.02, 8, 100)
+    {
+        if num == 0 {
+            return whole.to_string();
+        }
+        if whole == 0 {
+            return format!("{num}/{den}");
+        }
+        return format!("{whole} {num}/{den}");
+    }
+    let s = format!("{:.2}", snapped);
+    s.trim_end_matches('0').trim_end_matches('.').to_string()
+}
+
+fn round_clean_f64(val: f64) -> f64 {
+    let formatted = format!("{:.4}", val);
+    formatted.parse::<f64>().unwrap_or(val)
+}
+
+fn scale_amount_map(
+    map: &std::collections::HashMap<String, Value>,
+    factor: f64,
+) -> std::collections::HashMap<String, Value> {
+    let mut out = map.clone();
+    let is_numeric = matches!(map.get("IsNumeric"), Some(Value::Bool(true)));
+    if !is_numeric {
+        return out;
+    }
+
+    let orig_qty = map.get("Quantity").map(value_to_f64).unwrap_or(0.0);
+    let orig_raw = match map.get("QuantityRaw") {
+        Some(Value::String(s)) => s.clone(),
+        _ => String::new(),
+    };
+    let unit = match map.get("Unit") {
+        Some(Value::String(s)) => s.clone(),
+        _ => String::new(),
+    };
+
+    let raw_was_fraction = orig_raw.contains('/');
+    let prefer_frac = prefers_fraction(&unit, raw_was_fraction);
+
+    if let Some((start_s, end_s)) = orig_raw.split_once('-')
+        && let (Some(start), Some(end)) = (
+            parse_fraction_or_float(start_s),
+            parse_fraction_or_float(end_s),
+        )
+    {
+        let s_scaled = start * factor;
+        let e_scaled = end * factor;
+        out.insert(
+            "Quantity".to_string(),
+            Value::Number(round_clean_f64(s_scaled).into()),
+        );
+        out.insert(
+            "QuantityRaw".to_string(),
+            Value::String(format!(
+                "{}-{}",
+                format_scaled_number(s_scaled, prefer_frac),
+                format_scaled_number(e_scaled, prefer_frac)
+            )),
+        );
+        return out;
+    }
+
+    let base = parse_fraction_or_float(&orig_raw).unwrap_or(orig_qty);
+    let scaled = base * factor;
+    out.insert(
+        "Quantity".to_string(),
+        Value::Number(round_clean_f64(scaled).into()),
+    );
+    out.insert(
+        "QuantityRaw".to_string(),
+        Value::String(format_scaled_number(scaled, prefer_frac)),
+    );
+    out
+}
+
+fn scale_gtmpl_value(val: &Value, factor: f64) -> Value {
+    match val {
+        Value::Number(_) => Value::Number(round_clean_f64(value_to_f64(val) * factor).into()),
+        Value::String(s) => {
+            if let Some((start_s, end_s)) = s.split_once('-')
+                && let (Some(start), Some(end)) = (
+                    parse_fraction_or_float(start_s),
+                    parse_fraction_or_float(end_s),
+                )
+            {
+                let prefer_frac = s.contains('/');
+                return Value::String(format!(
+                    "{}-{}",
+                    format_scaled_number(start * factor, prefer_frac),
+                    format_scaled_number(end * factor, prefer_frac)
+                ));
+            }
+            if let Some(num) = parse_fraction_or_float(s) {
+                Value::String(format_scaled_number(num * factor, s.contains('/')))
+            } else {
+                Value::String(s.clone())
+            }
+        }
+        Value::Array(items) => Value::Array(
+            items
+                .iter()
+                .map(|item| scale_gtmpl_value(item, factor))
+                .collect(),
+        ),
+        Value::Map(map) | Value::Object(map) => {
+            // 1. Amount map (`IsNumeric`, `Quantity`, `QuantityRaw`, `Unit`)
+            if map.contains_key("Quantity") && map.contains_key("IsNumeric") {
+                return Value::Map(scale_amount_map(map, factor));
+            }
+            // 2. Ingredient map (`Name`, `Amount`)
+            if let Some(amt) = map.get("Amount") {
+                let mut out = map.clone();
+                out.insert("Amount".to_string(), scale_gtmpl_value(amt, factor));
+                return Value::Map(out);
+            }
+            // 3. Recipe map (`Steps` / `Ingredients` / `Metadata` / `Frontmatter`)
+            if map.contains_key("Steps") || map.contains_key("Ingredients") {
+                let mut out = map.clone();
+                if let Some(ings) = map.get("Ingredients") {
+                    out.insert("Ingredients".to_string(), scale_gtmpl_value(ings, factor));
+                }
+                if let Some(Value::Array(steps)) = map.get("Steps") {
+                    let scaled_steps = steps
+                        .iter()
+                        .map(|step| {
+                            if let Value::Map(sm) | Value::Object(sm) = step {
+                                let mut sm_out = sm.clone();
+                                if let Some(step_ings) = sm.get("Ingredients") {
+                                    sm_out.insert(
+                                        "Ingredients".to_string(),
+                                        scale_gtmpl_value(step_ings, factor),
+                                    );
+                                }
+                                Value::Map(sm_out)
+                            } else {
+                                step.clone()
+                            }
+                        })
+                        .collect();
+                    out.insert("Steps".to_string(), Value::Array(scaled_steps));
+                }
+                for field in ["Metadata", "Frontmatter"] {
+                    if let Some(Value::Map(meta) | Value::Object(meta)) = map.get(field) {
+                        let mut meta_out = meta.clone();
+                        for (k, v) in meta {
+                            if matches!(k.to_ascii_lowercase().as_str(), "servings" | "serves") {
+                                match v {
+                                    Value::String(s) => {
+                                        if let Some(n) = parse_fraction_or_float(s) {
+                                            meta_out.insert(
+                                                k.clone(),
+                                                Value::String(format_scaled_number(
+                                                    n * factor,
+                                                    false,
+                                                )),
+                                            );
+                                        }
+                                    }
+                                    Value::Number(_) => {
+                                        let scaled = value_to_f64(v) * factor;
+                                        if (scaled - scaled.round()).abs() < 1e-4 {
+                                            meta_out.insert(
+                                                k.clone(),
+                                                Value::Number((scaled.round() as i64).into()),
+                                            );
+                                        } else {
+                                            meta_out.insert(
+                                                k.clone(),
+                                                Value::Number(round_clean_f64(scaled).into()),
+                                            );
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+                        out.insert(field.to_string(), Value::Map(meta_out));
+                    }
+                }
+                return Value::Map(out);
+            }
+            Value::Map(map.clone())
+        }
+        other => other.clone(),
+    }
+}
+
+fn scale_fn(args: &[Value]) -> Result<Value, FuncError> {
+    if args.len() < 2 {
+        return Ok(args.last().cloned().unwrap_or(Value::Nil));
+    }
+    let Some(factor) = parse_scale_factor(&args[0]) else {
+        return Err(FuncError::Generic(
+            "scale expects a positive numeric factor (e.g. 0.5, 2, or \"1/2\")".to_string(),
+        ));
+    };
+    Ok(scale_gtmpl_value(&args[1], factor))
+}
+
+fn link_recipe_fn(args: &[Value]) -> Result<Value, FuncError> {
+    let Some(Value::String(name)) = args.first() else {
+        return Ok(Value::String(String::new()));
+    };
+    let linked = RENDER_CTX.with(|cell| {
+        cell.borrow()
+            .as_ref()
+            .map(|ctx| ctx.resources.links.link(name, &ctx.current_output_path))
+    });
+    Ok(Value::String(linked.unwrap_or_else(|| name.clone())))
+}
+
 fn json_to_gtmpl(val: serde_json::Value) -> Value {
     match val {
         serde_json::Value::Null => Value::Nil,
@@ -665,6 +1112,30 @@ pub(crate) fn build_documentation_template(
             "toYaml",
             to_yaml as fn(&[Value]) -> Result<Value, FuncError>,
         ),
+        (
+            "emoji",
+            emoji_fn as fn(&[Value]) -> Result<Value, FuncError>,
+        ),
+        (
+            "ingredientEmoji",
+            ingredient_emoji_fn as fn(&[Value]) -> Result<Value, FuncError>,
+        ),
+        (
+            "cookwareEmoji",
+            cookware_emoji_fn as fn(&[Value]) -> Result<Value, FuncError>,
+        ),
+        (
+            "toGrams",
+            to_grams_fn as fn(&[Value]) -> Result<Value, FuncError>,
+        ),
+        (
+            "linkRecipe",
+            link_recipe_fn as fn(&[Value]) -> Result<Value, FuncError>,
+        ),
+        (
+            "scale",
+            scale_fn as fn(&[Value]) -> Result<Value, FuncError>,
+        ),
         ("lower", lower as fn(&[Value]) -> Result<Value, FuncError>),
         (
             "replace",
@@ -731,6 +1202,11 @@ fn copy_recipe_asset(recipe: &Recipe) {
 }
 
 pub fn print_documentation(recipe: &Recipe) {
+    let resources = Arc::new(RenderResources::from_config(&recipe.config));
+    print_documentation_with_resources(recipe, &resources);
+}
+
+pub fn print_documentation_with_resources(recipe: &Recipe, resources: &Arc<RenderResources>) {
     if recipe.config.jsonify {
         if let Ok(j) = serde_json::to_string_pretty(recipe) {
             println!("{}", j);
@@ -774,7 +1250,11 @@ pub fn print_documentation(recipe: &Recipe) {
     let gtmpl_context_value = json_to_gtmpl(json_val);
     let gtmpl_context = gtmpl_ng::Context::from(gtmpl_context_value);
 
-    // 4. Render template
+    // 4. Render template with scoped thread-local resources
+    let _guard = RenderContextGuard::enter(
+        Arc::clone(resources),
+        PathBuf::from(&recipe.info.new_recipe_file_path),
+    );
     let rendered = match doc_template.render(&gtmpl_context) {
         Ok(out) => out,
         Err(e) => {
@@ -787,13 +1267,28 @@ pub fn print_documentation(recipe: &Recipe) {
         }
     };
 
-    // 5. Apply formatting and write to output file
+    // 5. Apply formatting, optionally merge with existing Markdown, and write/print output
     let formatted = apply_markdown_format(&rendered);
+    let out_path = Path::new(&recipe.info.new_recipe_file_path);
+    let final_output = if recipe.config.merge && !recipe.config.force && out_path.is_file() {
+        match fs::read_to_string(out_path) {
+            Ok(existing) => crate::merge::merge_markdown(&existing, &formatted),
+            Err(e) => {
+                log::warn!(
+                    "Could not read existing markdown file {} for merge, overwriting: {}",
+                    out_path.display(),
+                    e
+                );
+                formatted
+            }
+        }
+    } else {
+        formatted
+    };
 
     if recipe.config.dry_run {
-        println!("{}", formatted);
+        println!("{}", final_output);
     } else {
-        let out_path = Path::new(&recipe.info.new_recipe_file_path);
         if let Err(e) = out_path.parent().map(fs::create_dir_all).unwrap_or(Ok(())) {
             log::warn!(
                 "Could not create parent directory for recipe markdown file {}, skipping recipe: {}",
@@ -802,7 +1297,7 @@ pub fn print_documentation(recipe: &Recipe) {
             );
             return;
         }
-        if let Err(e) = fs::write(out_path, formatted) {
+        if let Err(e) = fs::write(out_path, final_output) {
             log::warn!(
                 "Error generating documentation file for recipe {}: {}",
                 recipe.info.new_recipe_file_path,
@@ -896,20 +1391,16 @@ mod tests {
                 }],
                 comments: vec!["Stir gently".to_string()],
             }],
+            ingredients: Vec::new(),
+            cookware: Vec::new(),
             metadata,
             frontmatter: std::collections::BTreeMap::new(),
             config: Config {
                 dry_run,
                 jsonify,
-                ignore_file: ".cookdocsignore".to_string(),
                 recipe_search_root: dir.to_string_lossy().to_string(),
-                log_level: "info".to_string(),
-                template_files: vec!["recipe.md.gotmpl".to_string()],
                 word_wrap: 25,
-                output_dir: "".to_string(),
-                assets_dir: "".to_string(),
-                image_ext: "".to_string(),
-                recipe_files: Vec::new(),
+                ..Config::default()
             },
             info: Info {
                 image_file_name: "My Recipe.png".to_string(),
@@ -1342,5 +1833,194 @@ mod tests {
                 "comments: true\nserves: 8\ntags:\n  - bread\n  - \"quick: easy\"".to_string()
             )
         );
+    }
+
+    #[test]
+    fn test_enrichment_template_helpers_and_default_rendering() {
+        let dir = TempDir::new("enrich_render");
+        let cook_dir = dir.0.join("cook");
+        let out_dir = dir.0.join("docs");
+        fs::create_dir_all(cook_dir.join("mains")).unwrap();
+        fs::create_dir_all(cook_dir.join("sauces")).unwrap();
+
+        let pizza_cook = cook_dir.join("mains/Pizza.cook");
+        let sauce_cook = cook_dir.join("sauces/Pizza Sauce.cook");
+        fs::write(
+            &pizza_cook,
+            "Mix @all-purpose flour{2%cups}, @pizza sauce{1%cup}, and @salt in #bowl{1}.\n",
+        )
+        .unwrap();
+        fs::write(&sauce_cook, "Simmer @tomatoes{2%cups} in #pot{1}.\n").unwrap();
+
+        let emoji_path = dir.0.join("emoji.yaml");
+        fs::write(
+            &emoji_path,
+            "emoji:\n  ingredients:\n    - ear_of_rice:\n        - all-purpose flour\n    - tomato:\n        - pizza sauce\n  cookware:\n    - bowl_with_spoon:\n        - bowl\n",
+        )
+        .unwrap();
+
+        let weights_path = dir.0.join("weights.yaml");
+        fs::write(&weights_path, "all-purpose flour: 120\npizza sauce: 245\n").unwrap();
+
+        let cfg = Config {
+            ignore_file: String::new(),
+            recipe_search_root: cook_dir.to_string_lossy().to_string(),
+            output_dir: out_dir.to_string_lossy().to_string(),
+            emoji_file: emoji_path.to_string_lossy().to_string(),
+            weights_file: weights_path.to_string_lossy().to_string(),
+            link_dirs: vec!["sauces".to_string()],
+            ..Config::default()
+        };
+
+        let pizza = crate::cook::parse_file(&pizza_cook.to_string_lossy(), &cfg).unwrap();
+        print_documentation(&pizza);
+        let rendered = fs::read_to_string(out_dir.join("mains/pizza.md")).unwrap();
+        assert!(
+            rendered.contains("- :ear_of_rice: 2 cups (240 g) all-purpose flour"),
+            "rendered:\n{rendered}"
+        );
+        assert!(
+            rendered.contains("- :tomato: 1 cup (245 g) [pizza sauce](../sauces/pizza-sauce.md)"),
+            "rendered:\n{rendered}"
+        );
+        assert!(rendered.contains("- some salt"), "rendered:\n{rendered}");
+        assert!(
+            rendered.contains("- :bowl_with_spoon: 1 bowl"),
+            "rendered:\n{rendered}"
+        );
+
+        // Self-link excluded when rendering Pizza Sauce itself
+        let sauce = crate::cook::parse_file(&sauce_cook.to_string_lossy(), &cfg).unwrap();
+        print_documentation(&sauce);
+        let sauce_md = fs::read_to_string(out_dir.join("sauces/pizza-sauce.md")).unwrap();
+        assert!(!sauce_md.contains("pizza-sauce.md"));
+
+        // Direct template function calls (custom template using emoji, toGrams 3-arg, linkRecipe)
+        let custom_tpl = cook_dir.join("custom.gotmpl");
+        fs::write(
+            &custom_tpl,
+            r#"{{ range .Steps }}{{ range .Ingredients }}{{ emoji "ingredient" .Name }}|{{ toGrams .Amount.Quantity .Amount.Unit .Name }}|{{ linkRecipe .Name }}
+{{ end }}{{ range .Cookware }}{{ emoji "cookware" .Name }}|{{ emoji .Name }}
+{{ end }}{{ end }}"#,
+        )
+        .unwrap();
+        let mut custom_cfg = cfg.clone();
+        custom_cfg.template_files = vec!["custom.gotmpl".to_string()];
+        let pizza2 = crate::cook::parse_file(&pizza_cook.to_string_lossy(), &custom_cfg).unwrap();
+        print_documentation(&pizza2);
+        let custom_md = fs::read_to_string(out_dir.join("mains/pizza.md")).unwrap();
+        assert!(
+            custom_md.contains(":ear_of_rice:|240|all-purpose flour"),
+            "custom:\n{custom_md}"
+        );
+        assert!(
+            custom_md.contains(":tomato:|245|[pizza sauce](../sauces/pizza-sauce.md)"),
+            "custom:\n{custom_md}"
+        );
+        assert!(
+            custom_md.contains(":bowl_with_spoon:|:bowl_with_spoon:"),
+            "custom:\n{custom_md}"
+        );
+
+        // Edge cases when called without active context or invalid args
+        assert_eq!(emoji_fn(&[]).unwrap(), Value::String(String::new()));
+        assert_eq!(
+            ingredient_emoji_fn(&[]).unwrap(),
+            Value::String(String::new())
+        );
+        assert_eq!(
+            cookware_emoji_fn(&[]).unwrap(),
+            Value::String(String::new())
+        );
+        assert_eq!(to_grams_fn(&[]).unwrap(), Value::String(String::new()));
+        assert_eq!(link_recipe_fn(&[]).unwrap(), Value::String(String::new()));
+        assert_eq!(
+            link_recipe_fn(&[Value::String("plain".to_string())]).unwrap(),
+            Value::String("plain".to_string())
+        );
+    }
+
+    #[test]
+    fn test_scale_helper_and_merge_mode_rendering() {
+        // Direct scale helper checks: numbers, fractions, ranges, non-numeric, invalid factor
+        assert_eq!(
+            scale_fn(&[Value::Number(0.5f64.into()), Value::Number(4i64.into())]).unwrap(),
+            Value::Number(2.0f64.into())
+        );
+        assert_eq!(
+            scale_fn(&[
+                Value::String("1/2".to_string()),
+                Value::String("1 1/2".to_string()),
+            ])
+            .unwrap(),
+            Value::String("3/4".to_string())
+        );
+        assert_eq!(
+            scale_fn(&[Value::Number(2i64.into()), Value::String("1-2".to_string()),]).unwrap(),
+            Value::String("2-4".to_string())
+        );
+        assert!(scale_fn(&[Value::Number(0.0f64.into()), Value::Number(1i64.into())]).is_err());
+        assert!(
+            scale_fn(&[Value::String("bad".to_string()), Value::Number(1i64.into()),]).is_err()
+        );
+
+        let dir = TempDir::new("scale_merge");
+        let cook_path = dir.0.join("Muffins.cook");
+        fs::write(
+            &cook_path,
+            "\
+---
+serves: 12
+---
+Mix @flour{1 1/2%cups}, @milk{200%ml}, @butter{1-2%tbsp}, and @salt in #bowl{1}.
+
+Dust with @flour{1/2%cup} in #bowl{1}.
+",
+        )
+        .unwrap();
+
+        let tpl_path = dir.0.join("scaled.gotmpl");
+        fs::write(
+            &tpl_path,
+            r#"{{ template "cook.headerSection" . }}
+
+## :salt: Ingredients
+
+=== "1x ({{ .Metadata.serves }})"
+{{- range .Ingredients }}
+    - {{ if .Amount.QuantityRaw }}{{ .Amount.QuantityRaw }}{{ if .Amount.Unit }} {{ .Amount.Unit }}{{ end }}{{ else }}some{{ end }} {{ .Name }}
+{{- end }}
+
+=== "1/2 Batch ({{ (scale 0.5 .).Metadata.serves }})"
+{{- range scale 0.5 .Ingredients }}
+    - {{ if .Amount.QuantityRaw }}{{ .Amount.QuantityRaw }}{{ if .Amount.Unit }} {{ .Amount.Unit }}{{ end }}{{ else }}some{{ end }} {{ .Name }}
+{{- end }}
+
+=== "2x Batch"
+{{- range scale 2 .Ingredients }}
+    - {{ if .Amount.QuantityRaw }}{{ .Amount.QuantityRaw }}{{ if .Amount.Unit }} {{ .Amount.Unit }}{{ end }}{{ else }}some{{ end }} {{ .Name }}
+{{- end }}
+"#,
+        )
+        .unwrap();
+
+        let cfg = Config {
+            ignore_file: String::new(),
+            recipe_search_root: dir.0.to_string_lossy().to_string(),
+            template_files: vec!["scaled.gotmpl".to_string()],
+            ..Config::default()
+        };
+        let recipe = crate::cook::parse_file(&cook_path.to_string_lossy(), &cfg).unwrap();
+        print_documentation(&recipe);
+        let md = fs::read_to_string(dir.0.join("muffins.md")).unwrap();
+        assert!(md.contains("=== \"1x (12)\""), "md:\n{md}");
+        assert!(md.contains("- 2 cups flour"), "md:\n{md}");
+        assert!(md.contains("=== \"1/2 Batch (6)\""), "md:\n{md}");
+        assert!(md.contains("- 1 cups flour"), "md:\n{md}");
+        assert!(md.contains("- 100 ml milk"), "md:\n{md}");
+        assert!(md.contains("- 1/2-1 tbsp butter"), "md:\n{md}");
+        assert!(md.contains("- some salt"), "md:\n{md}");
+        assert!(md.contains("- 4 cups flour"), "md:\n{md}");
+        assert!(md.contains("- 2-4 tbsp butter"), "md:\n{md}");
     }
 }

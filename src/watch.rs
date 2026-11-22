@@ -439,17 +439,8 @@ mod tests {
 
     fn base_config(search_root: &Path) -> Config {
         Config {
-            dry_run: false,
-            jsonify: false,
-            ignore_file: ".cookdocsignore".to_string(),
             recipe_search_root: search_root.to_string_lossy().to_string(),
-            log_level: "info".to_string(),
-            template_files: vec!["recipe.md.gotmpl".to_string()],
-            word_wrap: 120,
-            output_dir: String::new(),
-            assets_dir: String::new(),
-            image_ext: String::new(),
-            recipe_files: Vec::new(),
+            ..Config::default()
         }
     }
 

@@ -103,9 +103,9 @@ You can find the existing pull requests at
 
 Versioning is done per [Semantic Versioning 2.0.0 (semver)][3] principles.
 
-## Formatting
+## Formatting & Quality Checks
 
-Formatting is done with [`rustfmt`][4] (`cargo fmt` / `task fmt`).
+Formatting is done with [`rustfmt`][4] (`cargo fmt` / `task fmt`). Run `task test`, `task lint` (`clippy` and `yamllint-rs`), `task lint:md` (`rumdl`), and `task spellcheck` (`typos`) before opening a pull request.
 
 [1]: https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/about-pull-requests
 [2]: https://developercertificate.org/

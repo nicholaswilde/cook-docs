@@ -71,6 +71,63 @@ pub struct Config {
     )]
     pub image_ext: String,
     #[serde(
+        rename = "EmojiFile",
+        alias = "emoji-file",
+        alias = "emoji_file",
+        alias = "emojiFile",
+        default,
+        skip_serializing_if = "String::is_empty"
+    )]
+    pub emoji_file: String,
+    #[serde(
+        rename = "Emoji",
+        alias = "emoji",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub emoji: Option<serde_json::Value>,
+    #[serde(
+        rename = "WeightsFile",
+        alias = "weights-file",
+        alias = "weights_file",
+        alias = "weightsFile",
+        default,
+        skip_serializing_if = "String::is_empty"
+    )]
+    pub weights_file: String,
+    #[serde(
+        rename = "LinkDirs",
+        alias = "link-dirs",
+        alias = "link_dirs",
+        alias = "linkDirs",
+        default,
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub link_dirs: Vec<String>,
+    #[serde(
+        rename = "RequiredMetadata",
+        alias = "required-metadata",
+        alias = "required_metadata",
+        alias = "requiredMetadata",
+        default,
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub required_metadata: Vec<String>,
+    #[serde(
+        rename = "Merge",
+        alias = "merge",
+        default,
+        skip_serializing_if = "std::ops::Not::not"
+    )]
+    pub merge: bool,
+    #[serde(
+        rename = "Force",
+        alias = "force",
+        default,
+        skip_serializing_if = "std::ops::Not::not"
+    )]
+    pub force: bool,
+    #[serde(
         rename = "RecipeFiles",
         alias = "recipe-files",
         alias = "recipe_files",
@@ -79,6 +136,31 @@ pub struct Config {
         skip_serializing_if = "Vec::is_empty"
     )]
     pub recipe_files: Vec<String>,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            dry_run: false,
+            jsonify: false,
+            ignore_file: ".cookdocsignore".to_string(),
+            recipe_search_root: ".".to_string(),
+            log_level: "info".to_string(),
+            template_files: vec!["recipe.md.gotmpl".to_string()],
+            word_wrap: 120,
+            output_dir: String::new(),
+            assets_dir: String::new(),
+            image_ext: String::new(),
+            emoji_file: String::new(),
+            emoji: None,
+            weights_file: String::new(),
+            link_dirs: Vec::new(),
+            required_metadata: Vec::new(),
+            merge: false,
+            force: false,
+            recipe_files: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -163,6 +245,10 @@ pub struct Info {
 pub struct Recipe {
     #[serde(rename = "Steps")]
     pub steps: Vec<Step>,
+    #[serde(rename = "Ingredients", default)]
+    pub ingredients: Vec<Ingredient>,
+    #[serde(rename = "Cookware", default)]
+    pub cookware: Vec<Cookware>,
     #[serde(rename = "Metadata")]
     pub metadata: HashMap<String, String>,
     #[serde(rename = "Frontmatter", default)]

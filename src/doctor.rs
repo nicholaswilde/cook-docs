@@ -62,10 +62,24 @@ impl DoctorReport {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct DoctorOptions {
+    pub check_recipes: bool,
+}
+
 /// Run all diagnostic checks for `cook-docs`.
 pub fn run_doctor(
     config_path: Option<&Path>,
     config_result: &Result<Config, String>,
+) -> DoctorReport {
+    run_doctor_with_options(config_path, config_result, DoctorOptions::default())
+}
+
+/// Run diagnostic checks for `cook-docs` with optional recipe-level validation (`--check-recipes`).
+pub fn run_doctor_with_options(
+    config_path: Option<&Path>,
+    config_result: &Result<Config, String>,
+    options: DoctorOptions,
 ) -> DoctorReport {
     let mut checks = Vec::new();
 
@@ -88,7 +102,24 @@ pub fn run_doctor(
             }
 
             let search_root = resolve_search_root(&config.recipe_search_root);
-            let recipes = check_recipe_search_root(&search_root, &config.ignore_file, &mut checks);
+            let discovered =
+                check_recipe_search_root(&search_root, &config.ignore_file, &mut checks);
+            let recipes = if config.recipe_files.is_empty() {
+                discovered
+            } else {
+                match crate::cook::resolve_recipe_paths(&search_root, config) {
+                    Ok(targeted) => targeted,
+                    Err(err) => {
+                        checks.push(DoctorCheck {
+                            category: "recipes".into(),
+                            severity: CheckSeverity::Error,
+                            message: err,
+                            path: None,
+                        });
+                        Vec::new()
+                    }
+                }
+            };
             checks.extend(check_ignore_file(&config.ignore_file));
             checks.extend(check_templates(
                 &search_root,
@@ -96,6 +127,17 @@ pub fn run_doctor(
                 &config.template_files,
             ));
             checks.extend(check_output_dir(&config.output_dir, &search_root));
+
+            let emoji_table = check_emoji_config(config, &mut checks);
+            check_weights_file(&config.weights_file, &mut checks);
+
+            if options.check_recipes {
+                checks.extend(check_recipes(
+                    &recipes,
+                    config,
+                    emoji_table.as_ref().filter(|t| !t.is_empty()),
+                ));
+            }
         }
         Err(err) => {
             checks.push(DoctorCheck {
@@ -108,6 +150,281 @@ pub fn run_doctor(
     }
 
     DoctorReport::new(checks)
+}
+
+fn check_emoji_config(
+    config: &Config,
+    checks: &mut Vec<DoctorCheck>,
+) -> Option<crate::enrichment::EmojiTable> {
+    let has_file = !config.emoji_file.trim().is_empty();
+    let has_inline = config.emoji.is_some();
+    if !has_file && !has_inline {
+        return None;
+    }
+
+    let path = has_file.then(|| PathBuf::from(config.emoji_file.trim()));
+    match crate::enrichment::EmojiTable::load(config) {
+        Ok(table) => {
+            let (ing_count, cw_count) = table.counts();
+            checks.push(DoctorCheck {
+                category: "emoji_file".into(),
+                severity: CheckSeverity::Ok,
+                message: format!(
+                    "Emoji mappings valid ({ing_count} ingredient(s), {cw_count} cookware item(s))"
+                ),
+                path,
+            });
+            Some(table)
+        }
+        Err(err) => {
+            checks.push(DoctorCheck {
+                category: "emoji_file".into(),
+                severity: CheckSeverity::Error,
+                message: format!("Invalid emoji configuration: {err}"),
+                path,
+            });
+            None
+        }
+    }
+}
+
+fn check_weights_file(weights_file: &str, checks: &mut Vec<DoctorCheck>) {
+    if weights_file.trim().is_empty() {
+        return;
+    }
+    let path = PathBuf::from(weights_file.trim());
+    match crate::enrichment::WeightsTable::load(weights_file) {
+        Ok(table) => checks.push(DoctorCheck {
+            category: "weights_file".into(),
+            severity: CheckSeverity::Ok,
+            message: format!(
+                "Weights file valid: {} ({} entry/entries)",
+                path.display(),
+                table.len()
+            ),
+            path: Some(path),
+        }),
+        Err(err) => checks.push(DoctorCheck {
+            category: "weights_file".into(),
+            severity: CheckSeverity::Error,
+            message: format!("Invalid weights file: {err}"),
+            path: Some(path),
+        }),
+    }
+}
+
+fn check_recipes(
+    recipes: &[PathBuf],
+    config: &Config,
+    emoji_table: Option<&crate::enrichment::EmojiTable>,
+) -> Vec<DoctorCheck> {
+    if recipes.is_empty() {
+        return Vec::new();
+    }
+
+    let mut syntax_issues = Vec::new();
+    let mut image_issues = Vec::new();
+    let mut metadata_issues = Vec::new();
+    let mut emoji_issues = Vec::new();
+
+    let mut syntax_errors = 0usize;
+    let mut syntax_warnings = 0usize;
+    let mut parsed_count = 0usize;
+
+    let required_keys: Vec<&str> = config
+        .required_metadata
+        .iter()
+        .map(String::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    for recipe_path in recipes {
+        let recipe_str = recipe_path.to_string_lossy();
+        let recipe_name = crate::cook::get_recipe_name(&recipe_str);
+
+        if crate::cook::find_image_path(&recipe_str, &recipe_name).is_none() {
+            image_issues.push(DoctorCheck {
+                category: "recipe_images".into(),
+                severity: CheckSeverity::Warning,
+                message: format!(
+                    "Missing companion image for '{}' ({})",
+                    recipe_name,
+                    recipe_path.display()
+                ),
+                path: Some(recipe_path.clone()),
+            });
+        }
+
+        match crate::cook::validate_recipe_file(&recipe_str) {
+            Ok(validation) => {
+                parsed_count += 1;
+                for err in &validation.errors {
+                    syntax_errors += 1;
+                    syntax_issues.push(DoctorCheck {
+                        category: "recipe_syntax".into(),
+                        severity: CheckSeverity::Error,
+                        message: format!(
+                            "Cooklang syntax error in '{}': {}",
+                            recipe_path.display(),
+                            err
+                        ),
+                        path: Some(recipe_path.clone()),
+                    });
+                }
+                for warn_msg in &validation.warnings {
+                    syntax_warnings += 1;
+                    syntax_issues.push(DoctorCheck {
+                        category: "recipe_syntax".into(),
+                        severity: CheckSeverity::Warning,
+                        message: format!(
+                            "Cooklang warning in '{}': {}",
+                            recipe_path.display(),
+                            warn_msg
+                        ),
+                        path: Some(recipe_path.clone()),
+                    });
+                }
+
+                if !required_keys.is_empty() {
+                    let missing: Vec<&str> = required_keys
+                        .iter()
+                        .copied()
+                        .filter(|req| {
+                            !validation
+                                .metadata
+                                .iter()
+                                .any(|(k, v)| k.eq_ignore_ascii_case(req) && !v.trim().is_empty())
+                        })
+                        .collect();
+                    if !missing.is_empty() {
+                        metadata_issues.push(DoctorCheck {
+                            category: "recipe_metadata".into(),
+                            severity: CheckSeverity::Error,
+                            message: format!(
+                                "Missing required metadata [{}] in '{}'",
+                                missing.join(", "),
+                                recipe_path.display()
+                            ),
+                            path: Some(recipe_path.clone()),
+                        });
+                    }
+                }
+
+                if let Some(table) = emoji_table {
+                    let mut unmapped_ing = Vec::new();
+                    for ing in &validation.ingredients {
+                        if table.lookup_ingredient(ing).is_none()
+                            && !unmapped_ing
+                                .iter()
+                                .any(|x: &String| x.eq_ignore_ascii_case(ing))
+                        {
+                            unmapped_ing.push(ing.clone());
+                        }
+                    }
+                    let mut unmapped_cw = Vec::new();
+                    for cw in &validation.cookware {
+                        if table.lookup_cookware(cw).is_none()
+                            && !unmapped_cw
+                                .iter()
+                                .any(|x: &String| x.eq_ignore_ascii_case(cw))
+                        {
+                            unmapped_cw.push(cw.clone());
+                        }
+                    }
+                    if !unmapped_ing.is_empty() || !unmapped_cw.is_empty() {
+                        let mut parts = Vec::new();
+                        if !unmapped_ing.is_empty() {
+                            parts.push(format!("ingredients: {}", unmapped_ing.join(", ")));
+                        }
+                        if !unmapped_cw.is_empty() {
+                            parts.push(format!("cookware: {}", unmapped_cw.join(", ")));
+                        }
+                        emoji_issues.push(DoctorCheck {
+                            category: "recipe_emojis".into(),
+                            severity: CheckSeverity::Warning,
+                            message: format!(
+                                "Unmapped emoji(s) in '{}' ({})",
+                                recipe_path.display(),
+                                parts.join("; ")
+                            ),
+                            path: Some(recipe_path.clone()),
+                        });
+                    }
+                }
+            }
+            Err(err) => {
+                syntax_errors += 1;
+                syntax_issues.push(DoctorCheck {
+                    category: "recipe_syntax".into(),
+                    severity: CheckSeverity::Error,
+                    message: format!("Failed to validate '{}': {}", recipe_path.display(), err),
+                    path: Some(recipe_path.clone()),
+                });
+            }
+        }
+    }
+
+    let mut checks = Vec::new();
+    if syntax_errors == 0 && syntax_warnings == 0 {
+        checks.push(DoctorCheck {
+            category: "recipe_syntax".into(),
+            severity: CheckSeverity::Ok,
+            message: format!("Cooklang syntax valid for {} recipe(s)", recipes.len()),
+            path: None,
+        });
+    } else {
+        checks.extend(syntax_issues);
+    }
+
+    if image_issues.is_empty() {
+        checks.push(DoctorCheck {
+            category: "recipe_images".into(),
+            severity: CheckSeverity::Ok,
+            message: format!(
+                "Companion images present for all {} recipe(s)",
+                recipes.len()
+            ),
+            path: None,
+        });
+    } else {
+        checks.extend(image_issues);
+    }
+
+    if !required_keys.is_empty() {
+        if metadata_issues.is_empty() && parsed_count == recipes.len() {
+            checks.push(DoctorCheck {
+                category: "recipe_metadata".into(),
+                severity: CheckSeverity::Ok,
+                message: format!(
+                    "Required metadata [{}] present in all {} recipe(s)",
+                    required_keys.join(", "),
+                    recipes.len()
+                ),
+                path: None,
+            });
+        } else {
+            checks.extend(metadata_issues);
+        }
+    }
+
+    if emoji_table.is_some() {
+        if emoji_issues.is_empty() && parsed_count == recipes.len() {
+            checks.push(DoctorCheck {
+                category: "recipe_emojis".into(),
+                severity: CheckSeverity::Ok,
+                message: format!(
+                    "All ingredients and cookware mapped to emojis across {} recipe(s)",
+                    recipes.len()
+                ),
+                path: None,
+            });
+        } else {
+            checks.extend(emoji_issues);
+        }
+    }
+
+    checks
 }
 
 fn resolve_search_root(recipe_search_root: &str) -> PathBuf {
@@ -634,17 +951,10 @@ mod tests {
         fs::write(recipes.join("Dish.cook"), "Boil @water{1%l}.").unwrap();
 
         let cfg = Config {
-            dry_run: false,
-            jsonify: false,
             ignore_file: "".to_string(),
             recipe_search_root: recipes.to_string_lossy().to_string(),
-            log_level: "info".to_string(),
-            template_files: vec!["recipe.md.gotmpl".to_string()],
-            word_wrap: 120,
             output_dir: out.to_string_lossy().to_string(),
-            assets_dir: "".to_string(),
-            image_ext: "".to_string(),
-            recipe_files: Vec::new(),
+            ..Config::default()
         };
 
         let report_ok = run_doctor(None, &Ok(cfg.clone()));
@@ -833,22 +1143,156 @@ mod tests {
 
         // Also cover run_doctor with explicit Some(config_path)
         let cfg = Config {
-            dry_run: false,
-            jsonify: false,
             ignore_file: "".to_string(),
             recipe_search_root: dir.to_string_lossy().to_string(),
-            log_level: "info".to_string(),
-            template_files: vec!["recipe.md.gotmpl".to_string()],
-            word_wrap: 120,
-            output_dir: "".to_string(),
-            assets_dir: "".to_string(),
-            image_ext: "".to_string(),
-            recipe_files: Vec::new(),
+            ..Config::default()
         };
         let cfg_file = dir.join(".cookdocs.toml");
         let rep = run_doctor(Some(&cfg_file), &Ok(cfg));
         assert!(rep.healthy);
         assert!(rep.checks[0].message.contains("Configuration file valid:"));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_run_doctor_check_recipes_healthy_and_failing() {
+        let dir = temp_dir("check_recipes");
+        let recipes_dir = dir.join("cook");
+        fs::create_dir_all(&recipes_dir).unwrap();
+
+        let emoji_path = dir.join("emoji.yaml");
+        fs::write(
+            &emoji_path,
+            "emoji:\n  ingredients:\n    - herb:\n        - cilantro\n  cookware:\n    - bowl_with_spoon:\n        - bowl\n",
+        )
+        .unwrap();
+        let weights_path = dir.join("weights.yaml");
+        fs::write(&weights_path, "cilantro: 16\n").unwrap();
+
+        let good_recipe = recipes_dir.join("Salsa.cook");
+        fs::write(
+            &good_recipe,
+            "---\nsource: https://example.com/salsa\nserves: 4\n---\nChop @cilantro{1%cup} in #bowl{}.\n",
+        )
+        .unwrap();
+        fs::write(recipes_dir.join("Salsa.webp"), b"webp").unwrap();
+
+        let healthy_cfg = Config {
+            ignore_file: String::new(),
+            recipe_search_root: recipes_dir.to_string_lossy().to_string(),
+            emoji_file: emoji_path.to_string_lossy().to_string(),
+            weights_file: weights_path.to_string_lossy().to_string(),
+            required_metadata: vec!["source".to_string(), "serves".to_string()],
+            ..Config::default()
+        };
+        let report_ok = run_doctor_with_options(
+            None,
+            &Ok(healthy_cfg.clone()),
+            DoctorOptions {
+                check_recipes: true,
+            },
+        );
+        assert!(report_ok.healthy, "report: {report_ok:#?}");
+        assert_eq!(report_ok.warnings, 0);
+        assert!(
+            report_ok
+                .checks
+                .iter()
+                .any(|c| c.category == "recipe_syntax" && c.severity == CheckSeverity::Ok)
+        );
+        assert!(
+            report_ok
+                .checks
+                .iter()
+                .any(|c| c.category == "recipe_images" && c.severity == CheckSeverity::Ok)
+        );
+        assert!(
+            report_ok
+                .checks
+                .iter()
+                .any(|c| c.category == "recipe_metadata" && c.severity == CheckSeverity::Ok)
+        );
+        assert!(
+            report_ok
+                .checks
+                .iter()
+                .any(|c| c.category == "recipe_emojis" && c.severity == CheckSeverity::Ok)
+        );
+
+        // Add recipe with syntax error (invalid timer unit), warning (bad YAML frontmatter), and missing image
+        let bad_recipe = recipes_dir.join("Broken.cook");
+        fs::write(
+            &bad_recipe,
+            "---\ntitle: [unclosed\n---\nBake @dragonfruit{1%cup} in #cauldron{} for ~{10%bogusunit}.\n",
+        )
+        .unwrap();
+
+        let targeted_cfg = Config {
+            recipe_files: vec![bad_recipe.to_string_lossy().to_string()],
+            ..healthy_cfg
+        };
+        let report_bad = run_doctor_with_options(
+            None,
+            &Ok(targeted_cfg),
+            DoctorOptions {
+                check_recipes: true,
+            },
+        );
+        assert!(!report_bad.healthy);
+        assert!(
+            report_bad
+                .checks
+                .iter()
+                .any(|c| c.category == "recipe_syntax" && c.severity == CheckSeverity::Error)
+        );
+        assert!(
+            report_bad
+                .checks
+                .iter()
+                .any(|c| c.category == "recipe_syntax" && c.severity == CheckSeverity::Warning)
+        );
+        assert!(
+            report_bad
+                .checks
+                .iter()
+                .any(|c| c.category == "recipe_images" && c.severity == CheckSeverity::Warning)
+        );
+
+        // Recipe with valid syntax, missing image, missing metadata, unmapped ingredient/cookware
+        let warn_recipe = recipes_dir.join("Incomplete.cook");
+        fs::write(&warn_recipe, "Mix @dragonfruit{1%cup} in #cauldron{}.\n").unwrap();
+        let warn_cfg = Config {
+            ignore_file: String::new(),
+            recipe_search_root: recipes_dir.to_string_lossy().to_string(),
+            emoji_file: emoji_path.to_string_lossy().to_string(),
+            required_metadata: vec!["source".to_string()],
+            recipe_files: vec![warn_recipe.to_string_lossy().to_string()],
+            ..Config::default()
+        };
+        let report_warn = run_doctor_with_options(
+            None,
+            &Ok(warn_cfg),
+            DoctorOptions {
+                check_recipes: true,
+            },
+        );
+        assert!(!report_warn.healthy);
+        assert!(
+            report_warn
+                .checks
+                .iter()
+                .any(|c| c.category == "recipe_metadata" && c.severity == CheckSeverity::Error)
+        );
+        assert!(
+            report_warn
+                .checks
+                .iter()
+                .any(|c| c.category == "recipe_emojis"
+                    && c.severity == CheckSeverity::Warning
+                    && c.message.contains("dragonfruit")
+                    && c.message.contains("cauldron"))
+        );
 
         let _ = fs::remove_dir_all(&dir);
     }

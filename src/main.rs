@@ -35,10 +35,15 @@ fn main() {
         }
         Ok(cook_docs::config::CliAction::Doctor {
             json,
+            check_recipes,
             config_path,
             config_result,
         }) => {
-            let report = cook_docs::doctor::run_doctor(config_path.as_deref(), &config_result);
+            let report = cook_docs::doctor::run_doctor_with_options(
+                config_path.as_deref(),
+                &config_result,
+                cook_docs::doctor::DoctorOptions { check_recipes },
+            );
             if json {
                 match serde_json::to_string_pretty(&report) {
                     Ok(json_str) => println!("{}", json_str),
@@ -149,16 +154,8 @@ mod tests {
 
         let cfg = cook_docs::types::Config {
             dry_run: true,
-            jsonify: false,
-            ignore_file: ".cookdocsignore".to_string(),
             recipe_search_root: dir.to_string_lossy().to_string(),
-            log_level: "info".to_string(),
-            template_files: vec!["recipe.md.gotmpl".to_string()],
-            word_wrap: 120,
-            output_dir: "".to_string(),
-            assets_dir: "".to_string(),
-            image_ext: "".to_string(),
-            recipe_files: Vec::new(),
+            ..cook_docs::types::Config::default()
         };
 
         assert!(cook_docs::render_recipe(&recipe.to_string_lossy(), &cfg).is_ok());

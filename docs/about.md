@@ -22,8 +22,11 @@ the working directory and its sub folders and looks for any `*.cook` files and
 `recipe.md.gotmpl` template files to process (with base template names walking up
 parent directories to `--recipe-search-root`). You can also pass specific `.cook`
 files or subdirectories as positional arguments while keeping `--recipe-search-root`
-as the base for mirrored `--output-dir` paths. See [ignoring recipe directories][8]
-for how to exclude directories and files.
+as the base for mirrored `--output-dir` paths, use `--merge` to update generated
+sections without clobbering manual Markdown edits, enrich output with emojis,
+density-based gram conversions, recipe cross-links, and scaled batches, and
+validate recipes with `cook-docs doctor --check-recipes`. See
+[ignoring recipe directories][8] for how to exclude directories and files.
 
 [1]: https://cooklang.org/
 [2]: https://squidfunk.github.io/mkdocs-material/

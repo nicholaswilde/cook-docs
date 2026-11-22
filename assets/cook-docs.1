@@ -1,10 +1,10 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH cook-docs 1  "cook-docs v0.9.4-2-g770fdc1-dirty" 
+.TH cook-docs 1  "cook-docs v0.9.5" 
 .SH NAME
 cook\-docs \- cook\-docs automatically generates markdown documentation for cook recipes from template files
 .SH SYNOPSIS
-\fBcook\-docs\fR [\fB\-v\fR|\fB\-\-version\fR] [\fB\-C\fR|\fB\-\-config\fR] [\fB\-d\fR|\fB\-\-dry\-run\fR] [\fB\-j\fR|\fB\-\-jsonify\fR] [\fB\-i\fR|\fB\-\-ignore\-file\fR] [\fB\-c\fR|\fB\-\-recipe\-search\-root\fR] [\fB\-l\fR|\fB\-\-log\-level\fR] [\fB\-t\fR|\fB\-\-template\-files\fR] [\fB\-w\fR|\fB\-\-word\-wrap\fR] [\fB\-o\fR|\fB\-\-output\-dir\fR] [\fB\-\-assets\-dir\fR] [\fB\-\-image\-ext\fR] [\fB\-\-watch\fR] [\fB\-\-debounce\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIFILES\fR] [\fIsubcommands\fR]
+\fBcook\-docs\fR [\fB\-v\fR|\fB\-\-version\fR] [\fB\-C\fR|\fB\-\-config\fR] [\fB\-d\fR|\fB\-\-dry\-run\fR] [\fB\-j\fR|\fB\-\-jsonify\fR] [\fB\-i\fR|\fB\-\-ignore\-file\fR] [\fB\-c\fR|\fB\-\-recipe\-search\-root\fR] [\fB\-l\fR|\fB\-\-log\-level\fR] [\fB\-t\fR|\fB\-\-template\-files\fR] [\fB\-w\fR|\fB\-\-word\-wrap\fR] [\fB\-o\fR|\fB\-\-output\-dir\fR] [\fB\-\-assets\-dir\fR] [\fB\-\-image\-ext\fR] [\fB\-\-emoji\-file\fR] [\fB\-\-weights\-file\fR] [\fB\-\-link\-dirs\fR] [\fB\-\-required\-metadata\fR] [\fB\-\-merge\fR] [\fB\-\-force\fR] [\fB\-\-watch\fR] [\fB\-\-debounce\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIFILES\fR] [\fIsubcommands\fR]
 .SH DESCRIPTION
 cook\-docs automatically generates markdown documentation for cook recipes from template files
 .SH OPTIONS
@@ -45,6 +45,24 @@ optional directory to copy companion recipe images into (slug\-named)
 \fB\-\-image\-ext\fR
 optional image extension override for Info.ImageSlug (e.g. webp)
 .TP
+\fB\-\-emoji\-file\fR
+optional YAML/TOML/JSON file mapping ingredients and cookware to emojis
+.TP
+\fB\-\-weights\-file\fR
+optional YAML/TOML/JSON ingredient density file for toGrams volume\-to\-weight conversion
+.TP
+\fB\-\-link\-dirs\fR
+comma\-separated recipe subdirectories eligible for linkRecipe cross\-linking
+.TP
+\fB\-\-required\-metadata\fR
+comma\-separated metadata keys required by doctor \-\-check\-recipes (e.g. source,serves)
+.TP
+\fB\-\-merge\fR
+merge generated content into existing Markdown files without clobbering manual edits
+.TP
+\fB\-\-force\fR
+force full overwrite of existing Markdown files even when \-\-merge / merge is enabled
+.TP
 \fB\-\-watch\fR
 watch recipes and templates and re\-render automatically on changes
 .TP
@@ -76,4 +94,4 @@ Check for and install the latest cook\-docs release from GitHub
 cook\-docs\-help(1)
 Print this message or the help of the given subcommand(s)
 .SH VERSION
-vv0.9.4\-2\-g770fdc1\-dirty
+vv0.9.5

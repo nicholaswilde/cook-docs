@@ -38,6 +38,8 @@ Render one or more specific recipes while keeping `--recipe-search-root` as the 
 cook-docs -c ./cook -o ./docs --assets-dir ./docs/assets/images ./cook/breads/Bagels.cook
 # Override Info.ImageSlug extension when running external WebP conversion afterwards:
 cook-docs -c ./cook -o ./docs --assets-dir ./docs/assets/images --image-ext webp ./cook/breads/Bagels.cook
+# Enrich output with emojis, gram weights, and internal recipe cross-links:
+cook-docs -c ./cook -o ./docs --emoji-file ./includes/emoji.yaml --weights-file ./includes/weights.yaml --link-dirs sauces-and-dressings,ingredients ./cook/mains/Tacos.cook
 ```
 
 Inspect parsed recipe data as JSON on stdout (single object for one recipe, JSON array for multiple):
@@ -51,6 +53,29 @@ Use an explicit configuration file (TOML, YAML, or JSON):
 ```bash
 cook-docs --config .cookdocs.toml
 ```
+
+## :twisted_rightwards_arrows: Non-Destructive Merge Mode
+
+By default, `cook-docs` overwrites existing Markdown files. Pass `--merge` (or set `merge = true` in `.cookdocs.toml`) to update generated recipe sections without clobbering manual edits:
+
+```bash
+# Merge freshly rendered content into existing Markdown files
+cook-docs -c ./cook -o ./docs --merge ./cook/breads/Bagels.cook
+
+# Safe live watch mode against manually enriched Markdown docs
+cook-docs watch -c ./cook -o ./docs --merge
+
+# Preview a merged result on stdout without modifying disk
+cook-docs -c ./cook -o ./docs --merge --dry-run ./cook/breads/Bagels.cook
+
+# Force a full overwrite even when `merge = true` in config
+cook-docs -c ./cook -o ./docs --force ./cook/breads/Bagels.cook
+```
+
+`--merge` supports two modes automatically:
+
+1. **HTML region markers**: if an existing Markdown file contains `<!-- cook-docs:begin -->` and `<!-- cook-docs:end -->`, only the content between those markers is replaced.
+2. **Structure-aware merge**: when no markers are present, `cook-docs` merges YAML frontmatter (unioning `tags` and preserving manual keys such as `hero`), preserves manual H1 emojis and image embeds, preserves custom `##` sections in relative order, keeps manual `=== "..."` content tabs, merges `## Source` bullets without duplicating URLs, and preserves manual admonitions (`!!!`/`???`), `mermaid` diagrams, reference links, and footnotes.
 
 ## :eyes: Watch Mode
 
@@ -72,7 +97,7 @@ Editing a single `.cook` file re-renders only that recipe; editing a template fi
 
 ## :stethoscope: Doctor Diagnostics
 
-Validate configuration files, `recipe-search-root`, templates, and output directory permissions:
+Validate configuration files, `recipe-search-root`, templates, emoji/weights files, and output directory permissions:
 
 ```bash
 cook-docs doctor
@@ -81,6 +106,22 @@ cook-docs doc
 # Machine-readable JSON output:
 cook-docs doctor --json
 ```
+
+Pass `--check-recipes` (with optional positional `.cook` files or directories) to run recipe-level validation checks:
+
+```bash
+# Validate Cooklang syntax, companion images, required metadata, and emoji mappings:
+cook-docs -c ./cook --emoji-file ./includes/emoji.yaml --required-metadata source,serves doctor --check-recipes
+# Validate specific recipe files in JSON mode:
+cook-docs -c ./cook --required-metadata source doctor --check-recipes --json ./cook/breads/Bagels.cook
+```
+
+Recipe checks cover:
+
+- **Cooklang syntax (`recipe_syntax`)**: strict parse errors (`[ERROR]`) and parser warnings (`[WARN]`)
+- **Companion images (`recipe_images`)**: warns when no matching `.webp`, `.jpg`, `.jpeg`, or `.png` image exists alongside a recipe
+- **Required metadata (`recipe_metadata`)**: errors when any key listed in `required_metadata` / `--required-metadata` is missing or empty
+- **Unmapped emojis (`recipe_emojis`)**: warns about ingredients or cookware missing from `emoji_file` / inline `emoji` when configured
 
 Exits non-zero when errors are detected.
 

@@ -99,7 +99,8 @@ pub fn get_new_recipe_path(
     }
 }
 
-pub fn get_image_path(recipe_path: &str, recipe_name: &str) -> Option<PathBuf> {
+/// Quietly search for a companion image alongside `recipe_path`.
+pub fn find_image_path(recipe_path: &str, recipe_name: &str) -> Option<PathBuf> {
     let parent = Path::new(recipe_path)
         .parent()
         .unwrap_or_else(|| Path::new(""));
@@ -111,6 +112,17 @@ pub fn get_image_path(recipe_path: &str, recipe_name: &str) -> Option<PathBuf> {
         }
     }
 
+    None
+}
+
+pub fn get_image_path(recipe_path: &str, recipe_name: &str) -> Option<PathBuf> {
+    if let Some(found) = find_image_path(recipe_path, recipe_name) {
+        return Some(found);
+    }
+
+    let parent = Path::new(recipe_path)
+        .parent()
+        .unwrap_or_else(|| Path::new(""));
     warn!("Image file {} missing.", parent.join(recipe_name).display());
     None
 }
@@ -226,6 +238,263 @@ pub fn resolve_recipe_paths(
     Ok(recipe_paths)
 }
 
+/// Structured diagnostics and extracted recipe facts from validating a `.cook` file.
+#[derive(Debug, Clone, Default)]
+pub struct RecipeValidation {
+    pub errors: Vec<String>,
+    pub warnings: Vec<String>,
+    pub metadata: std::collections::HashMap<String, String>,
+    pub ingredients: Vec<String>,
+    pub cookware: Vec<String>,
+}
+
+fn format_cooklang_diag(content: &str, diag: &cooklang::error::SourceDiag) -> String {
+    if let Some((span, _)) = diag.labels.first() {
+        let offset = span.start().min(content.len());
+        let line = content.as_bytes()[..offset]
+            .iter()
+            .filter(|&&b| b == b'\n')
+            .count()
+            + 1;
+        format!("line {line}: {}", diag.message)
+    } else {
+        diag.message.to_string()
+    }
+}
+
+/// Read and strictly parse a `.cook` file, collecting Cooklang syntax errors/warnings,
+/// metadata keys, and ingredient/cookware names for `cook-docs doctor --check-recipes`.
+pub fn validate_recipe_file(recipe_path: &str) -> Result<RecipeValidation, String> {
+    let content =
+        fs::read_to_string(recipe_path).map_err(|e| format!("Failed to read recipe file: {e}"))?;
+
+    let parser =
+        cooklang::CooklangParser::new(cooklang::Extensions::all(), cooklang::Converter::default());
+    let parsed = parser.parse(&content);
+    let report = parsed.report();
+
+    let errors: Vec<String> = report
+        .errors()
+        .map(|d| format_cooklang_diag(&content, d))
+        .collect();
+    let warnings: Vec<String> = report
+        .warnings()
+        .map(|d| format_cooklang_diag(&content, d))
+        .collect();
+
+    let mut metadata = std::collections::HashMap::new();
+    let mut ingredients = Vec::new();
+    let mut cookware = Vec::new();
+
+    if let Some(recipe) = parsed.into_output() {
+        for (k, v) in &recipe.metadata.map {
+            let key_str = if let Some(s) = k.as_str() {
+                s.to_string()
+            } else {
+                serde_json::to_string(k).unwrap_or_default()
+            };
+            let val_str = if let Some(s) = v.as_str() {
+                s.to_string()
+            } else if let Some(b) = v.as_bool() {
+                b.to_string()
+            } else if let Some(n) = v.as_f64() {
+                n.to_string()
+            } else if let Some(n) = v.as_i64() {
+                n.to_string()
+            } else {
+                serde_json::to_string(v).unwrap_or_default()
+            };
+            metadata.insert(key_str, val_str);
+        }
+
+        for ing in &recipe.ingredients {
+            if !ing.name.trim().is_empty() {
+                ingredients.push(ing.name.clone());
+            }
+        }
+        for cw in &recipe.cookware {
+            if !cw.name.trim().is_empty() {
+                cookware.push(cw.name.clone());
+            }
+        }
+    }
+
+    Ok(RecipeValidation {
+        errors,
+        warnings,
+        metadata,
+        ingredients,
+        cookware,
+    })
+}
+
+fn format_cooklang_number(num: &cooklang::quantity::Number) -> (f64, String) {
+    match num {
+        cooklang::quantity::Number::Regular(f) => {
+            let raw = if (*f - f.round()).abs() < 1e-6 {
+                format!("{}", f.round() as i64)
+            } else {
+                let s = format!("{:.2}", f);
+                s.trim_end_matches('0').trim_end_matches('.').to_string()
+            };
+            (*f, raw)
+        }
+        cooklang::quantity::Number::Fraction {
+            whole, num, den, ..
+        } => {
+            let val = *whole as f64 + (*num as f64 / *den as f64);
+            let raw = if *num == 0 {
+                whole.to_string()
+            } else if *whole == 0 {
+                format!("{num}/{den}")
+            } else {
+                format!("{whole} {num}/{den}")
+            };
+            (val, raw)
+        }
+    }
+}
+
+fn cooklang_quantity_to_amount(
+    qty: &cooklang::quantity::Quantity,
+) -> crate::types::IngredientAmount {
+    let (is_numeric, quantity, quantity_raw) = match qty.value() {
+        cooklang::quantity::Value::Number(num) => {
+            let (v, raw) = format_cooklang_number(num);
+            (true, v, raw)
+        }
+        cooklang::quantity::Value::Range { start, end } => {
+            let (s_val, s_raw) = format_cooklang_number(start);
+            let (_, e_raw) = format_cooklang_number(end);
+            (true, s_val, format!("{s_raw}-{e_raw}"))
+        }
+        cooklang::quantity::Value::Text(t) => (false, 0.0, t.clone()),
+    };
+    crate::types::IngredientAmount {
+        is_numeric,
+        quantity,
+        quantity_raw,
+        unit: qty.unit().unwrap_or("").to_string(),
+    }
+}
+
+fn aggregate_ingredients(
+    parsed_recipe: &cooklang::Recipe,
+    converter: &cooklang::Converter,
+) -> Vec<crate::types::Ingredient> {
+    let mut order: Vec<String> = Vec::new();
+    let mut display_names: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
+    let mut grouped: std::collections::HashMap<String, cooklang::quantity::GroupedQuantity> =
+        std::collections::HashMap::new();
+
+    for ing in &parsed_recipe.ingredients {
+        if ing.name.trim().is_empty() {
+            continue;
+        }
+        let key = ing.name.trim().to_ascii_lowercase();
+        if !display_names.contains_key(&key) {
+            order.push(key.clone());
+            display_names.insert(key.clone(), ing.name.clone());
+            grouped.insert(key.clone(), cooklang::quantity::GroupedQuantity::empty());
+        }
+        if let Some(qty) = &ing.quantity
+            && let Some(group) = grouped.get_mut(&key)
+        {
+            if let Some(u) = qty.unit()
+                && converter.find_unit(u).is_none()
+            {
+                let lower = u.trim().to_ascii_lowercase();
+                let trimmed = lower.trim_end_matches('.');
+                if converter.find_unit(&lower).is_some() {
+                    let norm_qty =
+                        cooklang::quantity::Quantity::new(qty.value().clone(), Some(lower));
+                    group.add(&norm_qty, converter);
+                    continue;
+                } else if trimmed != lower && converter.find_unit(trimmed).is_some() {
+                    let norm_qty = cooklang::quantity::Quantity::new(
+                        qty.value().clone(),
+                        Some(trimmed.to_string()),
+                    );
+                    group.add(&norm_qty, converter);
+                    continue;
+                }
+            }
+            group.add(qty, converter);
+        }
+    }
+
+    let mut out = Vec::with_capacity(order.len());
+    for key in order {
+        let name = display_names.remove(&key).unwrap_or_default();
+        let group = grouped.remove(&key).unwrap_or_default();
+        if group.is_empty() {
+            out.push(crate::types::Ingredient {
+                name,
+                amount: crate::types::IngredientAmount {
+                    is_numeric: false,
+                    quantity: 0.0,
+                    quantity_raw: String::new(),
+                    unit: String::new(),
+                },
+            });
+        } else {
+            for qty in group.into_vec() {
+                out.push(crate::types::Ingredient {
+                    name: name.clone(),
+                    amount: cooklang_quantity_to_amount(&qty),
+                });
+            }
+        }
+    }
+    out
+}
+
+fn aggregate_cookware(parsed_recipe: &cooklang::Recipe) -> Vec<crate::types::Cookware> {
+    let mut order: Vec<String> = Vec::new();
+    let mut items: std::collections::HashMap<String, crate::types::Cookware> =
+        std::collections::HashMap::new();
+
+    for cw in &parsed_recipe.cookware {
+        if cw.name.trim().is_empty() {
+            continue;
+        }
+        let key = cw.name.trim().to_ascii_lowercase();
+        let (is_numeric, quantity, quantity_raw) = if let Some(qty) = &cw.quantity {
+            let amt = cooklang_quantity_to_amount(qty);
+            (amt.is_numeric, amt.quantity, amt.quantity_raw)
+        } else {
+            (false, 1.0, String::new())
+        };
+
+        if let Some(existing) = items.get_mut(&key) {
+            if is_numeric && (!existing.is_numeric || quantity > existing.quantity) {
+                existing.is_numeric = true;
+                existing.quantity = quantity;
+                existing.quantity_raw = quantity_raw;
+            } else if !existing.is_numeric
+                && existing.quantity_raw.is_empty()
+                && !quantity_raw.is_empty()
+            {
+                existing.quantity_raw = quantity_raw;
+            }
+        } else {
+            order.push(key.clone());
+            items.insert(
+                key,
+                crate::types::Cookware {
+                    is_numeric,
+                    name: cw.name.clone(),
+                    quantity,
+                    quantity_raw,
+                },
+            );
+        }
+    }
+
+    order.into_iter().filter_map(|k| items.remove(&k)).collect()
+}
+
 pub fn parse_file(
     recipe_path: &str,
     config: &crate::types::Config,
@@ -275,8 +544,8 @@ pub fn parse_file(
     let content = fs::read_to_string(recipe_path)
         .map_err(|e| format!("Failed to read recipe file: {}", e))?;
 
-    let parser =
-        cooklang::CooklangParser::new(cooklang::Extensions::all(), cooklang::Converter::default());
+    let converter = cooklang::Converter::default();
+    let parser = cooklang::CooklangParser::new(cooklang::Extensions::all(), converter.clone());
     let parsed_recipe = parser
         .parse(&content)
         .into_output()
@@ -593,8 +862,13 @@ pub fn parse_file(
         }
     }
 
+    let aggregated_ingredients = aggregate_ingredients(&parsed_recipe, &converter);
+    let aggregated_cookware = aggregate_cookware(&parsed_recipe);
+
     Ok(crate::types::Recipe {
         steps,
+        ingredients: aggregated_ingredients,
+        cookware: aggregated_cookware,
         metadata,
         frontmatter,
         config: config.clone(),
@@ -633,19 +907,7 @@ mod tests {
     }
 
     fn default_config() -> Config {
-        Config {
-            dry_run: false,
-            jsonify: false,
-            ignore_file: ".cookdocsignore".to_string(),
-            recipe_search_root: ".".to_string(),
-            log_level: "info".to_string(),
-            template_files: vec!["recipe.md.gotmpl".to_string()],
-            word_wrap: 120,
-            output_dir: "".to_string(),
-            assets_dir: "".to_string(),
-            image_ext: "".to_string(),
-            recipe_files: Vec::new(),
-        }
+        Config::default()
     }
 
     #[test]
@@ -744,6 +1006,84 @@ mod tests {
         let cfg = default_config();
         let err = parse_file("/nonexistent/path/missing.cook", &cfg).unwrap_err();
         assert!(err.contains("Failed to read recipe file"));
+    }
+
+    #[test]
+    fn test_aggregate_ingredients_and_cookware_across_steps() {
+        let dir = TempDir::new("aggregate");
+        let recipe_path = dir.0.join("Layered Cake.cook");
+        fs::write(
+            &recipe_path,
+            "\
+Whisk @all-purpose flour{2%cups}, @granulated sugar{1%cup}, @cinnamon{1%Tbsp}, and @salt in #mixing bowl{1}.
+
+Make topping with @All-Purpose Flour{1/2%cup}, @granulated sugar{1/2%cup}, @cinnamon{3%tsp}, @lemon{2}, and @lemon{1%tbsp} in #mixing bowl{2} and #mixing bowl{}.
+",
+        )
+        .unwrap();
+
+        let cfg = default_config();
+        let parsed = parse_file(&recipe_path.to_string_lossy(), &cfg).unwrap();
+
+        // Per-step lists preserved for backwards compatibility
+        assert_eq!(parsed.steps.len(), 2);
+        assert_eq!(parsed.steps[0].ingredients.len(), 4);
+        assert_eq!(parsed.steps[1].ingredients.len(), 5);
+
+        // Top-level aggregated ingredients combine repeated items across steps
+        let flour = parsed
+            .ingredients
+            .iter()
+            .find(|i| i.name == "all-purpose flour")
+            .unwrap();
+        assert!((flour.amount.quantity - 2.5).abs() < 1e-6);
+        assert_eq!(flour.amount.unit, "cups");
+        assert_eq!(
+            parsed
+                .ingredients
+                .iter()
+                .filter(|i| i.name.eq_ignore_ascii_case("all-purpose flour"))
+                .count(),
+            1
+        );
+
+        let sugar = parsed
+            .ingredients
+            .iter()
+            .find(|i| i.name == "granulated sugar")
+            .unwrap();
+        assert!((sugar.amount.quantity - 1.5).abs() < 1e-6);
+
+        // 1 tbsp + 3 tsp = 2 tbsp
+        let cinnamon = parsed
+            .ingredients
+            .iter()
+            .find(|i| i.name == "cinnamon")
+            .unwrap();
+        assert!((cinnamon.amount.quantity - 2.0).abs() < 1e-3);
+        assert_eq!(cinnamon.amount.unit, "tbsp");
+
+        // Bare ingredient preserved with quantity 0
+        let salt = parsed
+            .ingredients
+            .iter()
+            .find(|i| i.name == "salt")
+            .unwrap();
+        assert!(!salt.amount.is_numeric);
+        assert_eq!(salt.amount.quantity, 0.0);
+
+        // Incompatible units (2 whole lemons + 1 tbsp lemon) kept as separate aggregated entries
+        let lemons: Vec<&crate::types::Ingredient> = parsed
+            .ingredients
+            .iter()
+            .filter(|i| i.name == "lemon")
+            .collect();
+        assert_eq!(lemons.len(), 2);
+
+        // Cookware deduplicated with max explicit quantity
+        assert_eq!(parsed.cookware.len(), 1);
+        assert_eq!(parsed.cookware[0].name, "mixing bowl");
+        assert_eq!(parsed.cookware[0].quantity, 2.0);
     }
 
     #[test]

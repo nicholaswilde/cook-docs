@@ -159,7 +159,6 @@ fn regression_testdata_golden_markdown_output() {
 - 1 pizza stone
 - 1 pan
 - 1 spoon
-- 1 oven
 
 ## :pencil: Instructions
 
@@ -1217,5 +1216,576 @@ Bake @lemon{2}.
     assert!(
         bounded_md.contains("# :pie: Lemon Tart"),
         "bounded:\n{bounded_md}"
+    );
+}
+
+#[test]
+fn regression_batch_c_emoji_weights_and_link_recipe() {
+    let Some(bin) = bin_if_runnable() else {
+        return;
+    };
+
+    let dir = TempDir::new("batch_c_enrich");
+    fs::create_dir_all(dir.path().join("cook/mains")).unwrap();
+    fs::create_dir_all(dir.path().join("cook/sauces-and-dressings")).unwrap();
+    fs::create_dir_all(dir.path().join("cook/desserts")).unwrap();
+
+    fs::write(
+        dir.path().join("cook/mains/Tacos.cook"),
+        "\
+---
+serves: 4
+---
+Mix @all-purpose flour{2%cups}, @cilantro{1%tbsp}, @salsa verde{1/2%cup}, and @olive oil{50%g} in #bowl{1}.
+",
+    )
+    .unwrap();
+    fs::write(
+        dir.path()
+            .join("cook/sauces-and-dressings/Salsa Verde.cook"),
+        "Blend @tomatillos{1%lb} and @cilantro{1%cup} in #blender{1}.\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("cook/desserts/Brownies.cook"),
+        "Bake @sugar{1%cup} in #pan{1}.\n",
+    )
+    .unwrap();
+
+    fs::write(
+        dir.path().join("emoji.yaml"),
+        "\
+---
+emoji:
+  ingredients:
+    - ear_of_rice:
+        - all-purpose flour
+    - herb:
+        - cilantro
+    - hot_pepper:
+        - salsa verde
+  cookware:
+    - bowl_with_spoon:
+        - bowl
+",
+    )
+    .unwrap();
+
+    fs::write(
+        dir.path().join("weights.yaml"),
+        "\
+exclude_small_units:
+  - cilantro
+weights:
+  all-purpose flour: 120
+  cilantro: 16
+  salsa verde:
+    grams_per_cup: 240
+    aliases:
+      - green salsa
+  olive oil:
+    grams_per_ml: 0.915
+",
+    )
+    .unwrap();
+
+    let out = run_cli(
+        bin,
+        Some(dir.path()),
+        &[
+            "-c",
+            "cook",
+            "-o",
+            "docs",
+            "--emoji-file",
+            "emoji.yaml",
+            "--weights-file",
+            "weights.yaml",
+            "--link-dirs",
+            "sauces-and-dressings",
+            "cook/mains/Tacos.cook",
+        ],
+        &[],
+    );
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    let tacos_md = fs::read_to_string(dir.path().join("docs/mains/tacos.md")).unwrap();
+    assert!(
+        tacos_md.contains("- :ear_of_rice: 2 cups (240 g) all-purpose flour"),
+        "tacos:\n{tacos_md}"
+    );
+    // cilantro in exclude_small_units (tbsp) -> emoji present, grams omitted
+    assert!(
+        tacos_md.contains("- :herb: 1 tbsp cilantro"),
+        "tacos:\n{tacos_md}"
+    );
+    // salsa verde -> emoji + 1/2 cup (120 g) + cross-link across nested directories
+    assert!(
+        tacos_md.contains(
+            "- :hot_pepper: 0.5 cup (120 g) [salsa verde](../sauces-and-dressings/salsa-verde.md)"
+        ),
+        "tacos:\n{tacos_md}"
+    );
+    // olive oil already weight-based (g) -> no duplicate (X g)
+    assert!(tacos_md.contains("- 50 g olive oil"), "tacos:\n{tacos_md}");
+    assert!(
+        tacos_md.contains("- :bowl_with_spoon: 1 bowl"),
+        "tacos:\n{tacos_md}"
+    );
+
+    // Inline emoji config in .cookdocs.yaml works without --emoji-file
+    let inline_cfg = dir.path().join(".cookdocs.yaml");
+    fs::write(
+        &inline_cfg,
+        "\
+emoji:
+  ingredients:
+    - candy:
+        - sugar
+  cookware:
+    - shallow_pan_of_food:
+        - pan
+",
+    )
+    .unwrap();
+    let out_inline = run_cli(
+        bin,
+        Some(dir.path()),
+        &[
+            "-C",
+            ".cookdocs.yaml",
+            "-c",
+            "cook",
+            "-d",
+            "cook/desserts/Brownies.cook",
+        ],
+        &[],
+    );
+    assert!(out_inline.status.success());
+    let brownies_md = String::from_utf8_lossy(&out_inline.stdout);
+    assert!(
+        brownies_md.contains("- :candy: 1 cup sugar"),
+        "brownies:\n{brownies_md}"
+    );
+    assert!(
+        brownies_md.contains("- :shallow_pan_of_food: 1 pan"),
+        "brownies:\n{brownies_md}"
+    );
+}
+
+#[test]
+fn regression_doctor_check_recipes_text_and_json() {
+    let Some(bin) = bin_if_runnable() else {
+        return;
+    };
+
+    let dir = TempDir::new("doctor_recipes");
+    fs::create_dir_all(dir.path().join("cook")).unwrap();
+
+    fs::write(
+        dir.path().join("emoji.yaml"),
+        "emoji:\n  ingredients:\n    - herb:\n        - cilantro\n  cookware:\n    - bowl_with_spoon:\n        - bowl\n",
+    )
+    .unwrap();
+    fs::write(dir.path().join("weights.yaml"), "cilantro: 16\n").unwrap();
+
+    fs::write(
+        dir.path().join("cook/Good.cook"),
+        "---\nsource: https://example.com/good\nserves: 2\n---\nChop @cilantro{1%cup} in #bowl{}.\n",
+    )
+    .unwrap();
+    fs::write(dir.path().join("cook/Good.webp"), b"w").unwrap();
+
+    fs::write(
+        dir.path().join("cook/Bad.cook"),
+        "Bake @mystery{1%cup} in #cauldron{} for ~{10%bogusunit}.\n",
+    )
+    .unwrap();
+
+    // 1. Healthy single targeted recipe in JSON mode
+    let ok_out = run_cli(
+        bin,
+        Some(dir.path()),
+        &[
+            "-c",
+            "cook",
+            "--emoji-file",
+            "emoji.yaml",
+            "--weights-file",
+            "weights.yaml",
+            "--required-metadata",
+            "source,serves",
+            "doctor",
+            "--check-recipes",
+            "--json",
+            "cook/Good.cook",
+        ],
+        &[],
+    );
+    assert!(
+        ok_out.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&ok_out.stdout),
+        String::from_utf8_lossy(&ok_out.stderr)
+    );
+    let ok_json: Value = serde_json::from_slice(&ok_out.stdout).unwrap();
+    assert_eq!(ok_json["healthy"], true);
+    assert_eq!(ok_json["warnings"], 0);
+    assert_eq!(ok_json["errors"], 0);
+
+    // 2. Failing recipe reports syntax error, missing metadata error, missing image warning, and unmapped emoji warning
+    let bad_out = run_cli(
+        bin,
+        Some(dir.path()),
+        &[
+            "-c",
+            "cook",
+            "--emoji-file",
+            "emoji.yaml",
+            "--required-metadata",
+            "source",
+            "doctor",
+            "--check-recipes",
+            "--json",
+            "cook/Bad.cook",
+        ],
+        &[],
+    );
+    assert!(!bad_out.status.success());
+    let bad_json: Value = serde_json::from_slice(&bad_out.stdout).unwrap();
+    assert_eq!(bad_json["healthy"], false);
+    let checks = bad_json["checks"].as_array().unwrap();
+    assert!(
+        checks
+            .iter()
+            .any(|c| c["category"] == "recipe_syntax" && c["severity"] == "error"),
+        "checks: {checks:#?}"
+    );
+    assert!(
+        checks
+            .iter()
+            .any(|c| c["category"] == "recipe_metadata" && c["severity"] == "error"),
+        "checks: {checks:#?}"
+    );
+    assert!(
+        checks
+            .iter()
+            .any(|c| c["category"] == "recipe_images" && c["severity"] == "warning"),
+        "checks: {checks:#?}"
+    );
+    assert!(
+        checks
+            .iter()
+            .any(|c| c["category"] == "recipe_emojis" && c["severity"] == "warning"),
+        "checks: {checks:#?}"
+    );
+
+    // 3. Human-readable mode includes summary and [ERROR]/[WARN] markers
+    let text_out = run_cli(
+        bin,
+        Some(dir.path()),
+        &[
+            "-c",
+            "cook",
+            "--emoji-file",
+            "emoji.yaml",
+            "--required-metadata",
+            "source",
+            "doctor",
+            "--check-recipes",
+            "cook/Bad.cook",
+        ],
+        &[],
+    );
+    assert!(!text_out.status.success());
+    let text = String::from_utf8_lossy(&text_out.stdout);
+    assert!(text.contains("[ERROR]"), "text:\n{text}");
+    assert!(text.contains("[WARN]"), "text:\n{text}");
+    assert!(text.contains("Doctor summary:"), "text:\n{text}");
+}
+
+#[test]
+fn regression_merge_mode_and_force_overwrite() {
+    let Some(bin) = bin_if_runnable() else {
+        return;
+    };
+
+    let dir = TempDir::new("merge_mode");
+    fs::create_dir_all(dir.path().join("cook/breads")).unwrap();
+    fs::create_dir_all(dir.path().join("docs/breads")).unwrap();
+
+    fs::write(
+        dir.path().join("cook/recipe.md.gotmpl"),
+        "\
+---
+comments: true
+tags:
+  - bread
+---
+{{ template \"cook.headerSection\" . }}
+
+{{ template \"cook.ingredientsSection\" . }}
+
+{{ template \"cook.stepsSection\" . -}}
+
+{{ template \"cook.sourceSection\" . }}
+",
+    )
+    .unwrap();
+
+    fs::write(
+        dir.path().join("cook/breads/Bagels.cook"),
+        "\
+---
+source: https://example.com/bagels
+---
+Mix @bread flour{500%g} and @water{300%ml} for ~{10%minutes}.
+",
+    )
+    .unwrap();
+
+    let out_md_path = dir.path().join("docs/breads/bagels.md");
+    fs::write(
+        &out_md_path,
+        "\
+---
+comments: true
+hero: assets/images/bagels.webp
+tags:
+  - bread
+  - breakfast
+---
+
+# :bagel: Bagels
+
+![Bagels](../assets/images/bagels.webp){ loading=lazy }
+
+## :salt: Ingredients
+
+- 400 g old flour
+
+## :pencil: Instructions
+
+### Step 1
+
+Old step.
+
+!!! note
+    Boil 1 minute per side for chewy crust.
+
+## :calendar: Timeline
+
+```mermaid
+flowchart LR
+  Mix --> Boil --> Bake
+```
+
+## :link: Source
+
+- [NYT Bagels][1]
+
+[1]: https://example.com/bagels
+",
+    )
+    .unwrap();
+
+    // 1. --merge updates Ingredients & Instructions while preserving hero, tags, H1 emoji, admonition, Mermaid, custom section, and source formatting
+    let merge1 = run_cli(
+        bin,
+        Some(dir.path()),
+        &[
+            "-c",
+            "cook",
+            "-o",
+            "docs",
+            "--merge",
+            "cook/breads/Bagels.cook",
+        ],
+        &[],
+    );
+    assert!(
+        merge1.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&merge1.stderr)
+    );
+    let content1 = fs::read_to_string(&out_md_path).unwrap();
+    assert!(
+        content1.contains("hero: assets/images/bagels.webp"),
+        "merged:\n{content1}"
+    );
+    assert!(content1.contains("- breakfast"), "merged:\n{content1}");
+    assert!(content1.contains("# :bagel: Bagels"), "merged:\n{content1}");
+    assert!(
+        content1.contains("- 500 g bread flour"),
+        "merged:\n{content1}"
+    );
+    assert!(!content1.contains("400 g old flour"), "merged:\n{content1}");
+    assert!(
+        content1.contains("Boil 1 minute per side for chewy crust."),
+        "merged:\n{content1}"
+    );
+    assert!(
+        content1.contains("## :calendar: Timeline"),
+        "merged:\n{content1}"
+    );
+    assert!(
+        content1.contains("```mermaid\nflowchart LR\n  Mix --> Boil --> Bake\n```"),
+        "merged:\n{content1}"
+    );
+    assert!(
+        content1.contains("- [NYT Bagels][1]"),
+        "merged:\n{content1}"
+    );
+
+    // 2. Second --merge run is strictly idempotent
+    let merge2 = run_cli(
+        bin,
+        Some(dir.path()),
+        &[
+            "-c",
+            "cook",
+            "-o",
+            "docs",
+            "--merge",
+            "cook/breads/Bagels.cook",
+        ],
+        &[],
+    );
+    assert!(merge2.status.success());
+    let content2 = fs::read_to_string(&out_md_path).unwrap();
+    assert_eq!(content1, content2);
+
+    // 3. --merge --force performs a full overwrite
+    let forced = run_cli(
+        bin,
+        Some(dir.path()),
+        &[
+            "-c",
+            "cook",
+            "-o",
+            "docs",
+            "--merge",
+            "--force",
+            "cook/breads/Bagels.cook",
+        ],
+        &[],
+    );
+    assert!(forced.status.success());
+    let forced_content = fs::read_to_string(&out_md_path).unwrap();
+    assert!(!forced_content.contains("## :calendar: Timeline"));
+    assert!(!forced_content.contains("breakfast"));
+    assert!(forced_content.contains("- 500 g bread flour"));
+
+    // 4. HTML region markers preserve arbitrary manual surrounding content
+    fs::write(
+        &out_md_path,
+        "# Handcrafted Page\n\n<!-- cook-docs:begin -->\nSTALE\n<!-- cook-docs:end -->\n\n## My Manual Footer\n",
+    )
+    .unwrap();
+    let marker_out = run_cli(
+        bin,
+        Some(dir.path()),
+        &[
+            "-c",
+            "cook",
+            "-o",
+            "docs",
+            "--merge",
+            "cook/breads/Bagels.cook",
+        ],
+        &[],
+    );
+    assert!(marker_out.status.success());
+    let marker_content = fs::read_to_string(&out_md_path).unwrap();
+    assert!(marker_content.starts_with("# Handcrafted Page\n"));
+    assert!(marker_content.contains("- 500 g bread flour"));
+    assert!(!marker_content.contains("STALE"));
+    assert!(marker_content.contains("## My Manual Footer"));
+}
+
+#[test]
+fn regression_aggregated_ingredients_and_scale_template_helper() {
+    let Some(bin) = bin_if_runnable() else {
+        return;
+    };
+
+    let dir = TempDir::new("agg_scale");
+    fs::create_dir_all(dir.path().join("cook")).unwrap();
+    fs::write(
+        dir.path().join("cook/Cinnamon Bread.cook"),
+        "\
+---
+serves: 16
+---
+Mix @flour{3%cups}, @sugar{1 1/2%cups}, and @salt in #bowl{1}.
+
+Top with @flour{1/2%cup} and @sugar{1/2%cup} using #bowl{1}.
+",
+    )
+    .unwrap();
+
+    // 1. Default template uses deduplicated top-level Ingredients and Cookware
+    let default_out = run_cli(bin, Some(dir.path()), &["-c", "cook", "-d"], &[]);
+    assert!(default_out.status.success());
+    let default_md = String::from_utf8_lossy(&default_out.stdout);
+    assert!(
+        default_md.contains("- 3.5 cups flour"),
+        "default:\n{default_md}"
+    );
+    assert!(
+        default_md.contains("- 2 cups sugar"),
+        "default:\n{default_md}"
+    );
+    assert_eq!(default_md.matches("cups flour").count(), 1);
+    assert_eq!(default_md.matches("1 bowl").count(), 1);
+
+    // 2. JSON output exposes both aggregated top-level Ingredients/Cookware and per-step lists
+    let json_out = run_cli(bin, Some(dir.path()), &["-c", "cook", "-j"], &[]);
+    assert!(json_out.status.success());
+    let parsed: Value = serde_json::from_slice(&json_out.stdout).unwrap();
+    assert_eq!(parsed["Ingredients"].as_array().unwrap().len(), 3);
+    assert_eq!(parsed["Cookware"].as_array().unwrap().len(), 1);
+    assert_eq!(parsed["Steps"].as_array().unwrap().len(), 2);
+    assert_eq!(
+        parsed["Steps"][0]["Ingredients"].as_array().unwrap().len(),
+        3
+    );
+    assert_eq!(
+        parsed["Steps"][1]["Ingredients"].as_array().unwrap().len(),
+        2
+    );
+
+    // 3. Custom template with `scale` helper and legacy per-step `.Steps` template both work
+    fs::write(
+        dir.path().join("cook/recipe.md.gotmpl"),
+        r#"=== "1/2 Batch ({{ (scale 0.5 .).Metadata.serves }})"
+{{- range scale 0.5 .Ingredients }}
+    - {{ if .Amount.QuantityRaw }}{{ .Amount.QuantityRaw }}{{ if .Amount.Unit }} {{ .Amount.Unit }}{{ end }}{{ else }}some{{ end }} {{ .Name }}
+{{- end }}
+
+LEGACY_STEP_COUNT={{ range .Steps }}{{ range .Ingredients }}[{{ .Name }}]{{ end }}{{ end }}
+"#,
+    )
+    .unwrap();
+    let scaled_out = run_cli(bin, Some(dir.path()), &["-c", "cook", "-d"], &[]);
+    assert!(scaled_out.status.success());
+    let scaled_md = String::from_utf8_lossy(&scaled_out.stdout);
+    assert!(
+        scaled_md.contains("=== \"1/2 Batch (8)\""),
+        "scaled:\n{scaled_md}"
+    );
+    assert!(
+        scaled_md.contains("- 1 3/4 cups flour"),
+        "scaled:\n{scaled_md}"
+    );
+    assert!(scaled_md.contains("- 1 cups sugar"), "scaled:\n{scaled_md}");
+    assert!(scaled_md.contains("- some salt"), "scaled:\n{scaled_md}");
+    assert!(
+        scaled_md.contains("LEGACY_STEP_COUNT=[flour][sugar][salt][flour][sugar]"),
+        "scaled:\n{scaled_md}"
     );
 }

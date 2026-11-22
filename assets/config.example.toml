@@ -47,6 +47,12 @@
 # CLI: -j, --jsonify | Env: COOK_DOCS_JSONIFY
 # jsonify = false
 
+# Non-destructively merge generated content into existing Markdown files,
+# preserving manual frontmatter, custom sections, admonitions, Mermaid diagrams, and tabs.
+# Override per-run with --force to perform a full overwrite.
+# CLI: --merge | Env: COOK_DOCS_MERGE
+# merge = false
+
 # -----------------------------------------------------------------------------
 # Templates & Formatting
 # -----------------------------------------------------------------------------
@@ -60,6 +66,32 @@
 # Word wrap line length for the recipe steps section.
 # CLI: -w, --word-wrap <LENGTH> | Env: COOK_DOCS_WORD_WRAP
 # word_wrap = 120
+
+# -----------------------------------------------------------------------------
+# Template Enrichment & Doctor Validation
+# -----------------------------------------------------------------------------
+
+# Optional YAML/TOML/JSON file mapping ingredients and cookware to emojis.
+# CLI: --emoji-file <PATH> | Env: COOK_DOCS_EMOJI_FILE
+# emoji_file = ""
+
+# Optional YAML/TOML/JSON ingredient density table for toGrams conversion.
+# CLI: --weights-file <PATH> | Env: COOK_DOCS_WEIGHTS_FILE
+# weights_file = ""
+
+# Optional recipe subdirectories eligible for linkRecipe cross-linking.
+# CLI: --link-dirs <DIRS> (comma-separated) | Env: COOK_DOCS_LINK_DIRS
+# link_dirs = []
+
+# Optional metadata keys required by `cook-docs doctor --check-recipes`.
+# CLI: --required-metadata <KEYS> (comma-separated) | Env: COOK_DOCS_REQUIRED_METADATA
+# required_metadata = []
+
+# Inline emoji mappings may also be configured directly under [emoji]:
+# [emoji.ingredients]
+# herb = ["cilantro", "parsley"]
+# [emoji.cookware]
+# bowl_with_spoon = ["bowl"]
 
 # -----------------------------------------------------------------------------
 # Logging

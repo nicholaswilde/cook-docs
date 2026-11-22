@@ -27,7 +27,7 @@ this:
 {{ template "cook.sourceSection" . }}
 ```
 
-The tool renders Go-compatible templates using [`gtmpl-ng`][5] and provides built-in helper functions (`getSource`, `sumTimers`, `totalTime`, `toYaml`, `lower`, `replace`, `round`, `add1`, `wrap`, `indent`) for use in custom templates.
+The tool renders Go-compatible templates using [`gtmpl-ng`][5] and provides built-in helper functions (`getSource`, `sumTimers`, `totalTime`, `toYaml`, `emoji`, `ingredientEmoji`, `cookwareEmoji`, `toGrams`, `linkRecipe`, `scale`, `lower`, `replace`, `round`, `add1`, `wrap`, `indent`) for use in custom templates.
 
 ## Built-in Templates
 
@@ -53,9 +53,9 @@ The tool renders Go-compatible templates using [`gtmpl-ng`][5] and provides buil
 | Name                                     | Description                                                                  |
 |------------------------------------------|------------------------------------------------------------------------------|
 | `cook.ingredientsHeader`                 | The ingredients header                                                       |
-| `cook.ingredients`                       | An unordered list of the ingredients                                         |
+| `cook.ingredients`                       | Unordered list of aggregated ingredients (with optional emojis, gram weights, and cross-links) |
 | `cook.cookwareHeader`                    | The cookware header                                                          |
-| `cook.cookware`                          | An unordered list of cookware                                                |
+| `cook.cookware`                          | Unordered list of deduplicated cookware (with optional emojis)               |
 | `cook.stepsHeader`                       | The steps header                                                             |
 | `cook.steps`                             | A list of steps. Each step has its own sub heading labeled as `Step #`       |
 | `cook.stepsWithQuotedCommentsHeader`     | The steps with block quotes header                                           |
@@ -78,6 +78,8 @@ The tool renders Go-compatible templates using [`gtmpl-ng`][5] and provides buil
 | `.Info.RelRoot`                          | Relative path back to `--recipe-search-root` (`.`, `..`, `../..`, ...)       |
 | `.Info.Categories`                       | Relative directory segments under `--recipe-search-root` (e.g. `["desserts", "cake"]`) |
 | `.Frontmatter`                           | Structured YAML/Cooklang metadata preserving lists, booleans, numbers, and maps |
+| `.Ingredients`                           | Aggregated top-level recipe ingredients (deduplicated and summed across steps) |
+| `.Cookware`                              | Aggregated top-level recipe cookware (deduplicated across steps)             |
 
 ### Helper Functions
 
@@ -87,6 +89,12 @@ The tool renders Go-compatible templates using [`gtmpl-ng`][5] and provides buil
 | `sumTimers` | Sums recipe step timers into a total duration string                          |
 | `totalTime` | Uses `total time` metadata when present, otherwise falls back to `sumTimers`  |
 | `toYaml`    | Formats a structured value (list, map, or scalar) as deterministic YAML       |
+| `emoji`     | Looks up an emoji (`emoji "ingredient" .Name`, `emoji "cookware" .Name`, or `emoji .Name`) |
+| `ingredientEmoji` | Looks up an ingredient emoji shortcode or Unicode glyph (or `""` if unmapped) |
+| `cookwareEmoji` | Looks up a cookware emoji shortcode or Unicode glyph (or `""` if unmapped)  |
+| `toGrams`   | Converts volumetric measurements to rounded grams using `weights_file` (`toGrams .Amount .Name`) |
+| `linkRecipe` | Cross-links an ingredient/recipe name to `[Name](relative/path.md)` (excluding self-links) |
+| `scale`     | Scales a recipe, ingredient list, amount, number, or fraction/range string (`scale 0.5 .Ingredients`) |
 | `lower`     | Converts a string to lowercase                                                |
 | `replace`   | Replaces substrings (`replace old new str`)                                   |
 | `round`     | Rounds a numeric value to specified decimal places                            |
@@ -164,6 +172,49 @@ See [mkdocs-material][14] for reference.
 Companion images matching `<Recipe Name>.<ext>` are detected automatically in priority order `.webp`, `.jpg`, `.jpeg`, `.png`. Output Markdown and image slugs are lowercased with spaces replaced by hyphens, e.g. `My Recipe Name.cook -> my-recipe-name.md` and `My Recipe Name.png -> my-recipe-name.png` (`.Info.ImageSlug`).
 
 Pass `--assets-dir <DIR>` to copy companion images (slug-named, keeping their original source extension) during rendering, and optionally `--image-ext webp` to override the extension in `.Info.ImageSlug` when an external tool converts images after rendering.
+
+## Emojis, Weight Conversion & Cross-Linking
+
+When configured, the built-in `cook.ingredients` and `cook.cookware` templates automatically apply emoji prefixes (`--emoji-file` / inline `emoji`), gram annotations (`--weights-file`), and internal recipe cross-links (`--link-dirs`). Custom templates can invoke each helper directly:
+
+```go title="Custom ingredients list using enrichment helpers"
+{{- range .Steps }}{{- range .Ingredients }}
+- {{ with ingredientEmoji .Name }}{{ . }} {{ end }}{{ if .Amount.Quantity }}{{ round .Amount.Quantity 2 }}{{ if .Amount.Unit }} {{ .Amount.Unit }}{{ end }}{{ with toGrams .Amount .Name }} ({{ . }} g){{ end }}{{ else }}some{{ end }} {{ linkRecipe .Name }}
+{{- end }}{{- end }}
+```
+
+- **`ingredientEmoji` / `cookwareEmoji` / `emoji`**: Resolves names (case-insensitively, handling prep words and singular/plural variants) against `emoji_file` and inline `emoji` mappings. Returns `""` when unmapped.
+- **`toGrams`**: Uses `cooklang::Converter` to normalize volumetric units (`tsp`, `tbsp`, `cup`, `fl oz`, `pt`, `qt`, `gal`, `ml`, `l`) against `weights_file`. Supports `toGrams .Amount .Name`, `toGrams .Amount.Quantity .Amount.Unit .Name`, or `toGrams .`. Returns `""` for already weight-based units (`g`, `kg`, `oz`, `lb`), unknown units, excluded items, or unmapped ingredients.
+- **`linkRecipe`**: Looks up discovered recipes under `--recipe-search-root` (filtered by `--link-dirs` when set) and emits `[Name](relative/path.md)` using forward-slash relative paths between output Markdown files. Excludes self-links and falls back to plain `Name` when unmatched.
+
+See [Configuration](./configuration.md) for the `emoji_file` and `weights_file` schemas.
+
+## Aggregated Ingredients & Scaling (`scale`)
+
+Repeated ingredients and cookware across multiple steps are aggregated into top-level `.Ingredients` and `.Cookware` using `cooklang-rs` unit grouping (e.g., `3 cups flour` in Step 1 + `1/2 cup flour` in Step 2 -> `3.5 cups flour`), while per-step `.Steps[*].Ingredients` and `.Steps[*].Cookware` remain intact for backwards compatibility.
+
+Use the `scale` helper to render multi-serving tabs (fractions, mixed numbers, ranges, and servings metadata are scaled automatically):
+
+```go title="Multi-batch ingredient tabs"
+## :salt: Ingredients
+
+=== "1x Batch ({{ .Metadata.serves }})"
+{{- range .Ingredients }}
+    - {{ if .Amount.QuantityRaw }}{{ .Amount.QuantityRaw }}{{ if .Amount.Unit }} {{ .Amount.Unit }}{{ end }}{{ else }}some{{ end }} {{ .Name }}
+{{- end }}
+
+=== "1/2 Batch ({{ (scale 0.5 .).Metadata.serves }})"
+{{- range scale 0.5 .Ingredients }}
+    - {{ if .Amount.QuantityRaw }}{{ .Amount.QuantityRaw }}{{ if .Amount.Unit }} {{ .Amount.Unit }}{{ end }}{{ else }}some{{ end }} {{ .Name }}
+{{- end }}
+
+=== "2x Batch ({{ (scale 2 .).Metadata.serves }})"
+{{- range scale 2 .Ingredients }}
+    - {{ if .Amount.QuantityRaw }}{{ .Amount.QuantityRaw }}{{ if .Amount.Unit }} {{ .Amount.Unit }}{{ end }}{{ else }}some{{ end }} {{ .Name }}
+{{- end }}
+```
+
+`scale` accepts a numeric or fraction-string factor (`0.5`, `2`, `"1/2"`) and scales an ingredient list (`.Ingredients`), an entire recipe (`.`), a single ingredient/amount, a number, or a fraction/range string (`"1 1/2"`, `"1-2"`).
 
 ## Custom Sections
 
@@ -252,6 +303,25 @@ Run `cook-docs --jsonify` to inspect the full parsed data structure on stdout:
         }
       ],
       "Comments": []
+    }
+  ],
+  "Ingredients": [
+    {
+      "Name": "tipo zero flour",
+      "Amount": {
+        "IsNumeric": true,
+        "Quantity": 820.0,
+        "QuantityRaw": "820",
+        "Unit": "g"
+      }
+    }
+  ],
+  "Cookware": [
+    {
+      "IsNumeric": false,
+      "Name": "fridge",
+      "Quantity": 1.0,
+      "QuantityRaw": ""
     }
   ],
   "Metadata": {

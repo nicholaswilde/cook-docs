@@ -31,6 +31,10 @@ _cook-docs() {
 '--output-dir=[custom output directory to write generated markdown documentation]: :_default' \
 '--assets-dir=[optional directory to copy companion recipe images into (slug-named)]: :_default' \
 '--image-ext=[optional image extension override for Info.ImageSlug (e.g. webp)]: :_default' \
+'--emoji-file=[optional YAML/TOML/JSON file mapping ingredients and cookware to emojis]: :_default' \
+'--weights-file=[optional YAML/TOML/JSON ingredient density file for toGrams volume-to-weight conversion]: :_default' \
+'--link-dirs=[comma-separated recipe subdirectories eligible for linkRecipe cross-linking]: :_default' \
+'--required-metadata=[comma-separated metadata keys required by doctor --check-recipes (e.g. source,serves)]: :_default' \
 '--debounce=[debounce delay in milliseconds for watch mode (default 300)]:MS:_default' \
 '-v[version for cook-docs]' \
 '--version[version for cook-docs]' \
@@ -38,6 +42,8 @@ _cook-docs() {
 '--dry-run[don'\''t actually render any markdown files just print to stdout passed]' \
 '-j[parse the recipe and display it in json format]' \
 '--jsonify[parse the recipe and display it in json format]' \
+'--merge[merge generated content into existing Markdown files without clobbering manual edits]' \
+'--force[force full overwrite of existing Markdown files even when --merge / merge is enabled]' \
 '--watch[watch recipes and templates and re-render automatically on changes]' \
 '-h[Print help]' \
 '--help[Print help]' \
@@ -70,10 +76,16 @@ _arguments "${_arguments_options[@]}" : \
 '--output-dir=[custom output directory to write generated markdown documentation]: :_default' \
 '--assets-dir=[optional directory to copy companion recipe images into (slug-named)]: :_default' \
 '--image-ext=[optional image extension override for Info.ImageSlug (e.g. webp)]: :_default' \
+'--emoji-file=[optional YAML/TOML/JSON file mapping ingredients and cookware to emojis]: :_default' \
+'--weights-file=[optional YAML/TOML/JSON ingredient density file for toGrams volume-to-weight conversion]: :_default' \
+'--link-dirs=[comma-separated recipe subdirectories eligible for linkRecipe cross-linking]: :_default' \
+'--required-metadata=[comma-separated metadata keys required by doctor --check-recipes (e.g. source,serves)]: :_default' \
 '-d[don'\''t actually render any markdown files just print to stdout passed]' \
 '--dry-run[don'\''t actually render any markdown files just print to stdout passed]' \
 '-j[parse the recipe and display it in json format]' \
 '--jsonify[parse the recipe and display it in json format]' \
+'--merge[merge generated content into existing Markdown files without clobbering manual edits]' \
+'--force[force full overwrite of existing Markdown files even when --merge / merge is enabled]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -96,10 +108,16 @@ _arguments "${_arguments_options[@]}" : \
 '--output-dir=[custom output directory to write generated markdown documentation]: :_default' \
 '--assets-dir=[optional directory to copy companion recipe images into (slug-named)]: :_default' \
 '--image-ext=[optional image extension override for Info.ImageSlug (e.g. webp)]: :_default' \
+'--emoji-file=[optional YAML/TOML/JSON file mapping ingredients and cookware to emojis]: :_default' \
+'--weights-file=[optional YAML/TOML/JSON ingredient density file for toGrams volume-to-weight conversion]: :_default' \
+'--link-dirs=[comma-separated recipe subdirectories eligible for linkRecipe cross-linking]: :_default' \
+'--required-metadata=[comma-separated metadata keys required by doctor --check-recipes (e.g. source,serves)]: :_default' \
 '-d[don'\''t actually render any markdown files just print to stdout passed]' \
 '--dry-run[don'\''t actually render any markdown files just print to stdout passed]' \
 '-j[parse the recipe and display it in json format]' \
 '--jsonify[parse the recipe and display it in json format]' \
+'--merge[merge generated content into existing Markdown files without clobbering manual edits]' \
+'--force[force full overwrite of existing Markdown files even when --merge / merge is enabled]' \
 '-h[Print help]' \
 '--help[Print help]' \
 ':shell -- Shell to generate completions for:(bash elvish fish powershell zsh)' \
@@ -123,10 +141,16 @@ _arguments "${_arguments_options[@]}" : \
 '--output-dir=[custom output directory to write generated markdown documentation]: :_default' \
 '--assets-dir=[optional directory to copy companion recipe images into (slug-named)]: :_default' \
 '--image-ext=[optional image extension override for Info.ImageSlug (e.g. webp)]: :_default' \
+'--emoji-file=[optional YAML/TOML/JSON file mapping ingredients and cookware to emojis]: :_default' \
+'--weights-file=[optional YAML/TOML/JSON ingredient density file for toGrams volume-to-weight conversion]: :_default' \
+'--link-dirs=[comma-separated recipe subdirectories eligible for linkRecipe cross-linking]: :_default' \
+'--required-metadata=[comma-separated metadata keys required by doctor --check-recipes (e.g. source,serves)]: :_default' \
 '-d[don'\''t actually render any markdown files just print to stdout passed]' \
 '--dry-run[don'\''t actually render any markdown files just print to stdout passed]' \
 '-j[parse the recipe and display it in json format]' \
 '--jsonify[parse the recipe and display it in json format]' \
+'--merge[merge generated content into existing Markdown files without clobbering manual edits]' \
+'--force[force full overwrite of existing Markdown files even when --merge / merge is enabled]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -149,13 +173,21 @@ _arguments "${_arguments_options[@]}" : \
 '--output-dir=[custom output directory to write generated markdown documentation]: :_default' \
 '--assets-dir=[optional directory to copy companion recipe images into (slug-named)]: :_default' \
 '--image-ext=[optional image extension override for Info.ImageSlug (e.g. webp)]: :_default' \
+'--emoji-file=[optional YAML/TOML/JSON file mapping ingredients and cookware to emojis]: :_default' \
+'--weights-file=[optional YAML/TOML/JSON ingredient density file for toGrams volume-to-weight conversion]: :_default' \
+'--link-dirs=[comma-separated recipe subdirectories eligible for linkRecipe cross-linking]: :_default' \
+'--required-metadata=[comma-separated metadata keys required by doctor --check-recipes (e.g. source,serves)]: :_default' \
 '--json[Output doctor report in JSON format]' \
+'--check-recipes[Validate recipe syntax, companion images, required metadata, and emoji mappings]' \
 '-d[don'\''t actually render any markdown files just print to stdout passed]' \
 '--dry-run[don'\''t actually render any markdown files just print to stdout passed]' \
 '-j[parse the recipe and display it in json format]' \
 '--jsonify[parse the recipe and display it in json format]' \
+'--merge[merge generated content into existing Markdown files without clobbering manual edits]' \
+'--force[force full overwrite of existing Markdown files even when --merge / merge is enabled]' \
 '-h[Print help]' \
 '--help[Print help]' \
+'*::doctor-files -- Optional recipe files or subdirectories to validate:_default' \
 && ret=0
 ;;
 (self-update)
@@ -177,6 +209,10 @@ _arguments "${_arguments_options[@]}" : \
 '--output-dir=[custom output directory to write generated markdown documentation]: :_default' \
 '--assets-dir=[optional directory to copy companion recipe images into (slug-named)]: :_default' \
 '--image-ext=[optional image extension override for Info.ImageSlug (e.g. webp)]: :_default' \
+'--emoji-file=[optional YAML/TOML/JSON file mapping ingredients and cookware to emojis]: :_default' \
+'--weights-file=[optional YAML/TOML/JSON ingredient density file for toGrams volume-to-weight conversion]: :_default' \
+'--link-dirs=[comma-separated recipe subdirectories eligible for linkRecipe cross-linking]: :_default' \
+'--required-metadata=[comma-separated metadata keys required by doctor --check-recipes (e.g. source,serves)]: :_default' \
 '--check[Check for available updates without installing]' \
 '-y[Skip confirmation prompt before installing]' \
 '--yes[Skip confirmation prompt before installing]' \
@@ -184,6 +220,8 @@ _arguments "${_arguments_options[@]}" : \
 '--dry-run[don'\''t actually render any markdown files just print to stdout passed]' \
 '-j[parse the recipe and display it in json format]' \
 '--jsonify[parse the recipe and display it in json format]' \
+'--merge[merge generated content into existing Markdown files without clobbering manual edits]' \
+'--force[force full overwrite of existing Markdown files even when --merge / merge is enabled]' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
