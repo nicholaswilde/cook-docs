@@ -209,6 +209,7 @@ Before completing any task:
 - [ ] `task lint` (`yamllint-rs .` and `cargo clippy -- -D warnings`) passes.
 - [ ] `task test` (`cargo test`) passes.
 - [ ] `task spellcheck` (`rtk typos --format brief`) passes.
+- [ ] `docs/` synced for added/changed/removed features; `task lint:md` (`rumdl check .`) and `uv run zensical build --clean` pass.
 
 ---
 

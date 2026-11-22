@@ -6,3 +6,4 @@
   3. **Refactor**: Clean up without changing behavior; re-verify `task fmt`, `task lint`, `task test`.
 - **Stack Constraints**: Retain `clap`, `figment`, `cooklang`, `gtmpl-ng`; preserve Go template compatibility and `.cookdocsignore` / `--output-dir` behavior.
 - **Cross-Test Guard**: Guard any child binary invocation in integration tests so `cross` targets skip gracefully when binfmt/sysroot absent.
+- **Docs Sync (`docs/`)**: When adding, updating, or removing CLI flags, config keys, template fields/helpers, or behavior, audit and update all affected `docs/` pages (`usage.md`, `configuration.md`, `templates.md`, `README.md`, `index.md`, `about.md`) plus `assets/config.example.toml`, `completions/*`, and `assets/cook-docs.1` when CLI/config changes; verify `task lint:md` (`rumdl check .`) and `uv run zensical build --clean`.
