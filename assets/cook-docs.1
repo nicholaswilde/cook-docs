@@ -1,10 +1,10 @@
 .ie \n(.g .ds Aq \(aq
 .el .ds Aq '
-.TH cook-docs 1  "cook-docs v0.9.2-1-geedf899" 
+.TH cook-docs 1  "cook-docs v0.9.4-2-g770fdc1-dirty" 
 .SH NAME
 cook\-docs \- cook\-docs automatically generates markdown documentation for cook recipes from template files
 .SH SYNOPSIS
-\fBcook\-docs\fR [\fB\-v\fR|\fB\-\-version\fR] [\fB\-C\fR|\fB\-\-config\fR] [\fB\-d\fR|\fB\-\-dry\-run\fR] [\fB\-j\fR|\fB\-\-jsonify\fR] [\fB\-i\fR|\fB\-\-ignore\-file\fR] [\fB\-c\fR|\fB\-\-recipe\-search\-root\fR] [\fB\-l\fR|\fB\-\-log\-level\fR] [\fB\-t\fR|\fB\-\-template\-files\fR] [\fB\-w\fR|\fB\-\-word\-wrap\fR] [\fB\-o\fR|\fB\-\-output\-dir\fR] [\fB\-\-watch\fR] [\fB\-\-debounce\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIsubcommands\fR]
+\fBcook\-docs\fR [\fB\-v\fR|\fB\-\-version\fR] [\fB\-C\fR|\fB\-\-config\fR] [\fB\-d\fR|\fB\-\-dry\-run\fR] [\fB\-j\fR|\fB\-\-jsonify\fR] [\fB\-i\fR|\fB\-\-ignore\-file\fR] [\fB\-c\fR|\fB\-\-recipe\-search\-root\fR] [\fB\-l\fR|\fB\-\-log\-level\fR] [\fB\-t\fR|\fB\-\-template\-files\fR] [\fB\-w\fR|\fB\-\-word\-wrap\fR] [\fB\-o\fR|\fB\-\-output\-dir\fR] [\fB\-\-assets\-dir\fR] [\fB\-\-image\-ext\fR] [\fB\-\-watch\fR] [\fB\-\-debounce\fR] [\fB\-h\fR|\fB\-\-help\fR] [\fIFILES\fR] [\fIsubcommands\fR]
 .SH DESCRIPTION
 cook\-docs automatically generates markdown documentation for cook recipes from template files
 .SH OPTIONS
@@ -39,6 +39,12 @@ word wrap line length for recipe steps section (default 120)
 \fB\-o\fR, \fB\-\-output\-dir\fR
 custom output directory to write generated markdown documentation
 .TP
+\fB\-\-assets\-dir\fR
+optional directory to copy companion recipe images into (slug\-named)
+.TP
+\fB\-\-image\-ext\fR
+optional image extension override for Info.ImageSlug (e.g. webp)
+.TP
 \fB\-\-watch\fR
 watch recipes and templates and re\-render automatically on changes
 .TP
@@ -47,6 +53,9 @@ debounce delay in milliseconds for watch mode (default 300)
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 Print help
+.TP
+[\fIFILES\fR]
+optional recipe files or subdirectories to render (mirrored relative to \-\-recipe\-search\-root)
 .SH SUBCOMMANDS
 .TP
 cook\-docs\-watch(1)
@@ -67,4 +76,4 @@ Check for and install the latest cook\-docs release from GitHub
 cook\-docs\-help(1)
 Print this message or the help of the given subcommand(s)
 .SH VERSION
-vv0.9.2\-1\-geedf899
+vv0.9.4\-2\-g770fdc1\-dirty

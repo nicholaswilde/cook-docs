@@ -1,6 +1,6 @@
 # Print an optspec for argparse to handle cmd's options that are independent of any subcommand.
 function __fish_cook_docs_global_optspecs
-    string join \n v/version C/config= d/dry-run j/jsonify i/ignore-file= c/recipe-search-root= l/log-level= t/template-files= w/word-wrap= o/output-dir= watch debounce= h/help
+    string join \n v/version C/config= d/dry-run j/jsonify i/ignore-file= c/recipe-search-root= l/log-level= t/template-files= w/word-wrap= o/output-dir= assets-dir= image-ext= watch debounce= h/help
 end
 
 function __fish_cook_docs_needs_command
@@ -31,18 +31,20 @@ complete -c cook-docs -n "__fish_cook_docs_needs_command" -s l -l log-level -d '
 complete -c cook-docs -n "__fish_cook_docs_needs_command" -s t -l template-files -d 'gotemplate file paths relative to each recipe directory from which documentation will be generated (default "recipe.md.gotmpl")' -r
 complete -c cook-docs -n "__fish_cook_docs_needs_command" -s w -l word-wrap -d 'word wrap line length for recipe steps section (default 120)' -r
 complete -c cook-docs -n "__fish_cook_docs_needs_command" -s o -l output-dir -d 'custom output directory to write generated markdown documentation' -r
+complete -c cook-docs -n "__fish_cook_docs_needs_command" -l assets-dir -d 'optional directory to copy companion recipe images into (slug-named)' -r
+complete -c cook-docs -n "__fish_cook_docs_needs_command" -l image-ext -d 'optional image extension override for Info.ImageSlug (e.g. webp)' -r
 complete -c cook-docs -n "__fish_cook_docs_needs_command" -l debounce -d 'debounce delay in milliseconds for watch mode (default 300)' -r
 complete -c cook-docs -n "__fish_cook_docs_needs_command" -s v -l version -d 'version for cook-docs'
 complete -c cook-docs -n "__fish_cook_docs_needs_command" -s d -l dry-run -d 'don\'t actually render any markdown files just print to stdout passed'
 complete -c cook-docs -n "__fish_cook_docs_needs_command" -s j -l jsonify -d 'parse the recipe and display it in json format'
 complete -c cook-docs -n "__fish_cook_docs_needs_command" -l watch -d 'watch recipes and templates and re-render automatically on changes'
 complete -c cook-docs -n "__fish_cook_docs_needs_command" -s h -l help -d 'Print help'
-complete -c cook-docs -n "__fish_cook_docs_needs_command" -f -a "watch" -d 'Watch recipes and templates and re-render automatically on changes'
-complete -c cook-docs -n "__fish_cook_docs_needs_command" -f -a "completions" -d 'Generate shell autocompletions script'
-complete -c cook-docs -n "__fish_cook_docs_needs_command" -f -a "man" -d 'Generate UNIX roff man page'
-complete -c cook-docs -n "__fish_cook_docs_needs_command" -f -a "doctor" -d 'Validate configuration, inputs, templates, and output permissions'
-complete -c cook-docs -n "__fish_cook_docs_needs_command" -f -a "self-update" -d 'Check for and install the latest cook-docs release from GitHub'
-complete -c cook-docs -n "__fish_cook_docs_needs_command" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
+complete -c cook-docs -n "__fish_cook_docs_needs_command" -a "watch" -d 'Watch recipes and templates and re-render automatically on changes'
+complete -c cook-docs -n "__fish_cook_docs_needs_command" -a "completions" -d 'Generate shell autocompletions script'
+complete -c cook-docs -n "__fish_cook_docs_needs_command" -a "man" -d 'Generate UNIX roff man page'
+complete -c cook-docs -n "__fish_cook_docs_needs_command" -a "doctor" -d 'Validate configuration, inputs, templates, and output permissions'
+complete -c cook-docs -n "__fish_cook_docs_needs_command" -a "self-update" -d 'Check for and install the latest cook-docs release from GitHub'
+complete -c cook-docs -n "__fish_cook_docs_needs_command" -a "help" -d 'Print this message or the help of the given subcommand(s)'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand watch" -l debounce -d 'debounce delay in milliseconds for watch mode (default 300)' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand watch" -s C -l config -d 'path to configuration file (TOML, YAML, or JSON)' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand watch" -s i -l ignore-file -d 'filename to use as an ignore file to exclude recipe directories (default ".cookdocsignore")' -r
@@ -51,6 +53,8 @@ complete -c cook-docs -n "__fish_cook_docs_using_subcommand watch" -s l -l log-l
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand watch" -s t -l template-files -d 'gotemplate file paths relative to each recipe directory from which documentation will be generated (default "recipe.md.gotmpl")' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand watch" -s w -l word-wrap -d 'word wrap line length for recipe steps section (default 120)' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand watch" -s o -l output-dir -d 'custom output directory to write generated markdown documentation' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand watch" -l assets-dir -d 'optional directory to copy companion recipe images into (slug-named)' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand watch" -l image-ext -d 'optional image extension override for Info.ImageSlug (e.g. webp)' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand watch" -s d -l dry-run -d 'don\'t actually render any markdown files just print to stdout passed'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand watch" -s j -l jsonify -d 'parse the recipe and display it in json format'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand watch" -s h -l help -d 'Print help'
@@ -61,6 +65,8 @@ complete -c cook-docs -n "__fish_cook_docs_using_subcommand completions" -s l -l
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand completions" -s t -l template-files -d 'gotemplate file paths relative to each recipe directory from which documentation will be generated (default "recipe.md.gotmpl")' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand completions" -s w -l word-wrap -d 'word wrap line length for recipe steps section (default 120)' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand completions" -s o -l output-dir -d 'custom output directory to write generated markdown documentation' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand completions" -l assets-dir -d 'optional directory to copy companion recipe images into (slug-named)' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand completions" -l image-ext -d 'optional image extension override for Info.ImageSlug (e.g. webp)' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand completions" -s d -l dry-run -d 'don\'t actually render any markdown files just print to stdout passed'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand completions" -s j -l jsonify -d 'parse the recipe and display it in json format'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand completions" -s h -l help -d 'Print help'
@@ -71,6 +77,8 @@ complete -c cook-docs -n "__fish_cook_docs_using_subcommand man" -s l -l log-lev
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand man" -s t -l template-files -d 'gotemplate file paths relative to each recipe directory from which documentation will be generated (default "recipe.md.gotmpl")' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand man" -s w -l word-wrap -d 'word wrap line length for recipe steps section (default 120)' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand man" -s o -l output-dir -d 'custom output directory to write generated markdown documentation' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand man" -l assets-dir -d 'optional directory to copy companion recipe images into (slug-named)' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand man" -l image-ext -d 'optional image extension override for Info.ImageSlug (e.g. webp)' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand man" -s d -l dry-run -d 'don\'t actually render any markdown files just print to stdout passed'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand man" -s j -l jsonify -d 'parse the recipe and display it in json format'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand man" -s h -l help -d 'Print help'
@@ -81,6 +89,8 @@ complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -s l -l log-
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -s t -l template-files -d 'gotemplate file paths relative to each recipe directory from which documentation will be generated (default "recipe.md.gotmpl")' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -s w -l word-wrap -d 'word wrap line length for recipe steps section (default 120)' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -s o -l output-dir -d 'custom output directory to write generated markdown documentation' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -l assets-dir -d 'optional directory to copy companion recipe images into (slug-named)' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -l image-ext -d 'optional image extension override for Info.ImageSlug (e.g. webp)' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -l json -d 'Output doctor report in JSON format'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -s d -l dry-run -d 'don\'t actually render any markdown files just print to stdout passed'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -s j -l jsonify -d 'parse the recipe and display it in json format'
@@ -93,6 +103,8 @@ complete -c cook-docs -n "__fish_cook_docs_using_subcommand self-update" -s l -l
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand self-update" -s t -l template-files -d 'gotemplate file paths relative to each recipe directory from which documentation will be generated (default "recipe.md.gotmpl")' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand self-update" -s w -l word-wrap -d 'word wrap line length for recipe steps section (default 120)' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand self-update" -s o -l output-dir -d 'custom output directory to write generated markdown documentation' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand self-update" -l assets-dir -d 'optional directory to copy companion recipe images into (slug-named)' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand self-update" -l image-ext -d 'optional image extension override for Info.ImageSlug (e.g. webp)' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand self-update" -l check -d 'Check for available updates without installing'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand self-update" -s y -l yes -d 'Skip confirmation prompt before installing'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand self-update" -s d -l dry-run -d 'don\'t actually render any markdown files just print to stdout passed'

@@ -19,7 +19,7 @@ const DEFAULT_DOCUMENTATION_TEMPLATE: &str = r#"{{ template "cook.headerSection"
 "#;
 
 fn get_header_template() -> String {
-    r#"{{ define "cook.headerSection" }}# {{ .Info.RecipeName }}{{ end }}"#.to_string()
+    r#"{{ define "cook.headerSection" }}# {{ if .Metadata.title }}{{ .Metadata.title }}{{ else }}{{ .Info.RecipeName }}{{ end }}{{ end }}"#.to_string()
 }
 
 fn get_image_template() -> String {
@@ -33,9 +33,9 @@ fn get_lazy_image_template() -> String {
 fn get_table_template() -> String {
     r#"{{ define "cook.tableSection" }}{{ if or .Metadata.servings .Metadata.serves }}| :fork_and_knife_with_plate: Serves | :timer_clock: Total Time |
 |:----------------------------------:|:-----------------------: |
-| {{ if .Metadata.servings }}{{ .Metadata.servings }}{{ else if .Metadata.serves }}{{ .Metadata.serves }}{{ end }} | {{ sumTimers .Steps }} |{{ else }}| :timer_clock: Total Time |
+| {{ if .Metadata.servings }}{{ .Metadata.servings }}{{ else if .Metadata.serves }}{{ .Metadata.serves }}{{ end }} | {{ totalTime .Metadata .Steps }} |{{ else }}| :timer_clock: Total Time |
 |:-----------------------: |
-| {{ sumTimers .Steps }} |{{ end }}{{ end }}"#.to_string()
+| {{ totalTime .Metadata .Steps }} |{{ end }}{{ end }}"#.to_string()
 }
 
 fn get_ingredients_template() -> String {
@@ -356,6 +356,130 @@ fn indent(args: &[Value]) -> Result<Value, FuncError> {
     Ok(Value::String(result))
 }
 
+fn total_time(args: &[Value]) -> Result<Value, FuncError> {
+    if args.is_empty() {
+        return Ok(Value::String(String::new()));
+    }
+    if let Value::Map(map) | Value::Object(map) = &args[0] {
+        for (k, v) in map {
+            let lower_key = k.to_ascii_lowercase();
+            if matches!(
+                lower_key.as_str(),
+                "total time" | "total_time" | "totaltime"
+            ) && let Value::String(s) = v
+                && !s.trim().is_empty()
+            {
+                return Ok(Value::String(s.trim().to_string()));
+            }
+        }
+    }
+    if args.len() >= 2 {
+        sum_timers(&args[1..])
+    } else {
+        sum_timers(args)
+    }
+}
+
+fn yaml_scalar(s: &str) -> String {
+    let lower = s.to_ascii_lowercase();
+    let needs_quote = s.is_empty()
+        || s != s.trim()
+        || matches!(
+            lower.as_str(),
+            "true" | "false" | "null" | "~" | "yes" | "no" | "on" | "off"
+        )
+        || s.parse::<f64>().is_ok()
+        || s.starts_with([
+            ':', '-', '?', '[', ']', '{', '}', '#', '&', '*', '!', '|', '>', '\'', '"', '%', '@',
+            '`',
+        ])
+        || s.contains(": ")
+        || s.contains(" #")
+        || s.contains('\n')
+        || s.contains('\r')
+        || s.contains('\t');
+
+    if needs_quote {
+        let escaped = s
+            .replace('\\', "\\\\")
+            .replace('"', "\\\"")
+            .replace('\n', "\\n")
+            .replace('\r', "\\r")
+            .replace('\t', "\\t");
+        format!("\"{escaped}\"")
+    } else {
+        s.to_string()
+    }
+}
+
+fn format_yaml_value(val: &Value, indent: usize) -> String {
+    let pad = " ".repeat(indent);
+    match val {
+        Value::Nil | Value::NoValue => "null".to_string(),
+        Value::Bool(b) => b.to_string(),
+        Value::Number(n) => n.to_string(),
+        Value::String(s) => yaml_scalar(s),
+        Value::Array(items) => {
+            if items.is_empty() {
+                return "[]".to_string();
+            }
+            let mut lines = Vec::with_capacity(items.len());
+            for item in items {
+                match item {
+                    Value::Array(_) | Value::Map(_) | Value::Object(_) => {
+                        let nested = format_yaml_value(item, indent + 2);
+                        let trimmed = nested
+                            .strip_prefix(&" ".repeat(indent + 2))
+                            .unwrap_or(&nested);
+                        lines.push(format!("{pad}- {trimmed}"));
+                    }
+                    _ => lines.push(format!("{pad}- {}", format_yaml_value(item, indent + 2))),
+                }
+            }
+            lines.join("\n")
+        }
+        Value::Map(map) | Value::Object(map) => {
+            if map.is_empty() {
+                return "{}".to_string();
+            }
+            let mut keys: Vec<&String> = map.keys().collect();
+            keys.sort();
+            let mut lines = Vec::with_capacity(keys.len());
+            for k in keys {
+                let v = &map[k];
+                let key_str = yaml_scalar(k);
+                match v {
+                    Value::Array(a) if !a.is_empty() => {
+                        lines.push(format!(
+                            "{pad}{key_str}:\n{}",
+                            format_yaml_value(v, indent + 2)
+                        ));
+                    }
+                    Value::Map(m) | Value::Object(m) if !m.is_empty() => {
+                        lines.push(format!(
+                            "{pad}{key_str}:\n{}",
+                            format_yaml_value(v, indent + 2)
+                        ));
+                    }
+                    _ => lines.push(format!(
+                        "{pad}{key_str}: {}",
+                        format_yaml_value(v, indent + 2)
+                    )),
+                }
+            }
+            lines.join("\n")
+        }
+        _ => yaml_scalar(&val.to_string()),
+    }
+}
+
+fn to_yaml(args: &[Value]) -> Result<Value, FuncError> {
+    if args.is_empty() || matches!(args[0], Value::Nil | Value::NoValue) {
+        return Ok(Value::String(String::new()));
+    }
+    Ok(Value::String(format_yaml_value(&args[0], 0)))
+}
+
 fn json_to_gtmpl(val: serde_json::Value) -> Value {
     match val {
         serde_json::Value::Null => Value::Nil,
@@ -405,6 +529,7 @@ fn apply_markdown_format(input: &str) -> String {
 }
 
 /// Resolve a single configured template entry to its on-disk path.
+/// Base filenames walk up parent directories toward `recipe_search_root` (inclusive).
 pub(crate) fn resolve_template_path(
     recipe_search_root: &str,
     recipe_path: &str,
@@ -416,6 +541,32 @@ pub(crate) fn resolve_template_path(
         let parent = Path::new(recipe_path)
             .parent()
             .unwrap_or_else(|| Path::new(""));
+        let search_root_raw = if recipe_search_root.is_empty() {
+            Path::new(".")
+        } else {
+            Path::new(recipe_search_root)
+        };
+        let search_root_canon = search_root_raw
+            .canonicalize()
+            .unwrap_or_else(|_| search_root_raw.to_path_buf());
+        let start_dir = parent
+            .canonicalize()
+            .unwrap_or_else(|_| parent.to_path_buf());
+
+        if start_dir.starts_with(&search_root_canon) {
+            let mut cursor: Option<&Path> = Some(&start_dir);
+            while let Some(dir) = cursor {
+                let candidate = dir.join(template_file);
+                if candidate.is_file() {
+                    return candidate;
+                }
+                if dir == search_root_canon {
+                    break;
+                }
+                cursor = dir.parent();
+            }
+        }
+
         parent.join(template_file)
     } else {
         PathBuf::from(template_file)
@@ -506,6 +657,14 @@ pub(crate) fn build_documentation_template(
             "sumTimers",
             sum_timers as fn(&[Value]) -> Result<Value, FuncError>,
         ),
+        (
+            "totalTime",
+            total_time as fn(&[Value]) -> Result<Value, FuncError>,
+        ),
+        (
+            "toYaml",
+            to_yaml as fn(&[Value]) -> Result<Value, FuncError>,
+        ),
         ("lower", lower as fn(&[Value]) -> Result<Value, FuncError>),
         (
             "replace",
@@ -528,14 +687,53 @@ pub(crate) fn build_documentation_template(
     Ok(doc_template)
 }
 
+fn copy_recipe_asset(recipe: &Recipe) {
+    if recipe.config.assets_dir.is_empty() || recipe.info.image_file_path.is_empty() {
+        return;
+    }
+
+    let src = Path::new(&recipe.info.image_file_path);
+    if !src.is_file() {
+        return;
+    }
+
+    let dest_dir = Path::new(&recipe.config.assets_dir);
+    if let Err(e) = fs::create_dir_all(dest_dir) {
+        log::warn!(
+            "Could not create assets directory {}: {}",
+            dest_dir.display(),
+            e
+        );
+        return;
+    }
+
+    // Preserve actual source file extension when copying bytes
+    let dest_name = crate::cook::build_image_slug(&recipe.info.image_file_name, "");
+    if dest_name.is_empty() {
+        return;
+    }
+
+    let dest = dest_dir.join(dest_name);
+    if let (Ok(src_canon), Ok(dest_canon)) = (src.canonicalize(), dest.canonicalize())
+        && src_canon == dest_canon
+    {
+        return;
+    }
+
+    if let Err(e) = fs::copy(src, &dest) {
+        log::warn!(
+            "Error copying recipe image {} to {}: {}",
+            src.display(),
+            dest.display(),
+            e
+        );
+    }
+}
+
 pub fn print_documentation(recipe: &Recipe) {
     if recipe.config.jsonify {
-        log::info!(
-            "Printing json output for recipe {}",
-            recipe.info.new_recipe_file_path
-        );
         if let Ok(j) = serde_json::to_string_pretty(recipe) {
-            log::info!("{}", j);
+            println!("{}", j);
         }
         return;
     }
@@ -610,7 +808,9 @@ pub fn print_documentation(recipe: &Recipe) {
                 recipe.info.new_recipe_file_path,
                 e
             );
+            return;
         }
+        copy_recipe_asset(recipe);
     }
 }
 
@@ -697,6 +897,7 @@ mod tests {
                 comments: vec!["Stir gently".to_string()],
             }],
             metadata,
+            frontmatter: std::collections::BTreeMap::new(),
             config: Config {
                 dry_run,
                 jsonify,
@@ -706,13 +907,20 @@ mod tests {
                 template_files: vec!["recipe.md.gotmpl".to_string()],
                 word_wrap: 25,
                 output_dir: "".to_string(),
+                assets_dir: "".to_string(),
+                image_ext: "".to_string(),
+                recipe_files: Vec::new(),
             },
             info: Info {
                 image_file_name: "My Recipe.png".to_string(),
                 image_file_path: dir.join("My Recipe.png").to_string_lossy().to_string(),
+                image_slug: "my-recipe.png".to_string(),
                 new_recipe_file_path: dir.join("my-recipe.md").to_string_lossy().to_string(),
                 recipe_name: "My Recipe".to_string(),
+                recipe_slug: "my-recipe".to_string(),
                 recipe_file_path: dir.join("My Recipe.cook").to_string_lossy().to_string(),
+                rel_root: ".".to_string(),
+                categories: Vec::new(),
             },
         }
     }
@@ -1078,5 +1286,61 @@ mod tests {
             }
             let _ = fs::set_permissions(&unreadable, fs::Permissions::from_mode(0o644));
         }
+    }
+
+    #[test]
+    fn test_total_time_and_to_yaml_helpers() {
+        // totalTime prefers metadata total time, otherwise falls back to sumTimers
+        let mut meta = std::collections::HashMap::new();
+        meta.insert(
+            "Total Time".to_string(),
+            Value::String("2 hours".to_string()),
+        );
+        let steps = Value::Array(vec![]);
+        assert_eq!(
+            total_time(&[Value::Map(meta), steps.clone()]).unwrap(),
+            Value::String("2 hours".to_string())
+        );
+        assert_eq!(
+            total_time(&[Value::Map(std::collections::HashMap::new()), steps]).unwrap(),
+            Value::String("0 minutes".to_string())
+        );
+        assert_eq!(total_time(&[]).unwrap(), Value::String(String::new()));
+
+        // toYaml handles empty/nil, scalars (plain + quoted), lists, and nested maps
+        assert_eq!(to_yaml(&[]).unwrap(), Value::String(String::new()));
+        assert_eq!(
+            to_yaml(&[Value::Nil]).unwrap(),
+            Value::String(String::new())
+        );
+        assert_eq!(
+            to_yaml(&[Value::String(":pie: Tart".to_string())]).unwrap(),
+            Value::String("\":pie: Tart\"".to_string())
+        );
+        assert_eq!(
+            to_yaml(&[Value::String("true".to_string())]).unwrap(),
+            Value::String("\"true\"".to_string())
+        );
+        assert_eq!(
+            to_yaml(&[Value::Array(vec![])]).unwrap(),
+            Value::String("[]".to_string())
+        );
+        let mut map = std::collections::HashMap::new();
+        map.insert("comments".to_string(), Value::Bool(true));
+        map.insert("serves".to_string(), Value::Number(8i64.into()));
+        map.insert(
+            "tags".to_string(),
+            Value::Array(vec![
+                Value::String("bread".to_string()),
+                Value::String("quick: easy".to_string()),
+            ]),
+        );
+        let yaml = to_yaml(&[Value::Map(map)]).unwrap();
+        assert_eq!(
+            yaml,
+            Value::String(
+                "comments: true\nserves: 8\ntags:\n  - bread\n  - \"quick: easy\"".to_string()
+            )
+        );
     }
 }

@@ -108,9 +108,13 @@ fn main() {
     let search_root = cook_docs::resolve_search_root(&config.recipe_search_root);
 
     // 4. Find recipe paths
-    let search_root_str = search_root.to_string_lossy();
-    let recipe_paths =
-        cook_docs::cook::find_recipe_file_paths(&search_root_str, &config.ignore_file);
+    let recipe_paths = match cook_docs::cook::resolve_recipe_paths(&search_root, &config) {
+        Ok(paths) => paths,
+        Err(e) => {
+            eprintln!("{}", e);
+            std::process::exit(1);
+        }
+    };
 
     let recipe_paths_strs: Vec<String> = recipe_paths
         .iter()
@@ -152,6 +156,9 @@ mod tests {
             template_files: vec!["recipe.md.gotmpl".to_string()],
             word_wrap: 120,
             output_dir: "".to_string(),
+            assets_dir: "".to_string(),
+            image_ext: "".to_string(),
+            recipe_files: Vec::new(),
         };
 
         assert!(cook_docs::render_recipe(&recipe.to_string_lossy(), &cfg).is_ok());

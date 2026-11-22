@@ -642,6 +642,9 @@ mod tests {
             template_files: vec!["recipe.md.gotmpl".to_string()],
             word_wrap: 120,
             output_dir: out.to_string_lossy().to_string(),
+            assets_dir: "".to_string(),
+            image_ext: "".to_string(),
+            recipe_files: Vec::new(),
         };
 
         let report_ok = run_doctor(None, &Ok(cfg.clone()));
@@ -838,6 +841,9 @@ mod tests {
             template_files: vec!["recipe.md.gotmpl".to_string()],
             word_wrap: 120,
             output_dir: "".to_string(),
+            assets_dir: "".to_string(),
+            image_ext: "".to_string(),
+            recipe_files: Vec::new(),
         };
         let cfg_file = dir.join(".cookdocs.toml");
         let rep = run_doctor(Some(&cfg_file), &Ok(cfg));

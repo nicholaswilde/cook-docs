@@ -19,11 +19,11 @@ the markdown files using `cook-docs` and publish them to my
 
 The way that `cook-docs` works is similar to `helm-docs` where it crawls through
 the working directory and its sub folders and looks for any `*.cook` files and
-`recipe.md.gotmpl` template files to process. This mode of operation is preferred
-over specifying each recipe file to process to help with automation. However,
-this requires the user to be diligent in how, when, and where they are using
-`cook-docs`. See [ignoring recipe directories][8] for how to ignore directories
-and files.
+`recipe.md.gotmpl` template files to process (with base template names walking up
+parent directories to `--recipe-search-root`). You can also pass specific `.cook`
+files or subdirectories as positional arguments while keeping `--recipe-search-root`
+as the base for mirrored `--output-dir` paths. See [ignoring recipe directories][8]
+for how to exclude directories and files.
 
 [1]: https://cooklang.org/
 [2]: https://squidfunk.github.io/mkdocs-material/

@@ -15,14 +15,17 @@ Here is a list of the supported parameters:
 | -d, --dry-run                   | COOK_DOCS_DRY_RUN            | dry_run          | false              | don't actually render any markdown files just print to stdout                                    |
 | -h, --help                      | N/A                          | N/A              | N/A                | help for cook-docs                                                                               |
 | -i, --ignore-file string        | COOK_DOCS_IGNORE_FILE        | ignore_file      | .cookdocsignore    | filename to use as an ignore file to exclude recipe directories                                  |
-| -j, --jsonify                   | COOK_DOCS_JSONIFY            | jsonify          | false              | parse the recipe and display it in json format                                                   |
+| -j, --jsonify                   | COOK_DOCS_JSONIFY            | jsonify          | false              | parse recipes and print raw JSON to stdout (object for one recipe, array otherwise)              |
 | -l, --log-level string          | COOK_DOCS_LOG_LEVEL          | log_level        | info               | level of logs that should be printed, one of (trace, debug, info, warn, warning, error)          |
 | -o, --output-dir string         | COOK_DOCS_OUTPUT_DIR         | output_dir       | ""                 | custom output directory to write generated markdown documentation                                |
-| -c, --recipe-search-root string | COOK_DOCS_RECIPE_SEARCH_ROOT | recipe_search_root | .                | directory to search recursively within for recipes                                               |
-| -t, --template-files strings    | COOK_DOCS_TEMPLATE_FILES     | template_files   | [recipe.md.gotmpl] | gotemplate file paths relative to each recipe directory from which documentation will be generated |
+| --assets-dir string             | COOK_DOCS_ASSETS_DIR         | assets_dir       | ""                 | optional directory to copy companion recipe images into (slug-named)                             |
+| --image-ext string              | COOK_DOCS_IMAGE_EXT          | image_ext        | ""                 | optional image extension override for `Info.ImageSlug` (e.g. `webp`)                             |
+| -c, --recipe-search-root string | COOK_DOCS_RECIPE_SEARCH_ROOT | recipe_search_root | .                | directory to search recursively within for recipes (and base root for mirrored output paths)     |
+| -t, --template-files strings    | COOK_DOCS_TEMPLATE_FILES     | template_files   | `[recipe.md.gotmpl]` | gotemplate file paths (base names walk up parent dirs to `recipe_search_root`)                   |
 | -w, --word-wrap int             | COOK_DOCS_WORD_WRAP          | word_wrap        | 120                | word wrap line length for recipe steps section                                                   |
 | --watch                         | N/A                          | N/A              | false              | watch recipes and templates and re-render automatically on changes                               |
 | --debounce MS                   | N/A                          | N/A              | 300                | debounce delay in milliseconds for watch mode                                                    |
+| `[FILES]...`                    | N/A                          | N/A              | `[]`               | optional `.cook` files or subdirectories to render (mirrored relative to `recipe_search_root`)   |
 | -v, --version                   | N/A                          | N/A              | N/A                | display the version of cook-docs                                                                 |
 
 ## Config Files
@@ -43,8 +46,10 @@ When no explicit config path is provided, `cook-docs` looks for `.cookdocs.toml`
 - `./`
 
 ```toml title=".cookdocs.toml"
+assets_dir = ""
 dry_run = false
 ignore_file = ".cookdocsignore"
+image_ext = ""
 jsonify = false
 log_level = "info"
 output_dir = ""
@@ -55,8 +60,10 @@ word_wrap = 120
 
 ```yaml title=".cookdocs.yaml"
 ---
+assetsDir: ""
 dryRun: false
 ignoreFile: .cookdocsignore
+imageExt: ""
 jsonify: false
 logLevel: info
 outputDir: ""
@@ -68,8 +75,10 @@ wordWrap: 120
 
 ```json title=".cookdocs.json"
 {
+  "assets_dir": "",
   "dry_run": false,
   "ignore_file": ".cookdocsignore",
+  "image_ext": "",
   "jsonify": false,
   "log_level": "info",
   "output_dir": "",

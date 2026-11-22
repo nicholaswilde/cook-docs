@@ -43,8 +43,12 @@ A fast Rust CLI for automatically generating Markdown documentation from [Cookla
 
 ```bash title="Run binary directly"
 cook-docs
+# Render a single recipe into a mirrored output dir and copy companion images
+cook-docs -c ./cook -o ./docs --assets-dir ./docs/assets/images ./cook/breads/Bagels.cook
 # Preview generated Markdown on stdout without writing files
 cook-docs --dry-run
+# Inspect parsed recipes as clean JSON on stdout
+cook-docs --jsonify
 # Watch recipes & templates and re-render automatically on save
 cook-docs watch
 # Validate config, templates, and permissions

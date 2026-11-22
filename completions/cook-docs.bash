@@ -59,7 +59,7 @@ _cook__docs() {
 
     case "${cmd}" in
         cook__docs)
-            opts="-v -C -d -j -i -c -l -t -w -o -h --version --config --dry-run --jsonify --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --watch --debounce --help watch completions man doctor self-update help"
+            opts="-v -C -d -j -i -c -l -t -w -o -h --version --config --dry-run --jsonify --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --assets-dir --image-ext --watch --debounce --help watch completions man doctor self-update help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 1 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -121,6 +121,14 @@ _cook__docs() {
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
+                --assets-dir)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --image-ext)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
                 --debounce)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
@@ -133,7 +141,7 @@ _cook__docs() {
             return 0
             ;;
         cook__subcmd__docs__subcmd__completions)
-            opts="-C -d -j -i -c -l -t -w -o -h --config --dry-run --jsonify --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --help bash elvish fish powershell zsh"
+            opts="-C -d -j -i -c -l -t -w -o -h --config --dry-run --jsonify --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --assets-dir --image-ext --help bash elvish fish powershell zsh"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -192,6 +200,14 @@ _cook__docs() {
                     return 0
                     ;;
                 -o)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --assets-dir)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --image-ext)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
@@ -203,7 +219,7 @@ _cook__docs() {
             return 0
             ;;
         cook__subcmd__docs__subcmd__doctor)
-            opts="-C -d -j -i -c -l -t -w -o -h --json --config --dry-run --jsonify --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --help"
+            opts="-C -d -j -i -c -l -t -w -o -h --json --config --dry-run --jsonify --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --assets-dir --image-ext --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -262,6 +278,14 @@ _cook__docs() {
                     return 0
                     ;;
                 -o)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --assets-dir)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --image-ext)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
@@ -371,7 +395,7 @@ _cook__docs() {
             return 0
             ;;
         cook__subcmd__docs__subcmd__man)
-            opts="-C -d -j -i -c -l -t -w -o -h --config --dry-run --jsonify --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --help"
+            opts="-C -d -j -i -c -l -t -w -o -h --config --dry-run --jsonify --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --assets-dir --image-ext --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -433,6 +457,14 @@ _cook__docs() {
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
+                --assets-dir)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --image-ext)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
                 *)
                     COMPREPLY=()
                     ;;
@@ -441,7 +473,7 @@ _cook__docs() {
             return 0
             ;;
         cook__subcmd__docs__subcmd__self__subcmd__update)
-            opts="-y -C -d -j -i -c -l -t -w -o -h --check --yes --version --config --dry-run --jsonify --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --help"
+            opts="-y -C -d -j -i -c -l -t -w -o -h --check --yes --version --config --dry-run --jsonify --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --assets-dir --image-ext --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -507,6 +539,14 @@ _cook__docs() {
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
+                --assets-dir)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --image-ext)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
                 *)
                     COMPREPLY=()
                     ;;
@@ -515,7 +555,7 @@ _cook__docs() {
             return 0
             ;;
         cook__subcmd__docs__subcmd__watch)
-            opts="-C -d -j -i -c -l -t -w -o -h --debounce --config --dry-run --jsonify --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --help"
+            opts="-C -d -j -i -c -l -t -w -o -h --debounce --config --dry-run --jsonify --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --assets-dir --image-ext --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -578,6 +618,14 @@ _cook__docs() {
                     return 0
                     ;;
                 -o)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --assets-dir)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --image-ext)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;

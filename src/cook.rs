@@ -1,7 +1,8 @@
 use ignore::gitignore::GitignoreBuilder;
 use log::{debug, warn};
+use std::collections::{BTreeMap, HashSet};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 use walkdir::WalkDir;
 
@@ -35,20 +36,30 @@ pub fn get_recipe_name(recipe_path: &str) -> String {
         .to_string()
 }
 
-pub fn get_new_recipe_path(
-    recipe_path: &str,
-    recipe_name: &str,
-    config: &crate::types::Config,
-) -> PathBuf {
-    let file_name = format!("{}.md", recipe_name.replace(' ', "-").to_lowercase());
+pub fn slugify_filename(name: &str) -> String {
+    name.replace(' ', "-").to_lowercase()
+}
 
-    if config.output_dir.is_empty() {
-        let parent = Path::new(recipe_path)
-            .parent()
-            .unwrap_or_else(|| Path::new(""));
-        return parent.join(file_name);
+pub fn build_image_slug(image_file_name: &str, image_ext_override: &str) -> String {
+    if image_file_name.is_empty() {
+        return String::new();
     }
+    let slug = slugify_filename(image_file_name);
+    let ext = image_ext_override
+        .trim()
+        .trim_start_matches('.')
+        .to_ascii_lowercase();
+    if ext.is_empty() {
+        return slug;
+    }
+    let stem = Path::new(&slug)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or(&slug);
+    format!("{stem}.{ext}")
+}
 
+fn relative_recipe_dir(recipe_path: &str, config: &crate::types::Config) -> Option<PathBuf> {
     let search_root = if config.recipe_search_root.is_empty() {
         "."
     } else {
@@ -62,12 +73,29 @@ pub fn get_new_recipe_path(
         .canonicalize()
         .unwrap_or_else(|_| PathBuf::from(recipe_path));
 
-    match abs_recipe_path.strip_prefix(&abs_search_root) {
-        Ok(rel) => {
-            let rel_dir = rel.parent().unwrap_or_else(|| Path::new(""));
-            Path::new(&config.output_dir).join(rel_dir).join(file_name)
-        }
-        Err(_) => Path::new(&config.output_dir).join(file_name),
+    abs_recipe_path
+        .strip_prefix(&abs_search_root)
+        .ok()
+        .map(|rel| rel.parent().unwrap_or_else(|| Path::new("")).to_path_buf())
+}
+
+pub fn get_new_recipe_path(
+    recipe_path: &str,
+    recipe_name: &str,
+    config: &crate::types::Config,
+) -> PathBuf {
+    let file_name = format!("{}.md", slugify_filename(recipe_name));
+
+    if config.output_dir.is_empty() {
+        let parent = Path::new(recipe_path)
+            .parent()
+            .unwrap_or_else(|| Path::new(""));
+        return parent.join(file_name);
+    }
+
+    match relative_recipe_dir(recipe_path, config) {
+        Some(rel_dir) => Path::new(&config.output_dir).join(rel_dir).join(file_name),
+        None => Path::new(&config.output_dir).join(file_name),
     }
 }
 
@@ -76,16 +104,11 @@ pub fn get_image_path(recipe_path: &str, recipe_name: &str) -> Option<PathBuf> {
         .parent()
         .unwrap_or_else(|| Path::new(""));
 
-    // Check JPG first
-    let jpg_path = parent.join(format!("{}.jpg", recipe_name));
-    if jpg_path.exists() {
-        return Some(jpg_path);
-    }
-
-    // Check PNG second
-    let png_path = parent.join(format!("{}.png", recipe_name));
-    if png_path.exists() {
-        return Some(png_path);
+    for ext in ["webp", "jpg", "jpeg", "png"] {
+        let candidate = parent.join(format!("{}.{}", recipe_name, ext));
+        if candidate.exists() {
+            return Some(candidate);
+        }
     }
 
     warn!("Image file {} missing.", parent.join(recipe_name).display());
@@ -148,19 +171,91 @@ pub fn find_recipe_file_paths(recipe_search_root: &str, ignore_file: &str) -> Ve
         }
     }
 
+    recipe_paths.sort();
     recipe_paths
+}
+
+pub fn resolve_recipe_paths(
+    search_root: &Path,
+    config: &crate::types::Config,
+) -> Result<Vec<PathBuf>, String> {
+    if config.recipe_files.is_empty() {
+        return Ok(find_recipe_file_paths(
+            &search_root.to_string_lossy(),
+            &config.ignore_file,
+        ));
+    }
+
+    let mut seen = HashSet::new();
+    let mut recipe_paths = Vec::new();
+    let mut push_unique = |path: PathBuf| {
+        let key = path.canonicalize().unwrap_or_else(|_| path.clone());
+        if seen.insert(key) {
+            recipe_paths.push(path);
+        }
+    };
+
+    for raw in &config.recipe_files {
+        let direct = PathBuf::from(raw);
+        let resolved = if direct.exists() {
+            direct
+        } else {
+            let joined = search_root.join(raw);
+            if joined.exists() {
+                joined
+            } else {
+                return Err(format!("Recipe path '{}' not found", raw));
+            }
+        };
+
+        if resolved.is_file() {
+            if resolved.extension().is_some_and(|ext| ext == "cook") {
+                push_unique(resolved);
+            } else {
+                return Err(format!("Recipe file '{}' must have a .cook extension", raw));
+            }
+        } else if resolved.is_dir() {
+            for found in find_recipe_file_paths(&resolved.to_string_lossy(), &config.ignore_file) {
+                push_unique(found);
+            }
+        } else {
+            return Err(format!("Recipe path '{}' is not a file or directory", raw));
+        }
+    }
+
+    Ok(recipe_paths)
 }
 
 pub fn parse_file(
     recipe_path: &str,
     config: &crate::types::Config,
 ) -> Result<crate::types::Recipe, String> {
+    let recipe_name = get_recipe_name(recipe_path);
+    let recipe_slug = slugify_filename(&recipe_name);
+    let categories: Vec<String> = relative_recipe_dir(recipe_path, config)
+        .unwrap_or_default()
+        .components()
+        .filter_map(|c| match c {
+            Component::Normal(s) => Some(s.to_string_lossy().to_string()),
+            _ => None,
+        })
+        .collect();
+    let rel_root = if categories.is_empty() {
+        ".".to_string()
+    } else {
+        vec![".."; categories.len()].join("/")
+    };
+
     let mut info = crate::types::Info {
         recipe_file_path: recipe_path.to_string(),
-        recipe_name: get_recipe_name(recipe_path),
+        recipe_name,
+        recipe_slug,
         new_recipe_file_path: "".to_string(),
         image_file_path: "".to_string(),
         image_file_name: "".to_string(),
+        image_slug: "".to_string(),
+        rel_root,
+        categories,
     };
 
     info.new_recipe_file_path = get_new_recipe_path(recipe_path, &info.recipe_name, config)
@@ -174,6 +269,7 @@ pub fn parse_file(
             .and_then(|f| f.to_str())
             .unwrap_or("")
             .to_string();
+        info.image_slug = build_image_slug(&info.image_file_name, &config.image_ext);
     }
 
     let content = fs::read_to_string(recipe_path)
@@ -187,6 +283,7 @@ pub fn parse_file(
         .ok_or_else(|| "Failed to parse recipe content".to_string())?;
 
     let mut metadata = std::collections::HashMap::new();
+    let mut frontmatter = BTreeMap::new();
     for (k, v) in &parsed_recipe.metadata.map {
         let key_str = if let Some(s) = k.as_str() {
             s.to_string()
@@ -204,6 +301,9 @@ pub fn parse_file(
         } else {
             serde_json::to_string(v).unwrap_or_default()
         };
+        if let Ok(json_val) = serde_json::to_value(v) {
+            frontmatter.insert(key_str.clone(), json_val);
+        }
         metadata.insert(key_str, val_str);
     }
 
@@ -314,7 +414,7 @@ pub fn parse_file(
                                     let u = qty.unit().unwrap_or("").to_string();
                                     (val.0, val.1, val.2, u)
                                 } else {
-                                    (false, 1.0, String::new(), String::new())
+                                    (false, 0.0, String::new(), String::new())
                                 };
 
                                 ingredients.push(crate::types::Ingredient {
@@ -496,6 +596,7 @@ pub fn parse_file(
     Ok(crate::types::Recipe {
         steps,
         metadata,
+        frontmatter,
         config: config.clone(),
         info,
     })
@@ -541,6 +642,9 @@ mod tests {
             template_files: vec!["recipe.md.gotmpl".to_string()],
             word_wrap: 120,
             output_dir: "".to_string(),
+            assets_dir: "".to_string(),
+            image_ext: "".to_string(),
+            recipe_files: Vec::new(),
         }
     }
 
@@ -793,5 +897,100 @@ Bake at 180°C for ~{10-15%minutes}.
             PathBuf::from("/tmp/out/sub/soup.md")
         );
         assert_eq!(get_image_path("/", "Missing"), None);
+    }
+
+    #[test]
+    fn test_image_discovery_webp_jpeg_and_slug_builder() {
+        let dir = TempDir::new("img_slug");
+        let cook_path = dir.0.join("My Dish.cook");
+        fs::write(&cook_path, "Season with @salt{}.").unwrap();
+
+        assert_eq!(build_image_slug("", ""), "");
+        assert_eq!(build_image_slug("My Dish.JPG", ""), "my-dish.jpg");
+        assert_eq!(build_image_slug("My Dish.jpg", ".WEBP"), "my-dish.webp");
+
+        // .png only
+        fs::write(dir.0.join("My Dish.png"), b"p").unwrap();
+        assert!(
+            get_image_path(&cook_path.to_string_lossy(), "My Dish")
+                .unwrap()
+                .ends_with("My Dish.png")
+        );
+
+        // .jpeg beats .png
+        fs::write(dir.0.join("My Dish.jpeg"), b"j").unwrap();
+        assert!(
+            get_image_path(&cook_path.to_string_lossy(), "My Dish")
+                .unwrap()
+                .ends_with("My Dish.jpeg")
+        );
+
+        // .jpg beats .jpeg
+        fs::write(dir.0.join("My Dish.jpg"), b"j").unwrap();
+        assert!(
+            get_image_path(&cook_path.to_string_lossy(), "My Dish")
+                .unwrap()
+                .ends_with("My Dish.jpg")
+        );
+
+        // .webp beats .jpg
+        fs::write(dir.0.join("My Dish.webp"), b"w").unwrap();
+        assert!(
+            get_image_path(&cook_path.to_string_lossy(), "My Dish")
+                .unwrap()
+                .ends_with("My Dish.webp")
+        );
+
+        let mut cfg = default_config();
+        cfg.image_ext = "png".to_string();
+        let parsed = parse_file(&cook_path.to_string_lossy(), &cfg).unwrap();
+        assert_eq!(parsed.info.image_file_name, "My Dish.webp");
+        assert_eq!(parsed.info.image_slug, "my-dish.png");
+        assert_eq!(parsed.steps[0].ingredients[0].amount.quantity, 0.0);
+        assert!(!parsed.steps[0].ingredients[0].amount.is_numeric);
+    }
+
+    #[test]
+    fn test_resolve_recipe_paths_files_dirs_dedupe_and_errors() {
+        let dir = TempDir::new("resolve_paths");
+        let breads = dir.0.join("breads");
+        let soups = dir.0.join("soups");
+        fs::create_dir_all(&breads).unwrap();
+        fs::create_dir_all(&soups).unwrap();
+        let bagels = breads.join("Bagels.cook");
+        let chili = soups.join("Chili.cook");
+        let notes = breads.join("notes.txt");
+        fs::write(&bagels, "Bake @flour{500%g}.").unwrap();
+        fs::write(&chili, "Simmer @beans{1%can}.").unwrap();
+        fs::write(&notes, "plain text").unwrap();
+
+        let mut cfg = default_config();
+        cfg.recipe_search_root = dir.0.to_string_lossy().to_string();
+        cfg.ignore_file = String::new();
+
+        // Duplicate entries (absolute + relative to search_root + subdir) deduped
+        cfg.recipe_files = vec![
+            bagels.to_string_lossy().to_string(),
+            "breads/Bagels.cook".to_string(),
+            "soups".to_string(),
+        ];
+        let resolved = resolve_recipe_paths(&dir.0, &cfg).unwrap();
+        assert_eq!(resolved.len(), 2);
+
+        // Non-.cook file rejected
+        cfg.recipe_files = vec!["breads/notes.txt".to_string()];
+        assert!(
+            resolve_recipe_paths(&dir.0, &cfg)
+                .unwrap_err()
+                .contains(".cook")
+        );
+
+        // Missing file rejected
+        cfg.recipe_files = vec!["breads/Missing.cook".to_string()];
+        assert!(
+            resolve_recipe_paths(&dir.0, &cfg)
+                .unwrap_err()
+                .contains("not found")
+        );
     }
 }

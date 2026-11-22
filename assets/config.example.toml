@@ -31,6 +31,14 @@
 # CLI: -o, --output-dir <DIR> | Env: COOK_DOCS_OUTPUT_DIR
 # output_dir = ""
 
+# Optional directory to copy companion recipe images into (slug-named).
+# CLI: --assets-dir <DIR> | Env: COOK_DOCS_ASSETS_DIR
+# assets_dir = ""
+
+# Optional image extension override for Info.ImageSlug (e.g. "webp").
+# CLI: --image-ext <EXT> | Env: COOK_DOCS_IMAGE_EXT
+# image_ext = ""
+
 # Do not write any Markdown files to disk; print rendered output to stdout instead.
 # CLI: -d, --dry-run | Env: COOK_DOCS_DRY_RUN
 # dry_run = false

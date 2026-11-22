@@ -29,6 +29,8 @@ _cook-docs() {
 '--word-wrap=[word wrap line length for recipe steps section (default 120)]: :_default' \
 '-o+[custom output directory to write generated markdown documentation]: :_default' \
 '--output-dir=[custom output directory to write generated markdown documentation]: :_default' \
+'--assets-dir=[optional directory to copy companion recipe images into (slug-named)]: :_default' \
+'--image-ext=[optional image extension override for Info.ImageSlug (e.g. webp)]: :_default' \
 '--debounce=[debounce delay in milliseconds for watch mode (default 300)]:MS:_default' \
 '-v[version for cook-docs]' \
 '--version[version for cook-docs]' \
@@ -39,15 +41,16 @@ _cook-docs() {
 '--watch[watch recipes and templates and re-render automatically on changes]' \
 '-h[Print help]' \
 '--help[Print help]' \
+'::files -- optional recipe files or subdirectories to render (mirrored relative to --recipe-search-root):_default' \
 ":: :_cook-docs_commands" \
 "*::: :->cook-docs" \
 && ret=0
     case $state in
     (cook-docs)
-        words=($line[1] "${words[@]}")
+        words=($line[2] "${words[@]}")
         (( CURRENT += 1 ))
-        curcontext="${curcontext%:*:*}:cook-docs-command-$line[1]:"
-        case $line[1] in
+        curcontext="${curcontext%:*:*}:cook-docs-command-$line[2]:"
+        case $line[2] in
             (watch)
 _arguments "${_arguments_options[@]}" : \
 '--debounce=[debounce delay in milliseconds for watch mode (default 300)]:MS:_default' \
@@ -65,6 +68,8 @@ _arguments "${_arguments_options[@]}" : \
 '--word-wrap=[word wrap line length for recipe steps section (default 120)]: :_default' \
 '-o+[custom output directory to write generated markdown documentation]: :_default' \
 '--output-dir=[custom output directory to write generated markdown documentation]: :_default' \
+'--assets-dir=[optional directory to copy companion recipe images into (slug-named)]: :_default' \
+'--image-ext=[optional image extension override for Info.ImageSlug (e.g. webp)]: :_default' \
 '-d[don'\''t actually render any markdown files just print to stdout passed]' \
 '--dry-run[don'\''t actually render any markdown files just print to stdout passed]' \
 '-j[parse the recipe and display it in json format]' \
@@ -89,6 +94,8 @@ _arguments "${_arguments_options[@]}" : \
 '--word-wrap=[word wrap line length for recipe steps section (default 120)]: :_default' \
 '-o+[custom output directory to write generated markdown documentation]: :_default' \
 '--output-dir=[custom output directory to write generated markdown documentation]: :_default' \
+'--assets-dir=[optional directory to copy companion recipe images into (slug-named)]: :_default' \
+'--image-ext=[optional image extension override for Info.ImageSlug (e.g. webp)]: :_default' \
 '-d[don'\''t actually render any markdown files just print to stdout passed]' \
 '--dry-run[don'\''t actually render any markdown files just print to stdout passed]' \
 '-j[parse the recipe and display it in json format]' \
@@ -114,6 +121,8 @@ _arguments "${_arguments_options[@]}" : \
 '--word-wrap=[word wrap line length for recipe steps section (default 120)]: :_default' \
 '-o+[custom output directory to write generated markdown documentation]: :_default' \
 '--output-dir=[custom output directory to write generated markdown documentation]: :_default' \
+'--assets-dir=[optional directory to copy companion recipe images into (slug-named)]: :_default' \
+'--image-ext=[optional image extension override for Info.ImageSlug (e.g. webp)]: :_default' \
 '-d[don'\''t actually render any markdown files just print to stdout passed]' \
 '--dry-run[don'\''t actually render any markdown files just print to stdout passed]' \
 '-j[parse the recipe and display it in json format]' \
@@ -138,6 +147,8 @@ _arguments "${_arguments_options[@]}" : \
 '--word-wrap=[word wrap line length for recipe steps section (default 120)]: :_default' \
 '-o+[custom output directory to write generated markdown documentation]: :_default' \
 '--output-dir=[custom output directory to write generated markdown documentation]: :_default' \
+'--assets-dir=[optional directory to copy companion recipe images into (slug-named)]: :_default' \
+'--image-ext=[optional image extension override for Info.ImageSlug (e.g. webp)]: :_default' \
 '--json[Output doctor report in JSON format]' \
 '-d[don'\''t actually render any markdown files just print to stdout passed]' \
 '--dry-run[don'\''t actually render any markdown files just print to stdout passed]' \
@@ -164,6 +175,8 @@ _arguments "${_arguments_options[@]}" : \
 '--word-wrap=[word wrap line length for recipe steps section (default 120)]: :_default' \
 '-o+[custom output directory to write generated markdown documentation]: :_default' \
 '--output-dir=[custom output directory to write generated markdown documentation]: :_default' \
+'--assets-dir=[optional directory to copy companion recipe images into (slug-named)]: :_default' \
+'--image-ext=[optional image extension override for Info.ImageSlug (e.g. webp)]: :_default' \
 '--check[Check for available updates without installing]' \
 '-y[Skip confirmation prompt before installing]' \
 '--yes[Skip confirmation prompt before installing]' \

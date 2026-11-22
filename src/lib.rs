@@ -34,6 +34,37 @@ pub fn render_recipes(recipe_paths: &[PathBuf], config: &types::Config) -> (usiz
         .map(|p| p.to_string_lossy().to_string())
         .collect();
 
+    if config.jsonify {
+        let mut recipes = Vec::with_capacity(recipe_paths_strs.len());
+        let mut ok = 0;
+        let mut failed = 0;
+        for path_str in recipe_paths_strs {
+            match cook::parse_file(&path_str, config) {
+                Ok(recipe) => {
+                    recipes.push(recipe);
+                    ok += 1;
+                }
+                Err(e) => {
+                    log::warn!(
+                        "Error parsing file for recipe {}, skipping: {}",
+                        path_str,
+                        e
+                    );
+                    failed += 1;
+                }
+            }
+        }
+        let json_out = if recipes.len() == 1 {
+            serde_json::to_string_pretty(&recipes[0])
+        } else {
+            serde_json::to_string_pretty(&recipes)
+        };
+        if let Ok(j) = json_out {
+            println!("{}", j);
+        }
+        return (ok, failed);
+    }
+
     if config.dry_run {
         let mut ok = 0;
         let mut failed = 0;
@@ -117,12 +148,20 @@ mod tests {
             template_files: vec!["recipe.md.gotmpl".to_string()],
             word_wrap: 120,
             output_dir: String::new(),
+            assets_dir: String::new(),
+            image_ext: String::new(),
+            recipe_files: Vec::new(),
         };
 
         let paths = vec![valid.clone(), missing.clone()];
         assert_eq!(render_recipes(&paths, &cfg), (1, 1));
         assert!(!dir.join("soup.md").exists());
 
+        cfg.jsonify = true;
+        assert_eq!(render_recipes(&paths, &cfg), (1, 1));
+        assert!(!dir.join("soup.md").exists());
+
+        cfg.jsonify = false;
         cfg.dry_run = false;
         assert_eq!(render_recipes(&paths, &cfg), (1, 1));
         assert!(dir.join("soup.md").exists());

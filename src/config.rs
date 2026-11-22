@@ -97,6 +97,18 @@ pub fn build_cli() -> Command {
             .long("output-dir")
             .global(true)
             .help("custom output directory to write generated markdown documentation"))
+        .arg(Arg::new("assets-dir")
+            .long("assets-dir")
+            .global(true)
+            .help("optional directory to copy companion recipe images into (slug-named)"))
+        .arg(Arg::new("image-ext")
+            .long("image-ext")
+            .global(true)
+            .help("optional image extension override for Info.ImageSlug (e.g. webp)"))
+        .arg(Arg::new("files")
+            .value_name("FILES")
+            .num_args(0..)
+            .help("optional recipe files or subdirectories to render (mirrored relative to --recipe-search-root)"))
         .arg(Arg::new("watch")
             .long("watch")
             .action(ArgAction::SetTrue)
@@ -197,6 +209,10 @@ struct ConfigFile {
     pub word_wrap: Option<usize>,
     #[serde(alias = "output-dir", alias = "output_dir", alias = "outputDir")]
     pub output_dir: Option<String>,
+    #[serde(alias = "assets-dir", alias = "assets_dir", alias = "assetsDir")]
+    pub assets_dir: Option<String>,
+    #[serde(alias = "image-ext", alias = "image_ext", alias = "imageExt")]
+    pub image_ext: Option<String>,
 }
 
 pub fn load_config(args: &[&str]) -> Result<Config, String> {
@@ -372,6 +388,9 @@ where
         template_files: vec!["recipe.md.gotmpl".to_string()],
         word_wrap: 120,
         output_dir: "".to_string(),
+        assets_dir: "".to_string(),
+        image_ext: "".to_string(),
+        recipe_files: Vec::new(),
     };
 
     // 2. Resolve the config file: explicit -C/--config or COOK_DOCS_CONFIG, else default discovery
@@ -446,6 +465,12 @@ where
         if let Some(val) = config_file.output_dir {
             config.output_dir = val;
         }
+        if let Some(val) = config_file.assets_dir {
+            config.assets_dir = val;
+        }
+        if let Some(val) = config_file.image_ext {
+            config.image_ext = val;
+        }
     }
 
     // 4. Merge environment variables
@@ -472,6 +497,12 @@ where
     }
     if let Some(val) = env_get("COOK_DOCS_OUTPUT_DIR") {
         config.output_dir = val;
+    }
+    if let Some(val) = env_get("COOK_DOCS_ASSETS_DIR") {
+        config.assets_dir = val;
+    }
+    if let Some(val) = env_get("COOK_DOCS_IMAGE_EXT") {
+        config.image_ext = val;
     }
 
     // 5. Merge CLI arguments
@@ -502,6 +533,20 @@ where
     if let Some(val) = matches.get_one::<String>("output-dir") {
         config.output_dir = val.clone();
     }
+    if let Some(val) = matches.get_one::<String>("assets-dir") {
+        config.assets_dir = val.clone();
+    }
+    if let Some(val) = matches.get_one::<String>("image-ext") {
+        config.image_ext = val.clone();
+    }
+    if let Some(files) = matches.get_many::<String>("files") {
+        config.recipe_files = files.cloned().collect();
+    }
+    config.image_ext = config
+        .image_ext
+        .trim()
+        .trim_start_matches('.')
+        .to_ascii_lowercase();
 
     (resolved_path, Ok(config))
 }
@@ -803,7 +848,9 @@ output_dir = \"toml_out\"
                         || rest.starts_with("log_level =")
                         || rest.starts_with("template_files =")
                         || rest.starts_with("word_wrap =")
-                        || rest.starts_with("output_dir ="))
+                        || rest.starts_with("output_dir =")
+                        || rest.starts_with("assets_dir =")
+                        || rest.starts_with("image_ext ="))
                 {
                     return rest.to_string();
                 }
@@ -827,6 +874,8 @@ output_dir = \"toml_out\"
         );
         assert_eq!(parsed.word_wrap, Some(120));
         assert_eq!(parsed.output_dir.as_deref(), Some(""));
+        assert_eq!(parsed.assets_dir.as_deref(), Some(""));
+        assert_eq!(parsed.image_ext.as_deref(), Some(""));
     }
 
     #[test]
@@ -989,5 +1038,52 @@ output_dir = \"toml_out\"
 
         let err = generate_manpage(&mut FailingWriter).unwrap_err();
         assert!(err.contains("Failed rendering man page"));
+    }
+
+    #[test]
+    fn test_positional_files_assets_dir_and_image_ext_precedence() {
+        let mut env = HashMap::new();
+        env.insert("COOK_DOCS_ASSETS_DIR".to_string(), "env_assets".to_string());
+        env.insert("COOK_DOCS_IMAGE_EXT".to_string(), ".WEBP".to_string());
+
+        let cfg_env = load_config_with(&["cook-docs"], &[], |k| env.get(k).cloned()).unwrap();
+        assert_eq!(cfg_env.assets_dir, "env_assets");
+        assert_eq!(cfg_env.image_ext, "webp");
+        assert!(cfg_env.recipe_files.is_empty());
+
+        let cfg_cli = load_config_with(
+            &[
+                "cook-docs",
+                "-c",
+                "cook",
+                "-o",
+                "docs",
+                "--assets-dir",
+                "docs/assets/images",
+                "--image-ext",
+                ".PNG",
+                "cook/breads/Bagels.cook",
+                "cook/soups/Chili.cook",
+            ],
+            &[],
+            |k| env.get(k).cloned(),
+        )
+        .unwrap();
+        assert_eq!(cfg_cli.assets_dir, "docs/assets/images");
+        assert_eq!(cfg_cli.image_ext, "png");
+        assert_eq!(
+            cfg_cli.recipe_files,
+            vec!["cook/breads/Bagels.cook", "cook/soups/Chili.cook"]
+        );
+
+        // Subcommands still take precedence over positional files
+        assert!(matches!(
+            load_action_with(&["cook-docs", "doctor"], &[], |_| None).unwrap(),
+            CliAction::Doctor { .. }
+        ));
+        assert!(matches!(
+            load_action_with(&["cook-docs", "watch"], &[], |_| None).unwrap(),
+            CliAction::Watch { .. }
+        ));
     }
 }

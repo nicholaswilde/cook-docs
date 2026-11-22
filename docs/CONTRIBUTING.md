@@ -105,9 +105,9 @@ Versioning is done per [Semantic Versioning 2.0.0 (semver)][3] principles.
 
 ## Formatting
 
-Formatting is done per [Gofmt][4] principles.
+Formatting is done with [`rustfmt`][4] (`cargo fmt` / `task fmt`).
 
 [1]: https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/about-pull-requests
 [2]: https://developercertificate.org/
 [3]: https://semver.org/spec/v2.0.0.html
-[4]: https://go.dev/src/cmd/gofmt/doc.go
+[4]: https://github.com/rust-lang/rustfmt

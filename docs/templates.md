@@ -1,11 +1,12 @@
 # Templates
 
-The default template may be overwritten adding `recipe.md.gotmpl` files to the
-recipe directories.
+The default template may be overridden by placing a `recipe.md.gotmpl` file in a
+recipe directory or any parent directory up to `--recipe-search-root`. A single
+root `recipe.md.gotmpl` covers all nested subdirectories, while a closer template
+in a subdirectory overrides it locally.
 
-If any of the specified template files is not found for a recipe (you'll notice
-most of the example recipe do not have a `recipe.md.gotmpl`) file, then the
-internal default template is used instead.
+If none of the specified template files is found between the recipe directory and
+`--recipe-search-root`, the internal default template is used instead.
 
 The default internal template mentioned above uses many of these and looks like
 this:
@@ -26,7 +27,7 @@ this:
 {{ template "cook.sourceSection" . }}
 ```
 
-The tool renders Go-compatible templates using [`gtmpl-ng`][5] and provides built-in helper functions (`getSource`, `sumTimers`, `lower`, `replace`, `round`, `add1`, `wrap`, `indent`) for use in custom templates.
+The tool renders Go-compatible templates using [`gtmpl-ng`][5] and provides built-in helper functions (`getSource`, `sumTimers`, `totalTime`, `toYaml`, `lower`, `replace`, `round`, `add1`, `wrap`, `indent`) for use in custom templates.
 
 ## Built-in Templates
 
@@ -34,10 +35,10 @@ The tool renders Go-compatible templates using [`gtmpl-ng`][5] and provides buil
 
 | Name                                      | Description                                                        |
 |-------------------------------------------|--------------------------------------------------------------------|
-| `cook.headerSection`                      | The main heading of the generated markdown file                    |
-| `cook.imageSection`                       | The image section                                                  |
-| `cook.lazyImageSection`                   | The lazy-loaded image section (`loading="lazy"`)                   |
-| `cook.tableSection`                       | The table section that consists of the serving size and total time |
+| `cook.headerSection`                      | The main heading (`Metadata.title` when present, otherwise `Info.RecipeName`)   |
+| `cook.imageSection`                       | The image section                                                               |
+| `cook.lazyImageSection`                   | The lazy-loaded image section (`loading="lazy"`)                                |
+| `cook.tableSection`                       | Servings and total time (`totalTime`: prefers `total time` metadata over timers) |
 | `cook.ingredientsSection`                 | The ingredients section                                            |
 | `cook.cookwareSection`                    | The cookware section                                               |
 | `cook.stepsSection`                       | The steps section                                                  |
@@ -68,35 +69,81 @@ The tool renders Go-compatible templates using [`gtmpl-ng`][5] and provides buil
 | `cook.commentsHeader`                    | The comments header                                                          |
 | `cook.comments`                          | An unordered list of the comments                                            |
 | `.Info.RecipeName`                       | The name of the recipe taken from the recipe file name                       |
+| `.Info.RecipeSlug`                       | The lowercased hyphenated recipe stem (e.g. `my-test-recipe`)                |
 | `.Info.ImageFileName`                    | The image name if an image file is found                                     |
 | `.Info.ImageFilePath`                    | The image path if an image file is found                                     |
+| `.Info.ImageSlug`                        | The lowercased hyphenated image filename (with optional `--image-ext` override) |
 | `.Info.NewRecipeFilePath`                | The new recipe file name after removal of spaces and converting to lowercase |
 | `.Info.RecipeFilePath`                   | The file path of the recipe file                                             |
+| `.Info.RelRoot`                          | Relative path back to `--recipe-search-root` (`.`, `..`, `../..`, ...)       |
+| `.Info.Categories`                       | Relative directory segments under `--recipe-search-root` (e.g. `["desserts", "cake"]`) |
+| `.Frontmatter`                           | Structured YAML/Cooklang metadata preserving lists, booleans, numbers, and maps |
 
 ### Helper Functions
 
-| Function    | Description                                                     |
-|-------------|-----------------------------------------------------------------|
-| `getSource` | Formats a `source` metadata URL into a Markdown link            |
-| `sumTimers` | Sums recipe step timers into a total duration string            |
-| `lower`     | Converts a string to lowercase                                  |
-| `replace`   | Replaces substrings (`replace old new str`)                     |
-| `round`     | Rounds a numeric value to specified decimal places              |
-| `add1`      | Adds `1` to an integer (useful for 1-based step numbering)      |
-| `wrap`      | Word-wraps text to a specified line width                       |
-| `indent`    | Indents lines by a specified number of spaces                   |
+| Function    | Description                                                                   |
+|-------------|-------------------------------------------------------------------------------|
+| `getSource` | Formats a `source` metadata URL into a Markdown link                          |
+| `sumTimers` | Sums recipe step timers into a total duration string                          |
+| `totalTime` | Uses `total time` metadata when present, otherwise falls back to `sumTimers`  |
+| `toYaml`    | Formats a structured value (list, map, or scalar) as deterministic YAML       |
+| `lower`     | Converts a string to lowercase                                                |
+| `replace`   | Replaces substrings (`replace old new str`)                                   |
+| `round`     | Rounds a numeric value to specified decimal places                            |
+| `add1`      | Adds `1` to an integer (useful for 1-based step numbering)                    |
+| `wrap`      | Word-wraps text to a specified line width                                     |
+| `indent`    | Indents lines by a specified number of spaces                                 |
 
 See [`src/document.rs`][6] for how each built-in template and helper function is defined.
 
-## Metadata
+## Metadata & YAML Frontmatter
 
-Any [metadata][10] from the recipe `*.cook` file will be written to the `cook.metadataSection`.
+Both legacy `>> key: value` directives and Cooklang YAML frontmatter (`--- ... ---`) [metadata][10] are parsed into:
 
-```text
->> source: https://www.gimmesomeoven.com/baked-potato/
->> time required: 1.5 hours
->> course: dinner
-...
+- `.Metadata`: flat string map (backwards-compatible; rendered by `cook.metadataSection`)
+- `.Frontmatter`: structured typed map preserving lists, booleans, numbers, and nested maps for iteration and `toYaml`
+
+```yaml title="Example .cook YAML frontmatter"
+---
+title: ":bread: Sourdough Loaf"
+source: https://example.com/sourdough
+serves: 8
+total time: 4 hours
+tags:
+  - bread
+  - sourdough
+---
+```
+
+With a single root `recipe.md.gotmpl`, you can emit Markdown frontmatter and depth-aware asset links across nested category directories:
+
+```go title="cook/recipe.md.gotmpl"
+---
+comments: true
+{{- if .Frontmatter.tags }}
+tags:
+{{ toYaml .Frontmatter.tags | indent 2 }}
+{{- end }}
+{{- if .Info.ImageSlug }}
+hero: assets/images/{{ .Info.ImageSlug }}
+{{- end }}
+---
+{{ template "cook.headerSection" . }}
+
+{{- if .Info.ImageSlug }}
+
+![{{ .Info.RecipeName }}]({{ .Info.RelRoot }}/assets/images/{{ .Info.ImageSlug }}){ loading=lazy }
+{{- end }}
+
+{{ template "cook.tableSection" . }}
+
+{{ template "cook.ingredientsSection" . }}
+
+{{ template "cook.cookwareSection" . }}
+
+{{ template "cook.stepsSection" . -}}
+
+{{ template "cook.sourceSection" . }}
 ```
 
 ## Images
@@ -114,7 +161,9 @@ markdown_extensions:
 
 See [mkdocs-material][14] for reference.
 
-Both `.jpg` and `.png` sidecar images matching `<Recipe Name>.<ext>` are detected automatically (`.jpg` preferred when both exist). Output Markdown and image link names are lowercased with spaces replaced by dashes, e.g. `My Recipe Name.cook -> my-recipe-name.md` and `My Recipe Name.png -> my-recipe-name.png`.
+Companion images matching `<Recipe Name>.<ext>` are detected automatically in priority order `.webp`, `.jpg`, `.jpeg`, `.png`. Output Markdown and image slugs are lowercased with spaces replaced by hyphens, e.g. `My Recipe Name.cook -> my-recipe-name.md` and `My Recipe Name.png -> my-recipe-name.png` (`.Info.ImageSlug`).
+
+Pass `--assets-dir <DIR>` to copy companion images (slug-named, keeping their original source extension) during rendering, and optionally `--image-ext webp` to override the extension in `.Info.ImageSlug` when an external tool converts images after rendering.
 
 ## Custom Sections
 
@@ -142,229 +191,101 @@ Then use it later in the template.
 
 `cook-docs` uses the Rust [`cooklang`][1] parser crate ([`cooklang-rs`][2]) to parse Cooklang recipes and merges them with `Info` and `Config` metadata defined in [`src/types.rs`][3]. The resulting context is passed directly into `gtmpl-ng` templates.
 
-Run `cook-docs --jsonify` to inspect the full parsed data structure:
+Run `cook-docs --jsonify` to inspect the full parsed data structure on stdout:
 
 ```json title="Example parsed cook-docs output"
- Output:
- {
-   "Steps": [
-     {
-       "Directions": "Make 6 pizza balls using tipo zero flour, water, salt and fresh yeast. Put in a fridge for 2 days.",
-       "Timers": [
-         {
-           "Name": "",
-           "Duration": 2,
-           "Unit": "days"
-         }
-       ],
-       "Ingredients": [
-         {
-           "Name": "tipo zero flour",
-           "Amount": {
-             "IsNumeric": true,
-             "Quantity": 820,
-             "QuantityRaw": "820",
-             "Unit": "g"
-           }
-         },
-         {
-           "Name": "water",
-           "Amount": {
-             "IsNumeric": true,
-             "Quantity": 533,
-             "QuantityRaw": "533",
-             "Unit": "ml"
-           }
-         },
-         {
-           "Name": "salt",
-           "Amount": {
-             "IsNumeric": true,
-             "Quantity": 24.6,
-             "QuantityRaw": "24.6",
-             "Unit": "g"
-           }
-         },
-         {
-           "Name": "fresh yeast",
-           "Amount": {
-             "IsNumeric": true,
-             "Quantity": 1.6,
-             "QuantityRaw": "1.6",
-             "Unit": "g"
-           }
-         }
-       ],
-       "Cookware": [
-         {
-           "IsNumeric": false,
-           "Name": "fridge",
-           "Quantity": 1,
-           "QuantityRaw": ""
-         }
-       ],
-       "Comments": null
-     },
-     {
-       "Directions": "Set oven to max temperature and heat pizza stone for about 40 minutes.",
-       "Timers": [
-         {
-           "Name": "",
-           "Duration": 40,
-           "Unit": "minutes"
-         }
-       ],
-       "Ingredients": [],
-       "Cookware": [
-         {
-           "IsNumeric": false,
-           "Name": "oven",
-           "Quantity": 1,
-           "QuantityRaw": ""
-         },
-         {
-           "IsNumeric": false,
-           "Name": "pizza stone",
-           "Quantity": 1,
-           "QuantityRaw": ""
-         }
-       ],
-       "Comments": null
-     },
-     {
-       "Directions": "Make some tomato sauce with chopped tomato and garlic and dried oregano. Put on a pan and leave for 15 minutes occasionally stirring.",
-       "Timers": [
-         {
-           "Name": "",
-           "Duration": 15,
-           "Unit": "minutes"
-         }
-       ],
-       "Ingredients": [
-         {
-           "Name": "chopped tomato",
-           "Amount": {
-             "IsNumeric": true,
-             "Quantity": 3,
-             "QuantityRaw": "3",
-             "Unit": "cans"
-           }
-         },
-         {
-           "Name": "garlic",
-           "Amount": {
-             "IsNumeric": true,
-             "Quantity": 3,
-             "QuantityRaw": "3",
-             "Unit": "cloves"
-           }
-         },
-         {
-           "Name": "dried oregano",
-           "Amount": {
-             "IsNumeric": true,
-             "Quantity": 3,
-             "QuantityRaw": "3",
-             "Unit": "tbsp"
-           }
-         }
-       ],
-       "Cookware": [
-         {
-           "IsNumeric": false,
-           "Name": "pan",
-           "Quantity": 1,
-           "QuantityRaw": ""
-         }
-       ],
-       "Comments": null
-     },
-     {
-       "Directions": "Make pizzas putting some tomato sauce with spoon on top of flattened dough. Add fresh basil, parma ham and mozzarella.",
-       "Timers": [],
-       "Ingredients": [
-         {
-           "Name": "fresh basil",
-           "Amount": {
-             "IsNumeric": true,
-             "Quantity": 18,
-             "QuantityRaw": "18",
-             "Unit": "leaves"
-           }
-         },
-         {
-           "Name": "parma ham",
-           "Amount": {
-             "IsNumeric": true,
-             "Quantity": 3,
-             "QuantityRaw": "3",
-             "Unit": "packs"
-           }
-         },
-         {
-           "Name": "mozzarella",
-           "Amount": {
-             "IsNumeric": true,
-             "Quantity": 3,
-             "QuantityRaw": "3",
-             "Unit": "packs"
-           }
-         }
-       ],
-       "Cookware": [
-         {
-           "IsNumeric": false,
-           "Name": "spoon",
-           "Quantity": 1,
-           "QuantityRaw": ""
-         }
-       ],
-       "Comments": null
-     },
-     {
-       "Directions": "Put in an oven for 4 minutes.",
-       "Timers": [
-         {
-           "Name": "",
-           "Duration": 4,
-           "Unit": "minutes"
-         }
-       ],
-       "Ingredients": [],
-       "Cookware": [
-         {
-           "IsNumeric": false,
-           "Name": "oven",
-           "Quantity": 1,
-           "QuantityRaw": ""
-         }
-       ],
-       "Comments": null
-     }
-   ],
-   "Metadata": {
-     "servings": "6",
-     "source": "https://www.somewebsite.com/pizza-balls"
-   },
-   "Config": {
-     "DryRun": false,
-     "Jsonify": true,
-     "IgnoreFile": ".cookdocsignore",
-     "RecipeSearchRoot": ".",
-     "LogLevel": "info",
-      "TemplateFiles": [
-        "recipe.md.gotmpl"
+{
+  "Steps": [
+    {
+      "Directions": "Make 6 pizza balls using tipo zero flour, water, salt and fresh yeast. Put in a fridge for 2 days.",
+      "Timers": [
+        {
+          "Name": "",
+          "Duration": 2.0,
+          "Unit": "days"
+        }
       ],
-      "WordWrap": 120,
-      "OutputDir": ""
-    },
-    "Info": {
-      "ImageFilePath": "/path/to/cook-docs/testdata/My Test Recipe.png",
-      "ImageFileName": "My Test Recipe.png",
-      "RecipeName": "My Test Recipe",
-      "RecipeFilePath": "/path/to/cook-docs/testdata/My Test Recipe.cook",
-      "NewRecipeFilePath": "/path/to/cook-docs/testdata/my-test-recipe.md"
+      "Ingredients": [
+        {
+          "Name": "tipo zero flour",
+          "Amount": {
+            "IsNumeric": true,
+            "Quantity": 820.0,
+            "QuantityRaw": "820",
+            "Unit": "g"
+          }
+        },
+        {
+          "Name": "water",
+          "Amount": {
+            "IsNumeric": true,
+            "Quantity": 533.0,
+            "QuantityRaw": "533",
+            "Unit": "ml"
+          }
+        },
+        {
+          "Name": "salt",
+          "Amount": {
+            "IsNumeric": true,
+            "Quantity": 24.6,
+            "QuantityRaw": "24.6",
+            "Unit": "g"
+          }
+        },
+        {
+          "Name": "fresh yeast",
+          "Amount": {
+            "IsNumeric": true,
+            "Quantity": 1.6,
+            "QuantityRaw": "1.6",
+            "Unit": "g"
+          }
+        }
+      ],
+      "Cookware": [
+        {
+          "IsNumeric": false,
+          "Name": "fridge",
+          "Quantity": 1.0,
+          "QuantityRaw": ""
+        }
+      ],
+      "Comments": []
     }
+  ],
+  "Metadata": {
+    "servings": "6",
+    "source": "https://www.somewebsite.com/pizza-balls"
+  },
+  "Frontmatter": {
+    "servings": "6",
+    "source": "https://www.somewebsite.com/pizza-balls"
+  },
+  "Config": {
+    "DryRun": false,
+    "Jsonify": true,
+    "IgnoreFile": ".cookdocsignore",
+    "RecipeSearchRoot": "testdata",
+    "LogLevel": "info",
+    "TemplateFiles": [
+      "recipe.md.gotmpl"
+    ],
+    "WordWrap": 120,
+    "OutputDir": "",
+    "AssetsDir": "",
+    "ImageExt": ""
+  },
+  "Info": {
+    "ImageFileName": "My Test Recipe.png",
+    "ImageFilePath": "/path/to/cook-docs/testdata/My Test Recipe.png",
+    "ImageSlug": "my-test-recipe.png",
+    "NewRecipeFilePath": "/path/to/cook-docs/testdata/my-test-recipe.md",
+    "RecipeName": "My Test Recipe",
+    "RecipeSlug": "my-test-recipe",
+    "RecipeFilePath": "/path/to/cook-docs/testdata/My Test Recipe.cook",
+    "RelRoot": ".",
+    "Categories": []
   }
 }
 ```

@@ -218,9 +218,7 @@ pub fn resolve_affected_recipes(
         .filter(|recipe| {
             let norm = normalize_path(recipe);
             changed_cooks.contains(&norm)
-                || norm
-                    .parent()
-                    .is_some_and(|parent| local_template_dirs.contains(parent))
+                || local_template_dirs.iter().any(|dir| norm.starts_with(dir))
         })
         .cloned()
         .collect()
@@ -449,6 +447,9 @@ mod tests {
             template_files: vec!["recipe.md.gotmpl".to_string()],
             word_wrap: 120,
             output_dir: String::new(),
+            assets_dir: String::new(),
+            image_ext: String::new(),
+            recipe_files: Vec::new(),
         }
     }
 
@@ -566,10 +567,15 @@ mod tests {
         let deleted = soups.join("Ghost.cook");
         assert!(resolve_affected_recipes(&[deleted], &targets, &discovered).is_empty());
 
-        // 4. Local base-filename template only affects recipes in its directory
+        // 4. Local base-filename template affects recipes in its directory (and descendants)
         let local_tpl = soups.join("recipe.md.gotmpl");
         let affected_local = resolve_affected_recipes(&[local_tpl], &targets, &discovered);
         assert_eq!(affected_local, vec![tomato.clone(), miso.clone()]);
+
+        // 4b. Parent/root base-filename template affects all descendant recipes
+        let root_tpl = root.join("recipe.md.gotmpl");
+        let affected_root = resolve_affected_recipes(&[root_tpl], &targets, &discovered);
+        assert_eq!(affected_root, discovered);
 
         // 5. Shared external template affects all discovered recipes
         let affected_shared = resolve_affected_recipes(&[shared_tpl], &targets, &discovered);

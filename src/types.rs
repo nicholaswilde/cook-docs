@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -54,6 +54,31 @@ pub struct Config {
         alias = "outputDir"
     )]
     pub output_dir: String,
+    #[serde(
+        rename = "AssetsDir",
+        alias = "assets-dir",
+        alias = "assets_dir",
+        alias = "assetsDir",
+        default
+    )]
+    pub assets_dir: String,
+    #[serde(
+        rename = "ImageExt",
+        alias = "image-ext",
+        alias = "image_ext",
+        alias = "imageExt",
+        default
+    )]
+    pub image_ext: String,
+    #[serde(
+        rename = "RecipeFiles",
+        alias = "recipe-files",
+        alias = "recipe_files",
+        alias = "recipeFiles",
+        default,
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub recipe_files: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -118,12 +143,20 @@ pub struct Info {
     pub image_file_name: String,
     #[serde(rename = "ImageFilePath")]
     pub image_file_path: String,
+    #[serde(rename = "ImageSlug", default)]
+    pub image_slug: String,
     #[serde(rename = "NewRecipeFilePath")]
     pub new_recipe_file_path: String,
     #[serde(rename = "RecipeName")]
     pub recipe_name: String,
+    #[serde(rename = "RecipeSlug", default)]
+    pub recipe_slug: String,
     #[serde(rename = "RecipeFilePath")]
     pub recipe_file_path: String,
+    #[serde(rename = "RelRoot", default)]
+    pub rel_root: String,
+    #[serde(rename = "Categories", default)]
+    pub categories: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -132,6 +165,8 @@ pub struct Recipe {
     pub steps: Vec<Step>,
     #[serde(rename = "Metadata")]
     pub metadata: HashMap<String, String>,
+    #[serde(rename = "Frontmatter", default)]
+    pub frontmatter: BTreeMap<String, serde_json::Value>,
     #[serde(rename = "Config")]
     pub config: Config,
     #[serde(rename = "Info")]

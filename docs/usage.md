@@ -10,7 +10,7 @@ There are two key parameters to know when running `cook-docs`:
 - `--recipe-search-root` (`-c`) specifies the directory under which the tool recursively searches for `.cook` recipe files (default `.`).
 - `--template-files` (`-t`) specifies a comma-separated list of Go-compatible template files used to render each recipe's Markdown output (default `recipe.md.gotmpl`).
 
-If a template entry is a bare filename (like `recipe.md.gotmpl`), it is resolved _relative to each recipe directory_. If it is a relative path starting with `.` (like `./_templates.gotmpl`), it is resolved relative to `recipe-search-root`.
+If a template entry is a bare filename (like `recipe.md.gotmpl`), it is resolved starting in the recipe's directory and walking up parent directories to `recipe-search-root` (inclusive) before falling back to the built-in template. If it is a relative path starting with `.` (like `./_templates.gotmpl`), it is resolved relative to `recipe-search-root`.
 
 ## :runner: Generating Documentation
 
@@ -32,10 +32,18 @@ Render recipes from a specific directory into a separate output folder (mirrorin
 cook-docs --recipe-search-root ./recipes --output-dir ./docs/recipes
 ```
 
-Inspect parsed recipe data as JSON:
+Render one or more specific recipes while keeping `--recipe-search-root` as the base for mirrored output paths, and optionally copy companion images (`.webp`, `.jpg`, `.jpeg`, `.png`) into an assets directory:
 
 ```bash
-cook-docs --jsonify
+cook-docs -c ./cook -o ./docs --assets-dir ./docs/assets/images ./cook/breads/Bagels.cook
+# Override Info.ImageSlug extension when running external WebP conversion afterwards:
+cook-docs -c ./cook -o ./docs --assets-dir ./docs/assets/images --image-ext webp ./cook/breads/Bagels.cook
+```
+
+Inspect parsed recipe data as JSON on stdout (single object for one recipe, JSON array for multiple):
+
+```bash
+cook-docs --jsonify | jq .
 ```
 
 Use an explicit configuration file (TOML, YAML, or JSON):
@@ -60,7 +68,7 @@ Customize the debounce delay (default `300` ms) and combine with standard flags:
 cook-docs watch --recipe-search-root ./recipes --output-dir ./docs --debounce 500
 ```
 
-Editing a single `.cook` file re-renders only that recipe; editing a per-directory template re-renders recipes in that directory; editing a shared/external template re-renders all discovered recipes. Press `Ctrl+C` to stop.
+Editing a single `.cook` file re-renders only that recipe; editing a template file re-renders recipes in that directory and nested subdirectories; editing a shared/external template re-renders all discovered recipes. Press `Ctrl+C` to stop.
 
 ## :stethoscope: Doctor Diagnostics
 
