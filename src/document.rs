@@ -353,6 +353,92 @@ fn add1(args: &[Value]) -> Result<Value, FuncError> {
     Ok(Value::Number((val + 1).into()))
 }
 
+fn find_markdown_link_end(s: &str, open_bracket: usize) -> Option<usize> {
+    let tail = s.get(open_bracket..)?;
+    let mut chars = tail.char_indices().peekable();
+    if chars.next()?.1 != '[' {
+        return None;
+    }
+
+    let mut depth = 1usize;
+    let mut close_bracket = None;
+    while let Some((off, ch)) = chars.next() {
+        match ch {
+            '\\' => {
+                chars.next();
+            }
+            '[' => depth += 1,
+            ']' => {
+                depth -= 1;
+                if depth == 0 {
+                    close_bracket = Some(off);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    close_bracket?;
+
+    if chars.next()?.1 != '(' {
+        return None;
+    }
+
+    let mut paren_depth = 1usize;
+    while let Some((off, ch)) = chars.next() {
+        match ch {
+            '\\' => {
+                chars.next();
+            }
+            '(' => paren_depth += 1,
+            ')' => {
+                paren_depth -= 1;
+                if paren_depth == 0 {
+                    return Some(open_bracket + off + ch.len_utf8());
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn split_wrap_tokens(paragraph: &str) -> Vec<&str> {
+    let mut tokens = Vec::new();
+    let mut idx = 0usize;
+    let len = paragraph.len();
+
+    while idx < len {
+        let Some(first) = paragraph[idx..].chars().next() else {
+            break;
+        };
+        if first.is_whitespace() {
+            idx += first.len_utf8();
+            continue;
+        }
+
+        let start = idx;
+        while idx < len {
+            let ch = paragraph[idx..].chars().next().unwrap();
+            if ch.is_whitespace() {
+                break;
+            }
+            if ch == '['
+                && let Some(link_end) = find_markdown_link_end(paragraph, idx)
+            {
+                idx = link_end;
+                continue;
+            }
+            idx += ch.len_utf8();
+        }
+        if idx > start {
+            tokens.push(&paragraph[start..idx]);
+        }
+    }
+
+    tokens
+}
+
 fn wrap(args: &[Value]) -> Result<Value, FuncError> {
     if args.len() < 2 {
         return Ok(args
@@ -372,7 +458,7 @@ fn wrap(args: &[Value]) -> Result<Value, FuncError> {
     let mut result = String::new();
     for paragraph in text.split('\n') {
         let mut current_line = String::new();
-        for word in paragraph.split_whitespace() {
+        for word in split_wrap_tokens(paragraph) {
             if current_line.is_empty() {
                 current_line.push_str(word);
             } else if current_line.len() + 1 + word.len() > limit {
@@ -2334,6 +2420,32 @@ Add @flour{1/4%cup}.
         assert!(
             md_with_cw.contains("## :cooking: Cookware\n\n- 1 pot\n"),
             "md:\n{md_with_cw}"
+        );
+    }
+
+    #[test]
+    fn test_wrap_preserves_markdown_links_intact() {
+        let input = "Spread warm [sourdough starter](../breads/sourdough-starter.md). Then rest.";
+        let wrapped = wrap(&[Value::Number(32.into()), Value::String(input.to_string())]).unwrap();
+        let Value::String(out) = wrapped else {
+            panic!("expected string");
+        };
+        assert!(
+            out.lines()
+                .any(|line| line.contains("[sourdough starter](../breads/sourdough-starter.md).")),
+            "expected Markdown link to stay unbroken on one line, got:\n{out}"
+        );
+
+        // Bare non-link brackets still wrap normally on whitespace
+        let bare = "Mix [1 of 3] cups of flour carefully";
+        let wrapped_bare =
+            wrap(&[Value::Number(10.into()), Value::String(bare.to_string())]).unwrap();
+        let Value::String(out_bare) = wrapped_bare else {
+            panic!("expected string");
+        };
+        assert!(
+            out_bare.contains('\n'),
+            "expected bare brackets to wrap:\n{out_bare}"
         );
     }
 }

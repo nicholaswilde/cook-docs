@@ -1,6 +1,9 @@
 use crate::types::Config;
+use figment::providers::{Format, Json, Toml, Yaml};
 use ignore::gitignore::GitignoreBuilder;
 use serde::{Deserialize, Serialize};
+use serde_json::Value as JsonValue;
+use std::collections::HashSet;
 use std::fs::{self, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -37,6 +40,11 @@ pub struct DoctorReport {
 impl DoctorReport {
     /// Build a `DoctorReport` summary from individual checks.
     pub fn new(checks: Vec<DoctorCheck>) -> Self {
+        Self::with_strict(checks, false)
+    }
+
+    /// Build a `DoctorReport` summary, marking warnings as unhealthy when `strict` is enabled.
+    pub fn with_strict(checks: Vec<DoctorCheck>, strict: bool) -> Self {
         let ok = checks
             .iter()
             .filter(|c| c.severity == CheckSeverity::Ok)
@@ -50,7 +58,7 @@ impl DoctorReport {
             .filter(|c| c.severity == CheckSeverity::Error)
             .count();
         let total_checks = checks.len();
-        let healthy = errors == 0;
+        let healthy = errors == 0 && (!strict || warnings == 0);
         Self {
             checks,
             total_checks,
@@ -62,9 +70,36 @@ impl DoctorReport {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum RecipeCheckKind {
+    Syntax,
+    Images,
+    Metadata,
+    Emojis,
+    Ignored,
+}
+
+impl RecipeCheckKind {
+    /// Parse a `--only` check category name (case-insensitive).
+    pub fn parse(raw: &str) -> Result<Self, String> {
+        match raw.trim().to_ascii_lowercase().as_str() {
+            "syntax" | "recipe_syntax" => Ok(Self::Syntax),
+            "images" | "image" | "recipe_images" => Ok(Self::Images),
+            "metadata" | "recipe_metadata" => Ok(Self::Metadata),
+            "emojis" | "emoji" | "recipe_emojis" => Ok(Self::Emojis),
+            "ignored" | "ignored_ingredients" | "recipe_ignored" => Ok(Self::Ignored),
+            other => Err(format!(
+                "Unknown --only check category '{other}': expected one of syntax, images, metadata, emojis, ignored"
+            )),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DoctorOptions {
     pub check_recipes: bool,
+    pub strict: bool,
+    pub only: Vec<RecipeCheckKind>,
 }
 
 /// Run all diagnostic checks for `cook-docs`.
@@ -130,12 +165,15 @@ pub fn run_doctor_with_options(
 
             let emoji_table = check_emoji_config(config, &mut checks);
             check_weights_file(&config.weights_file, &mut checks);
+            let ignored_ingredients = check_ignored_ingredients_config(config, &mut checks);
 
-            if options.check_recipes {
+            if options.check_recipes || !options.only.is_empty() {
                 checks.extend(check_recipes(
                     &recipes,
                     config,
                     emoji_table.as_ref().filter(|t| t.counts() != (0, 0)),
+                    ignored_ingredients.as_ref().filter(|s| !s.is_empty()),
+                    &options.only,
                 ));
             }
         }
@@ -149,7 +187,7 @@ pub fn run_doctor_with_options(
         }
     }
 
-    DoctorReport::new(checks)
+    DoctorReport::with_strict(checks, options.strict)
 }
 
 fn check_emoji_config(
@@ -213,19 +251,187 @@ fn check_weights_file(weights_file: &str, checks: &mut Vec<DoctorCheck>) {
     }
 }
 
+fn normalize_ingredient_key(raw: &str) -> String {
+    raw.split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_ascii_lowercase()
+}
+
+fn extract_string_list(value: &JsonValue, path: &Path) -> Result<Vec<String>, String> {
+    let items = match value {
+        JsonValue::Null => return Ok(Vec::new()),
+        JsonValue::Array(arr) => arr,
+        JsonValue::Object(map) => {
+            if map.is_empty() {
+                return Ok(Vec::new());
+            }
+            let found = [
+                "ignored_ingredients",
+                "ignored-ingredients",
+                "ignoredIngredients",
+                "ignored",
+                "ingredients",
+            ]
+            .iter()
+            .find_map(|k| map.get(*k));
+            match found {
+                Some(JsonValue::Array(arr)) => arr,
+                Some(JsonValue::Null) => return Ok(Vec::new()),
+                _ => {
+                    return Err(format!(
+                        "Expected a list of ingredient names (or 'ignored_ingredients' array) in '{}'",
+                        path.display()
+                    ));
+                }
+            }
+        }
+        _ => {
+            return Err(format!(
+                "Expected a list of ingredient names in '{}'",
+                path.display()
+            ));
+        }
+    };
+
+    let mut out = Vec::with_capacity(items.len());
+    for item in items {
+        match item {
+            JsonValue::String(s) => {
+                let trimmed = s.trim();
+                if !trimmed.is_empty() {
+                    out.push(trimmed.to_string());
+                }
+            }
+            _ => {
+                return Err(format!(
+                    "Expected string entries in ignored ingredients file '{}'",
+                    path.display()
+                ));
+            }
+        }
+    }
+    Ok(out)
+}
+
+fn load_ignored_ingredients_file(path: &Path) -> Result<Vec<String>, String> {
+    if !path.exists() {
+        return Err(format!("File '{}' not found", path.display()));
+    }
+    if !path.is_file() {
+        return Err(format!("Path '{}' is not a regular file", path.display()));
+    }
+
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase());
+    let content = fs::read_to_string(path)
+        .map_err(|e| format!("Failed to read '{}': {e}", path.display()))?;
+
+    let value: JsonValue = match ext.as_deref() {
+        Some("yaml") | Some("yml") => {
+            let trimmed = content.trim();
+            if trimmed.is_empty() || trimmed == "---" {
+                JsonValue::Array(Vec::new())
+            } else {
+                Yaml::from_str(&content)
+                    .map_err(|e| format!("Failed to parse '{}': {e}", path.display()))?
+            }
+        }
+        Some("json") => Json::from_str(&content)
+            .map_err(|e| format!("Failed to parse '{}': {e}", path.display()))?,
+        Some("toml") => Toml::from_str(&content)
+            .map_err(|e| format!("Failed to parse '{}': {e}", path.display()))?,
+        _ => {
+            return Err(format!(
+                "Unsupported file format '{}': expected .toml, .yaml, .yml, or .json",
+                path.display()
+            ));
+        }
+    };
+
+    extract_string_list(&value, path)
+}
+
+fn check_ignored_ingredients_config(
+    config: &Config,
+    checks: &mut Vec<DoctorCheck>,
+) -> Option<HashSet<String>> {
+    let has_file = !config.ignored_ingredients_file.trim().is_empty();
+    let has_inline = config
+        .ignored_ingredients
+        .iter()
+        .any(|s| !s.trim().is_empty());
+    if !has_file && !has_inline {
+        return None;
+    }
+
+    let path = has_file.then(|| PathBuf::from(config.ignored_ingredients_file.trim()));
+    let mut normalized = HashSet::new();
+
+    if let Some(ref file_path) = path {
+        match load_ignored_ingredients_file(file_path) {
+            Ok(items) => {
+                for item in items {
+                    let key = normalize_ingredient_key(&item);
+                    if !key.is_empty() {
+                        normalized.insert(key);
+                    }
+                }
+            }
+            Err(err) => {
+                checks.push(DoctorCheck {
+                    category: "ignored_ingredients_file".into(),
+                    severity: CheckSeverity::Error,
+                    message: format!("Invalid ignored ingredients configuration: {err}"),
+                    path: Some(file_path.clone()),
+                });
+                return None;
+            }
+        }
+    }
+
+    for item in &config.ignored_ingredients {
+        let key = normalize_ingredient_key(item);
+        if !key.is_empty() {
+            normalized.insert(key);
+        }
+    }
+
+    checks.push(DoctorCheck {
+        category: "ignored_ingredients_file".into(),
+        severity: CheckSeverity::Ok,
+        message: format!("Ignored ingredients valid ({} item(s))", normalized.len()),
+        path,
+    });
+    Some(normalized)
+}
+
 fn check_recipes(
     recipes: &[PathBuf],
     config: &Config,
     emoji_table: Option<&crate::enrichment::EmojiTable>,
+    ignored_ingredients: Option<&HashSet<String>>,
+    only: &[RecipeCheckKind],
 ) -> Vec<DoctorCheck> {
     if recipes.is_empty() {
         return Vec::new();
     }
 
+    let run_all = only.is_empty();
+    let run_syntax = run_all || only.contains(&RecipeCheckKind::Syntax);
+    let run_images = run_all || only.contains(&RecipeCheckKind::Images);
+    let run_metadata = run_all || only.contains(&RecipeCheckKind::Metadata);
+    let run_emojis = run_all || only.contains(&RecipeCheckKind::Emojis);
+    let run_ignored = run_all || only.contains(&RecipeCheckKind::Ignored);
+    let needs_parse = run_syntax || run_metadata || run_emojis || run_ignored;
+
     let mut syntax_issues = Vec::new();
     let mut image_issues = Vec::new();
     let mut metadata_issues = Vec::new();
     let mut emoji_issues = Vec::new();
+    let mut ignored_issues = Vec::new();
 
     let mut syntax_errors = 0usize;
     let mut syntax_warnings = 0usize;
@@ -243,7 +449,7 @@ fn check_recipes(
         let recipe_str = recipe_path.to_string_lossy();
         let recipe_name = crate::cook::get_recipe_name(&recipe_str);
 
-        if crate::cook::find_image_path(&recipe_str, &recipe_name).is_none() {
+        if run_images && crate::cook::find_image_path(&recipe_str, &recipe_name).is_none() {
             image_issues.push(DoctorCheck {
                 category: "recipe_images".into(),
                 severity: CheckSeverity::Warning,
@@ -256,37 +462,43 @@ fn check_recipes(
             });
         }
 
+        if !needs_parse {
+            continue;
+        }
+
         match crate::cook::validate_recipe_file(&recipe_str) {
             Ok(validation) => {
                 parsed_count += 1;
-                for err in &validation.errors {
-                    syntax_errors += 1;
-                    syntax_issues.push(DoctorCheck {
-                        category: "recipe_syntax".into(),
-                        severity: CheckSeverity::Error,
-                        message: format!(
-                            "Cooklang syntax error in '{}': {}",
-                            recipe_path.display(),
-                            err
-                        ),
-                        path: Some(recipe_path.clone()),
-                    });
-                }
-                for warn_msg in &validation.warnings {
-                    syntax_warnings += 1;
-                    syntax_issues.push(DoctorCheck {
-                        category: "recipe_syntax".into(),
-                        severity: CheckSeverity::Warning,
-                        message: format!(
-                            "Cooklang warning in '{}': {}",
-                            recipe_path.display(),
-                            warn_msg
-                        ),
-                        path: Some(recipe_path.clone()),
-                    });
+                if run_syntax {
+                    for err in &validation.errors {
+                        syntax_errors += 1;
+                        syntax_issues.push(DoctorCheck {
+                            category: "recipe_syntax".into(),
+                            severity: CheckSeverity::Error,
+                            message: format!(
+                                "Cooklang syntax error in '{}': {}",
+                                recipe_path.display(),
+                                err
+                            ),
+                            path: Some(recipe_path.clone()),
+                        });
+                    }
+                    for warn_msg in &validation.warnings {
+                        syntax_warnings += 1;
+                        syntax_issues.push(DoctorCheck {
+                            category: "recipe_syntax".into(),
+                            severity: CheckSeverity::Warning,
+                            message: format!(
+                                "Cooklang warning in '{}': {}",
+                                recipe_path.display(),
+                                warn_msg
+                            ),
+                            path: Some(recipe_path.clone()),
+                        });
+                    }
                 }
 
-                if !required_keys.is_empty() {
+                if run_metadata && !required_keys.is_empty() {
                     let missing: Vec<&str> = required_keys
                         .iter()
                         .copied()
@@ -311,7 +523,7 @@ fn check_recipes(
                     }
                 }
 
-                if let Some(table) = emoji_table {
+                if run_emojis && let Some(table) = emoji_table {
                     let mut unmapped_ing = Vec::new();
                     for ing in &validation.ingredients {
                         if table.lookup_ingredient(ing).is_none()
@@ -352,6 +564,32 @@ fn check_recipes(
                         });
                     }
                 }
+
+                if run_ignored && let Some(ignored) = ignored_ingredients {
+                    let mut flagged = Vec::new();
+                    for ing in &validation.ingredients {
+                        let key = normalize_ingredient_key(ing);
+                        if ignored.contains(&key)
+                            && !flagged
+                                .iter()
+                                .any(|x: &String| normalize_ingredient_key(x) == key)
+                        {
+                            flagged.push(ing.clone());
+                        }
+                    }
+                    if !flagged.is_empty() {
+                        ignored_issues.push(DoctorCheck {
+                            category: "recipe_ignored".into(),
+                            severity: CheckSeverity::Warning,
+                            message: format!(
+                                "Ignored ingredient(s) tagged with '@' in '{}' ({})",
+                                recipe_path.display(),
+                                flagged.join(", ")
+                            ),
+                            path: Some(recipe_path.clone()),
+                        });
+                    }
+                }
             }
             Err(err) => {
                 syntax_errors += 1;
@@ -366,32 +604,39 @@ fn check_recipes(
     }
 
     let mut checks = Vec::new();
-    if syntax_errors == 0 && syntax_warnings == 0 {
-        checks.push(DoctorCheck {
-            category: "recipe_syntax".into(),
-            severity: CheckSeverity::Ok,
-            message: format!("Cooklang syntax valid for {} recipe(s)", recipes.len()),
-            path: None,
-        });
-    } else {
+    if run_syntax {
+        if syntax_errors == 0 && syntax_warnings == 0 {
+            checks.push(DoctorCheck {
+                category: "recipe_syntax".into(),
+                severity: CheckSeverity::Ok,
+                message: format!("Cooklang syntax valid for {} recipe(s)", recipes.len()),
+                path: None,
+            });
+        } else {
+            checks.extend(syntax_issues);
+        }
+    } else if !syntax_issues.is_empty() {
+        // Surface unreadable recipe file I/O errors even when syntax warnings/errors are filtered out
         checks.extend(syntax_issues);
     }
 
-    if image_issues.is_empty() {
-        checks.push(DoctorCheck {
-            category: "recipe_images".into(),
-            severity: CheckSeverity::Ok,
-            message: format!(
-                "Companion images present for all {} recipe(s)",
-                recipes.len()
-            ),
-            path: None,
-        });
-    } else {
-        checks.extend(image_issues);
+    if run_images {
+        if image_issues.is_empty() {
+            checks.push(DoctorCheck {
+                category: "recipe_images".into(),
+                severity: CheckSeverity::Ok,
+                message: format!(
+                    "Companion images present for all {} recipe(s)",
+                    recipes.len()
+                ),
+                path: None,
+            });
+        } else {
+            checks.extend(image_issues);
+        }
     }
 
-    if !required_keys.is_empty() {
+    if run_metadata && !required_keys.is_empty() {
         if metadata_issues.is_empty() && parsed_count == recipes.len() {
             checks.push(DoctorCheck {
                 category: "recipe_metadata".into(),
@@ -408,7 +653,7 @@ fn check_recipes(
         }
     }
 
-    if emoji_table.is_some() {
+    if run_emojis && emoji_table.is_some() {
         if emoji_issues.is_empty() && parsed_count == recipes.len() {
             checks.push(DoctorCheck {
                 category: "recipe_emojis".into(),
@@ -421,6 +666,22 @@ fn check_recipes(
             });
         } else {
             checks.extend(emoji_issues);
+        }
+    }
+
+    if run_ignored && ignored_ingredients.is_some() {
+        if ignored_issues.is_empty() && parsed_count == recipes.len() {
+            checks.push(DoctorCheck {
+                category: "recipe_ignored".into(),
+                severity: CheckSeverity::Ok,
+                message: format!(
+                    "No ignored ingredients tagged with '@' across {} recipe(s)",
+                    recipes.len()
+                ),
+                path: None,
+            });
+        } else {
+            checks.extend(ignored_issues);
         }
     }
 
@@ -1191,6 +1452,7 @@ mod tests {
             &Ok(healthy_cfg.clone()),
             DoctorOptions {
                 check_recipes: true,
+                ..DoctorOptions::default()
             },
         );
         assert!(report_ok.healthy, "report: {report_ok:#?}");
@@ -1237,6 +1499,7 @@ mod tests {
             &Ok(targeted_cfg),
             DoctorOptions {
                 check_recipes: true,
+                ..DoctorOptions::default()
             },
         );
         assert!(!report_bad.healthy);
@@ -1275,6 +1538,7 @@ mod tests {
             &Ok(warn_cfg),
             DoctorOptions {
                 check_recipes: true,
+                ..DoctorOptions::default()
             },
         );
         assert!(!report_warn.healthy);
@@ -1293,6 +1557,196 @@ mod tests {
                     && c.message.contains("dragonfruit")
                     && c.message.contains("cauldron"))
         );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_doctor_only_filter_strict_and_ignored_ingredients() {
+        let dir = temp_dir("only_strict_ignored");
+        let recipes_dir = dir.join("cook");
+        fs::create_dir_all(&recipes_dir).unwrap();
+
+        // Cooklang-compatible top-level YAML list
+        let ignored_yaml = dir.join("ignored_ingredients.yaml");
+        fs::write(&ignored_yaml, "---\n- nonstick baking spray\n").unwrap();
+
+        // TOML table format
+        let ignored_toml = dir.join("ignored_ingredients.toml");
+        fs::write(&ignored_toml, "ignored_ingredients = [\"cooking spray\"]\n").unwrap();
+
+        // JSON top-level array format
+        let ignored_json = dir.join("ignored_ingredients.json");
+        fs::write(&ignored_json, r#"["parchment paper"]"#).unwrap();
+
+        let emoji_path = dir.join("emoji.yaml");
+        fs::write(
+            &emoji_path,
+            "emoji:\n  ingredients:\n    - bread:\n        - flour\n",
+        )
+        .unwrap();
+
+        // Recipe with legacy `>>` syntax warning, missing image, missing metadata, unmapped emoji,
+        // and an ignored ingredient tagged with `@` (mixed casing + extra spaces)
+        let noisy_recipe = recipes_dir.join("Brownies.cook");
+        fs::write(
+            &noisy_recipe,
+            ">> title: Brownies\nCoat pan with @Nonstick  Baking Spray{} and add @cocoa{1%cup}.\n",
+        )
+        .unwrap();
+
+        let base_cfg = Config {
+            ignore_file: String::new(),
+            recipe_search_root: recipes_dir.to_string_lossy().to_string(),
+            emoji_file: emoji_path.to_string_lossy().to_string(),
+            required_metadata: vec!["source".to_string()],
+            ignored_ingredients_file: ignored_yaml.to_string_lossy().to_string(),
+            ..Config::default()
+        };
+
+        // 1. --only images emits only recipe_images (no syntax/metadata/emojis/ignored)
+        let rep_images = run_doctor_with_options(
+            None,
+            &Ok(base_cfg.clone()),
+            DoctorOptions {
+                check_recipes: true,
+                strict: false,
+                only: vec![RecipeCheckKind::Images],
+            },
+        );
+        assert!(
+            rep_images.healthy,
+            "warnings alone stay healthy without --strict"
+        );
+        assert!(rep_images.warnings > 0);
+        assert!(
+            rep_images
+                .checks
+                .iter()
+                .any(|c| c.category == "recipe_images" && c.severity == CheckSeverity::Warning)
+        );
+        assert!(!rep_images.checks.iter().any(|c| matches!(
+            c.category.as_str(),
+            "recipe_syntax" | "recipe_metadata" | "recipe_emojis" | "recipe_ignored"
+        )));
+
+        // 2. --strict turns warnings into unhealthy
+        let rep_images_strict = run_doctor_with_options(
+            None,
+            &Ok(base_cfg.clone()),
+            DoctorOptions {
+                check_recipes: true,
+                strict: true,
+                only: vec![RecipeCheckKind::Images],
+            },
+        );
+        assert!(!rep_images_strict.healthy);
+        assert_eq!(rep_images_strict.errors, 0);
+        assert!(rep_images_strict.warnings > 0);
+
+        // 3. --only ignored detects `@Nonstick  Baking Spray{}` via YAML list
+        let rep_ignored = run_doctor_with_options(
+            None,
+            &Ok(base_cfg.clone()),
+            DoctorOptions {
+                check_recipes: true,
+                strict: true,
+                only: vec![RecipeCheckKind::Ignored],
+            },
+        );
+        assert!(!rep_ignored.healthy);
+        assert!(
+            rep_ignored.checks.iter().any(|c| {
+                c.category == "recipe_ignored"
+                    && c.severity == CheckSeverity::Warning
+                    && c.message.contains("Nonstick Baking Spray")
+            }),
+            "checks: {:#?}",
+            rep_ignored.checks
+        );
+        assert!(!rep_ignored.checks.iter().any(|c| matches!(
+            c.category.as_str(),
+            "recipe_syntax" | "recipe_images" | "recipe_metadata" | "recipe_emojis"
+        )));
+
+        // 4. TOML + JSON + empty YAML + inline ignored_ingredients all work and clean recipe passes --strict
+        let empty_yaml = dir.join("empty_ignored.yaml");
+        fs::write(&empty_yaml, "---\n").unwrap();
+        let clean_recipe = recipes_dir.join("Clean.cook");
+        fs::write(
+            &clean_recipe,
+            "---\nsource: home\n---\nMix @flour{1%cup}.\n",
+        )
+        .unwrap();
+        for file_path in [&ignored_toml, &ignored_json, &empty_yaml] {
+            let cfg = Config {
+                ignore_file: String::new(),
+                recipe_search_root: recipes_dir.to_string_lossy().to_string(),
+                recipe_files: vec![clean_recipe.to_string_lossy().to_string()],
+                ignored_ingredients_file: file_path.to_string_lossy().to_string(),
+                ignored_ingredients: vec!["ice".to_string()],
+                ..Config::default()
+            };
+            let rep = run_doctor_with_options(
+                None,
+                &Ok(cfg),
+                DoctorOptions {
+                    check_recipes: true,
+                    strict: true,
+                    only: vec![RecipeCheckKind::Ignored],
+                },
+            );
+            assert!(rep.healthy, "file {:?} report: {rep:#?}", file_path);
+            assert!(
+                rep.checks
+                    .iter()
+                    .any(|c| c.category == "recipe_ignored" && c.severity == CheckSeverity::Ok)
+            );
+        }
+
+        // 5. Missing, unsupported-ext, and invalid-schema ignored_ingredients_file report errors
+        let bad_ext = dir.join("ignored.txt");
+        fs::write(&bad_ext, "water\n").unwrap();
+        let bad_schema = dir.join("bad_ignored.json");
+        fs::write(&bad_schema, "[123]").unwrap();
+        let bad_obj = dir.join("bad_obj.toml");
+        fs::write(&bad_obj, "other = [\"water\"]\n").unwrap();
+        for bad_path in [dir.join("missing.yaml"), bad_ext, bad_schema, bad_obj] {
+            let bad_cfg = Config {
+                ignore_file: String::new(),
+                recipe_search_root: recipes_dir.to_string_lossy().to_string(),
+                ignored_ingredients_file: bad_path.to_string_lossy().to_string(),
+                ..Config::default()
+            };
+            let rep_bad = run_doctor_with_options(None, &Ok(bad_cfg), DoctorOptions::default());
+            assert!(!rep_bad.healthy, "expected error for {:?}", bad_path);
+            assert!(rep_bad.checks.iter().any(|c| {
+                c.category == "ignored_ingredients_file" && c.severity == CheckSeverity::Error
+            }));
+        }
+
+        // 6. RecipeCheckKind::parse aliases & error
+        assert_eq!(
+            RecipeCheckKind::parse("syntax").unwrap(),
+            RecipeCheckKind::Syntax
+        );
+        assert_eq!(
+            RecipeCheckKind::parse("image").unwrap(),
+            RecipeCheckKind::Images
+        );
+        assert_eq!(
+            RecipeCheckKind::parse("recipe_metadata").unwrap(),
+            RecipeCheckKind::Metadata
+        );
+        assert_eq!(
+            RecipeCheckKind::parse("emoji").unwrap(),
+            RecipeCheckKind::Emojis
+        );
+        assert_eq!(
+            RecipeCheckKind::parse("ignored_ingredients").unwrap(),
+            RecipeCheckKind::Ignored
+        );
+        assert!(RecipeCheckKind::parse("nope").is_err());
 
         let _ = fs::remove_dir_all(&dir);
     }

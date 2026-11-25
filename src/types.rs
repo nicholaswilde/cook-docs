@@ -151,6 +151,15 @@ pub struct Config {
     )]
     pub link_dirs: Vec<String>,
     #[serde(
+        rename = "LinkInSteps",
+        alias = "link-in-steps",
+        alias = "link_in_steps",
+        alias = "linkInSteps",
+        default,
+        skip_serializing_if = "std::ops::Not::not"
+    )]
+    pub link_in_steps: bool,
+    #[serde(
         rename = "CategoryTags",
         alias = "category-tags",
         alias = "category_tags",
@@ -169,6 +178,24 @@ pub struct Config {
         skip_serializing_if = "Vec::is_empty"
     )]
     pub required_metadata: Vec<String>,
+    #[serde(
+        rename = "IgnoredIngredientsFile",
+        alias = "ignored-ingredients-file",
+        alias = "ignored_ingredients_file",
+        alias = "ignoredIngredientsFile",
+        default,
+        skip_serializing_if = "String::is_empty"
+    )]
+    pub ignored_ingredients_file: String,
+    #[serde(
+        rename = "IgnoredIngredients",
+        alias = "ignored-ingredients",
+        alias = "ignored_ingredients",
+        alias = "ignoredIngredients",
+        default,
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub ignored_ingredients: Vec<String>,
     #[serde(
         rename = "Merge",
         alias = "merge",
@@ -211,8 +238,11 @@ impl Default for Config {
             emoji: None,
             weights_file: String::new(),
             link_dirs: Vec::new(),
+            link_in_steps: false,
             category_tags: BTreeMap::new(),
             required_metadata: Vec::new(),
+            ignored_ingredients_file: String::new(),
+            ignored_ingredients: Vec::new(),
             merge: false,
             force: false,
             recipe_files: Vec::new(),

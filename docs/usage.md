@@ -38,8 +38,8 @@ Render one or more specific recipes while keeping `--recipe-search-root` as the 
 cook-docs -c ./cook -o ./docs --assets-dir ./docs/assets/images ./cook/breads/Bagels.cook
 # Override Info.ImageSlug extension when running external WebP conversion afterwards:
 cook-docs -c ./cook -o ./docs --assets-dir ./docs/assets/images --image-ext webp ./cook/breads/Bagels.cook
-# Enrich output with emojis, gram weights, and internal recipe cross-links:
-cook-docs -c ./cook -o ./docs --emoji-file ./includes/emoji.yaml --weights-file ./includes/weights.yaml --link-dirs sauces-and-dressings,ingredients ./cook/mains/Tacos.cook
+# Enrich output with emojis, gram weights, and internal recipe cross-links (ingredients + step directions):
+cook-docs -c ./cook -o ./docs --emoji-file ./includes/emoji.yaml --weights-file ./includes/weights.yaml --link-dirs sauces-and-dressings,ingredients --link-in-steps ./cook/mains/Tacos.cook
 ```
 
 Inspect parsed recipe data as JSON on stdout (single object for one recipe, JSON array for multiple):
@@ -107,11 +107,13 @@ cook-docs doc
 cook-docs doctor --json
 ```
 
-Pass `--check-recipes` (with optional positional `.cook` files or directories) to run recipe-level validation checks:
+Pass `--check-recipes` (with optional positional `.cook` files or directories) to run recipe-level validation checks, `--only <CATEGORIES>` to filter specific check categories (`syntax`, `images`, `metadata`, `emojis`, `ignored`), and `--strict` to exit non-zero on warnings as well as errors:
 
 ```bash
-# Validate Cooklang syntax, companion images, required metadata, and emoji mappings:
+# Validate Cooklang syntax, companion images, required metadata, emoji mappings, and ignored ingredients:
 cook-docs -c ./cook --emoji-file ./includes/emoji.yaml --required-metadata source,serves doctor --check-recipes
+# Run only syntax and ignored-ingredient checks in strict CI mode:
+cook-docs -c ./cook --ignored-ingredients-file ./cook/config/ignored_ingredients.yaml doctor --check-recipes --only syntax,ignored --strict
 # Validate specific recipe files in JSON mode:
 cook-docs -c ./cook --required-metadata source doctor --check-recipes --json ./cook/breads/Bagels.cook
 ```
@@ -122,8 +124,9 @@ Recipe checks cover:
 - **Companion images (`recipe_images`)**: warns when no matching `.webp`, `.jpg`, `.jpeg`, or `.png` image exists alongside a recipe
 - **Required metadata (`recipe_metadata`)**: errors when any key listed in `required_metadata` / `--required-metadata` is missing or empty
 - **Unmapped emojis (`recipe_emojis`)**: warns about ingredients or cookware missing from `emoji_file` / inline `emoji` when configured
+- **Ignored ingredients (`recipe_ignored`)**: warns when a `.cook` file tags an ingredient listed in `ignored_ingredients_file` or `ignored_ingredients` with `@`
 
-Exits non-zero when errors are detected.
+Passing `--only` implies `--check-recipes`. Exits non-zero when errors are detected (or on any warning with `--strict`).
 
 ## :arrow_up: Self-Update
 

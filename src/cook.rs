@@ -626,9 +626,56 @@ fn aggregate_cookware(parsed_recipe: &cooklang::Recipe) -> Vec<crate::types::Coo
     order.into_iter().filter_map(|k| items.remove(&k)).collect()
 }
 
+fn is_inside_markdown_link(prefix: &str) -> bool {
+    let mut chars = prefix.chars().peekable();
+    let mut bracket_depth = 0usize;
+    let mut paren_depth = 0usize;
+    let mut in_link_url = false;
+
+    while let Some(ch) = chars.next() {
+        match ch {
+            '\\' => {
+                chars.next();
+            }
+            '[' if !in_link_url => bracket_depth += 1,
+            ']' if !in_link_url && bracket_depth > 0 => {
+                bracket_depth -= 1;
+                if bracket_depth == 0 && chars.peek() == Some(&'(') {
+                    chars.next();
+                    in_link_url = true;
+                    paren_depth = 1;
+                }
+            }
+            '(' if in_link_url => paren_depth += 1,
+            ')' if in_link_url => {
+                paren_depth -= 1;
+                if paren_depth == 0 {
+                    in_link_url = false;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    bracket_depth > 0 || in_link_url
+}
+
 pub fn parse_file(
     recipe_path: &str,
     config: &crate::types::Config,
+) -> Result<crate::types::Recipe, String> {
+    if config.link_in_steps {
+        let index = crate::enrichment::RecipeLinkIndex::build(config);
+        parse_file_with_links(recipe_path, config, Some(&index))
+    } else {
+        parse_file_with_links(recipe_path, config, None)
+    }
+}
+
+pub fn parse_file_with_links(
+    recipe_path: &str,
+    config: &crate::types::Config,
+    link_index: Option<&crate::enrichment::RecipeLinkIndex>,
 ) -> Result<crate::types::Recipe, String> {
     let recipe_name = get_recipe_name(recipe_path);
     let recipe_slug = slugify_filename(&recipe_name);
@@ -728,7 +775,20 @@ pub fn parse_file(
                         }
                         cooklang::model::Item::Ingredient { index } => {
                             if let Some(ing) = parsed_recipe.ingredients.get(*index) {
-                                directions.push_str(&ing.name);
+                                let display_name = ing.display_name();
+                                if config.link_in_steps
+                                    && let Some(links) = link_index
+                                    && !is_inside_markdown_link(&directions)
+                                {
+                                    let linked = links.link_with_display(
+                                        &ing.name,
+                                        display_name.as_ref(),
+                                        Path::new(&info.new_recipe_file_path),
+                                    );
+                                    directions.push_str(&linked);
+                                } else {
+                                    directions.push_str(display_name.as_ref());
+                                }
 
                                 let (is_numeric, quantity, quantity_raw, unit) = if let Some(qty) =
                                     &ing.quantity
@@ -1549,6 +1609,88 @@ Bake at 180°C for ~{10-15%minutes}.
             resolve_recipe_paths(&dir.0, &cfg)
                 .unwrap_err()
                 .contains("not found")
+        );
+    }
+
+    #[test]
+    fn test_link_in_steps_ast_linking_self_link_and_already_linked() {
+        let dir = TempDir::new("link_in_steps");
+        let cook_root = dir.0.join("cook");
+        let sauces = cook_root.join("sauces-and-dressings");
+        let mains = cook_root.join("mains");
+        let docs_out = dir.0.join("docs");
+        fs::create_dir_all(&sauces).unwrap();
+        fs::create_dir_all(&mains).unwrap();
+
+        let sauce_path = sauces.join("Garlic Butter.cook");
+        fs::write(
+            &sauce_path,
+            "Whisk @butter{1%stick} and @garlic{2%cloves}. Save extra @garlic butter{} for later.\n",
+        )
+        .unwrap();
+
+        let main_path = mains.join("Steak.cook");
+        fs::write(
+            &main_path,
+            "Top with @Garlic Butter{2%tbsp} or @Garlic Butter|herb butter{1%tbsp}, skip [homemade @Garlic Butter{}](https://example.com), keep plain garlic butter unlinked, and season with @salt{1%tsp}.\n",
+        )
+        .unwrap();
+
+        let base_cfg = Config {
+            recipe_search_root: cook_root.to_string_lossy().to_string(),
+            output_dir: docs_out.to_string_lossy().to_string(),
+            link_dirs: vec!["sauces-and-dressings".to_string()],
+            ..default_config()
+        };
+
+        // 1. Default off: no links injected into step directions
+        let parsed_off = parse_file(&main_path.to_string_lossy(), &base_cfg).unwrap();
+        assert!(
+            !parsed_off.steps[0]
+                .directions
+                .contains("../sauces-and-dressings/garlic-butter.md"),
+            "directions: {}",
+            parsed_off.steps[0].directions
+        );
+
+        // 2. Enabled: links @ingredient AST items, preserves casing & alias, skips prose & already-linked spans
+        let linked_cfg = Config {
+            link_in_steps: true,
+            ..base_cfg
+        };
+        let index = crate::enrichment::RecipeLinkIndex::build(&linked_cfg);
+        let parsed_on =
+            parse_file_with_links(&main_path.to_string_lossy(), &linked_cfg, Some(&index)).unwrap();
+        let dirs = &parsed_on.steps[0].directions;
+        assert!(
+            dirs.contains("[Garlic Butter](../sauces-and-dressings/garlic-butter.md)"),
+            "expected linked Garlic Butter in: {dirs}"
+        );
+        assert!(
+            dirs.contains("[herb butter](../sauces-and-dressings/garlic-butter.md)"),
+            "expected linked alias herb butter in: {dirs}"
+        );
+        assert!(
+            dirs.contains("[homemade Garlic Butter](https://example.com)"),
+            "expected already-linked span untouched in: {dirs}"
+        );
+        assert!(
+            dirs.contains("keep plain garlic butter unlinked"),
+            "expected plain prose unlinked in: {dirs}"
+        );
+        assert!(
+            dirs.contains("season with salt."),
+            "expected unmatched ingredient unlinked in: {dirs}"
+        );
+
+        // 3. Self-link exclusion: Garlic Butter.cook does not link to itself
+        let parsed_self =
+            parse_file_with_links(&sauce_path.to_string_lossy(), &linked_cfg, Some(&index))
+                .unwrap();
+        assert!(
+            !parsed_self.steps[0].directions.contains("garlic-butter.md"),
+            "expected self-link excluded in: {}",
+            parsed_self.steps[0].directions
         );
     }
 }

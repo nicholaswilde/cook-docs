@@ -17,6 +17,8 @@ pub enum CliAction {
     Doctor {
         json: bool,
         check_recipes: bool,
+        strict: bool,
+        only: Vec<crate::doctor::RecipeCheckKind>,
         config_path: Option<PathBuf>,
         config_result: Result<Config, String>,
     },
@@ -118,10 +120,19 @@ pub fn build_cli() -> Command {
             .long("link-dirs")
             .global(true)
             .help("comma-separated recipe subdirectories eligible for linkRecipe cross-linking"))
+        .arg(Arg::new("link-in-steps")
+            .long("link-in-steps")
+            .global(true)
+            .action(ArgAction::SetTrue)
+            .help("cross-link matching @ingredient references inside step directions"))
         .arg(Arg::new("required-metadata")
             .long("required-metadata")
             .global(true)
             .help("comma-separated metadata keys required by doctor --check-recipes (e.g. source,serves)"))
+        .arg(Arg::new("ignored-ingredients-file")
+            .long("ignored-ingredients-file")
+            .global(true)
+            .help("optional YAML/TOML/JSON list of ingredients that should not be tagged with '@' (checked by doctor --check-recipes)"))
         .arg(Arg::new("merge")
             .long("merge")
             .global(true)
@@ -172,7 +183,20 @@ pub fn build_cli() -> Command {
                     Arg::new("check-recipes")
                         .long("check-recipes")
                         .action(ArgAction::SetTrue)
-                        .help("Validate recipe syntax, companion images, required metadata, and emoji mappings"),
+                        .help("Validate recipe syntax, companion images, required metadata, emoji mappings, and ignored ingredients"),
+                )
+                .arg(
+                    Arg::new("only")
+                        .long("only")
+                        .value_name("CATEGORIES")
+                        .action(ArgAction::Append)
+                        .help("Comma-separated recipe check categories to run (syntax,images,metadata,emojis,ignored)"),
+                )
+                .arg(
+                    Arg::new("strict")
+                        .long("strict")
+                        .action(ArgAction::SetTrue)
+                        .help("Treat warnings as unhealthy and exit non-zero"),
                 )
                 .arg(
                     Arg::new("doctor-files")
@@ -261,6 +285,12 @@ struct ConfigFile {
     #[serde(alias = "link-dirs", alias = "link_dirs", alias = "linkDirs")]
     pub link_dirs: Option<Vec<String>>,
     #[serde(
+        alias = "link-in-steps",
+        alias = "link_in_steps",
+        alias = "linkInSteps"
+    )]
+    pub link_in_steps: Option<bool>,
+    #[serde(
         alias = "category-tags",
         alias = "category_tags",
         alias = "categoryTags",
@@ -274,6 +304,18 @@ struct ConfigFile {
         alias = "requiredMetadata"
     )]
     pub required_metadata: Option<Vec<String>>,
+    #[serde(
+        alias = "ignored-ingredients-file",
+        alias = "ignored_ingredients_file",
+        alias = "ignoredIngredientsFile"
+    )]
+    pub ignored_ingredients_file: Option<String>,
+    #[serde(
+        alias = "ignored-ingredients",
+        alias = "ignored_ingredients",
+        alias = "ignoredIngredients"
+    )]
+    pub ignored_ingredients: Option<Vec<String>>,
     #[serde(alias = "merge")]
     pub merge: Option<bool>,
 }
@@ -296,8 +338,7 @@ pub fn load_config(args: &[&str]) -> Result<Config, String> {
     }
 }
 
-/// Parse CLI args into an actionable command, loading config files and env vars when running normally.
-pub fn load_action(args: &[&str]) -> Result<CliAction, String> {
+fn default_config_paths(home_dir: Option<&Path>) -> Vec<PathBuf> {
     let mut config_paths = Vec::new();
     let push_dir = |paths: &mut Vec<PathBuf>, dir: &Path| {
         for ext in ["toml", "yaml", "yml", "json"] {
@@ -307,14 +348,19 @@ pub fn load_action(args: &[&str]) -> Result<CliAction, String> {
 
     push_dir(&mut config_paths, Path::new("/etc/cook-docs"));
 
-    if let Ok(home) = std::env::var("HOME")
-        && !home.is_empty()
+    if let Some(home) = home_dir
+        && !home.as_os_str().is_empty()
     {
-        push_dir(&mut config_paths, &PathBuf::from(home).join(".config"));
+        push_dir(&mut config_paths, &home.join(".config"));
     }
 
     push_dir(&mut config_paths, Path::new("."));
+    config_paths
+}
 
+/// Parse CLI args into an actionable command, loading config files and env vars when running normally.
+pub fn load_action(args: &[&str]) -> Result<CliAction, String> {
+    let config_paths = default_config_paths(std::env::home_dir().as_deref());
     load_action_with(args, &config_paths, |k| std::env::var(k).ok())
 }
 
@@ -369,7 +415,26 @@ where
     }
     if let Some(("doctor", sub_matches)) = matches.subcommand() {
         let json = sub_matches.get_flag("json");
-        let check_recipes = sub_matches.get_flag("check-recipes");
+        let strict = sub_matches.get_flag("strict");
+        let mut only = Vec::new();
+        if let Some(vals) = sub_matches.get_many::<String>("only") {
+            for raw_arg in vals {
+                let parts = parse_csv_list(raw_arg);
+                if parts.is_empty() {
+                    return Err(
+                        "Empty --only value: expected one or more of syntax, images, metadata, emojis, ignored"
+                            .to_string(),
+                    );
+                }
+                for part in parts {
+                    let kind = crate::doctor::RecipeCheckKind::parse(&part)?;
+                    if !only.contains(&kind) {
+                        only.push(kind);
+                    }
+                }
+            }
+        }
+        let check_recipes = sub_matches.get_flag("check-recipes") || !only.is_empty();
         let (config_path, mut config_result) =
             resolve_config_with_source(&matches, config_paths, env_get);
         if let Ok(ref mut cfg) = config_result
@@ -380,6 +445,8 @@ where
         return Ok(CliAction::Doctor {
             json,
             check_recipes,
+            strict,
+            only,
             config_path,
             config_result,
         });
@@ -548,11 +615,20 @@ where
         if let Some(val) = config_file.link_dirs {
             config.link_dirs = val;
         }
+        if let Some(val) = config_file.link_in_steps {
+            config.link_in_steps = val;
+        }
         if let Some(val) = config_file.category_tags {
             config.category_tags = val;
         }
         if let Some(val) = config_file.required_metadata {
             config.required_metadata = val;
+        }
+        if let Some(val) = config_file.ignored_ingredients_file {
+            config.ignored_ingredients_file = val;
+        }
+        if let Some(val) = config_file.ignored_ingredients {
+            config.ignored_ingredients = val;
         }
         if let Some(val) = config_file.merge {
             config.merge = val;
@@ -599,8 +675,17 @@ where
     if let Some(val) = env_get("COOK_DOCS_LINK_DIRS") {
         config.link_dirs = parse_csv_list(&val);
     }
+    if let Some(val) = env_get("COOK_DOCS_LINK_IN_STEPS") {
+        config.link_in_steps = val.parse().unwrap_or(config.link_in_steps);
+    }
     if let Some(val) = env_get("COOK_DOCS_REQUIRED_METADATA") {
         config.required_metadata = parse_csv_list(&val);
+    }
+    if let Some(val) = env_get("COOK_DOCS_IGNORED_INGREDIENTS_FILE") {
+        config.ignored_ingredients_file = val;
+    }
+    if let Some(val) = env_get("COOK_DOCS_IGNORED_INGREDIENTS") {
+        config.ignored_ingredients = parse_csv_list(&val);
     }
     if let Some(val) = env_get("COOK_DOCS_MERGE") {
         config.merge = val.parse().unwrap_or(config.merge);
@@ -652,8 +737,14 @@ where
     if let Some(val) = matches.get_one::<String>("link-dirs") {
         config.link_dirs = parse_csv_list(val);
     }
+    if matches.value_source("link-in-steps") == Some(clap::parser::ValueSource::CommandLine) {
+        config.link_in_steps = matches.get_flag("link-in-steps");
+    }
     if let Some(val) = matches.get_one::<String>("required-metadata") {
         config.required_metadata = parse_csv_list(val);
+    }
+    if let Some(val) = matches.get_one::<String>("ignored-ingredients-file") {
+        config.ignored_ingredients_file = val.clone();
     }
     if matches.value_source("merge") == Some(clap::parser::ValueSource::CommandLine) {
         config.merge = matches.get_flag("merge");
@@ -976,7 +1067,10 @@ output_dir = \"toml_out\"
                         || rest.starts_with("emoji_file =")
                         || rest.starts_with("weights_file =")
                         || rest.starts_with("link_dirs =")
+                        || rest.starts_with("link_in_steps =")
                         || rest.starts_with("required_metadata =")
+                        || rest.starts_with("ignored_ingredients_file =")
+                        || rest.starts_with("ignored_ingredients =")
                         || rest.starts_with("merge ="))
                 {
                     return rest.to_string();
@@ -1006,7 +1100,10 @@ output_dir = \"toml_out\"
         assert_eq!(parsed.emoji_file.as_deref(), Some(""));
         assert_eq!(parsed.weights_file.as_deref(), Some(""));
         assert_eq!(parsed.link_dirs.as_deref(), Some(&[][..]));
+        assert_eq!(parsed.link_in_steps, Some(false));
         assert_eq!(parsed.required_metadata.as_deref(), Some(&[][..]));
+        assert_eq!(parsed.ignored_ingredients_file.as_deref(), Some(""));
+        assert_eq!(parsed.ignored_ingredients.as_deref(), Some(&[][..]));
         assert_eq!(parsed.merge, Some(false));
     }
 
@@ -1018,11 +1115,15 @@ output_dir = \"toml_out\"
                 CliAction::Doctor {
                     json,
                     check_recipes,
+                    strict,
+                    only,
                     config_path,
                     config_result,
                 } => {
                     assert!(!json);
                     assert!(!check_recipes);
+                    assert!(!strict);
+                    assert!(only.is_empty());
                     assert!(config_path.is_none());
                     assert!(config_result.is_ok());
                 }
@@ -1407,6 +1508,196 @@ categoryTags:
             cfg_j.category_tags.get("soups"),
             Some(&vec!["soup".to_string(), "comfort".to_string()])
         );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_default_config_paths_uses_home_dir() {
+        let with_home = default_config_paths(Some(Path::new("/home/alice")));
+        assert_eq!(with_home.len(), 12);
+        assert_eq!(with_home[0], PathBuf::from("/etc/cook-docs/.cookdocs.toml"));
+        assert_eq!(
+            with_home[4],
+            PathBuf::from("/home/alice/.config/.cookdocs.toml")
+        );
+        assert_eq!(
+            with_home[7],
+            PathBuf::from("/home/alice/.config/.cookdocs.json")
+        );
+        assert_eq!(with_home[8], PathBuf::from("./.cookdocs.toml"));
+
+        let win_home = default_config_paths(Some(Path::new(r"C:\Users\alice")));
+        assert_eq!(
+            win_home[4],
+            Path::new(r"C:\Users\alice")
+                .join(".config")
+                .join(".cookdocs.toml")
+        );
+
+        let without_home = default_config_paths(None);
+        assert_eq!(without_home.len(), 8);
+        assert_eq!(without_home[4], PathBuf::from("./.cookdocs.toml"));
+
+        let empty_home = default_config_paths(Some(Path::new("")));
+        assert_eq!(empty_home, without_home);
+    }
+
+    #[test]
+    fn test_doctor_only_strict_and_ignored_ingredients_config() {
+        let action = load_action_with(
+            &[
+                "cook-docs",
+                "doctor",
+                "--strict",
+                "--only",
+                "syntax,images",
+                "--only",
+                "ignored",
+                "--ignored-ingredients-file",
+                "config/ignored_ingredients.yaml",
+            ],
+            &[],
+            |_| None,
+        )
+        .unwrap();
+        match action {
+            CliAction::Doctor {
+                json,
+                check_recipes,
+                strict,
+                only,
+                config_result,
+                ..
+            } => {
+                assert!(!json);
+                assert!(check_recipes);
+                assert!(strict);
+                assert_eq!(
+                    only,
+                    vec![
+                        crate::doctor::RecipeCheckKind::Syntax,
+                        crate::doctor::RecipeCheckKind::Images,
+                        crate::doctor::RecipeCheckKind::Ignored,
+                    ]
+                );
+                let cfg = config_result.unwrap();
+                assert_eq!(
+                    cfg.ignored_ingredients_file,
+                    "config/ignored_ingredients.yaml"
+                );
+            }
+            other => panic!("expected Doctor action, got {other:?}"),
+        }
+
+        // Invalid --only category fails with helpful error
+        let err = load_action_with(&["cook-docs", "doctor", "--only", "bogus"], &[], |_| None)
+            .unwrap_err();
+        assert!(err.contains("bogus"), "err: {err}");
+        assert!(err.contains("ignored"), "err: {err}");
+
+        // Config file -> env -> CLI precedence for ignored_ingredients_file & ignored_ingredients
+        let dir = std::env::temp_dir().join(format!("cook_docs_ign_cfg_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let cfg_file = dir.join(".cookdocs.toml");
+        fs::write(
+            &cfg_file,
+            r#"
+ignored_ingredients_file = "file_ignored.yaml"
+ignored_ingredients = ["nonstick baking spray", "cooking spray"]
+"#,
+        )
+        .unwrap();
+
+        let from_file =
+            load_config_with(&["cook-docs"], std::slice::from_ref(&cfg_file), |_| None).unwrap();
+        assert_eq!(from_file.ignored_ingredients_file, "file_ignored.yaml");
+        assert_eq!(
+            from_file.ignored_ingredients,
+            vec!["nonstick baking spray", "cooking spray"]
+        );
+
+        let from_env = load_config_with(
+            &["cook-docs"],
+            std::slice::from_ref(&cfg_file),
+            |k| match k {
+                "COOK_DOCS_IGNORED_INGREDIENTS_FILE" => Some("env_ignored.yaml".to_string()),
+                "COOK_DOCS_IGNORED_INGREDIENTS" => Some("water, ice".to_string()),
+                _ => None,
+            },
+        )
+        .unwrap();
+        assert_eq!(from_env.ignored_ingredients_file, "env_ignored.yaml");
+        assert_eq!(from_env.ignored_ingredients, vec!["water", "ice"]);
+
+        let from_cli = load_config_with(
+            &[
+                "cook-docs",
+                "--ignored-ingredients-file",
+                "cli_ignored.yaml",
+            ],
+            std::slice::from_ref(&cfg_file),
+            |k| match k {
+                "COOK_DOCS_IGNORED_INGREDIENTS_FILE" => Some("env_ignored.yaml".to_string()),
+                _ => None,
+            },
+        )
+        .unwrap();
+        assert_eq!(from_cli.ignored_ingredients_file, "cli_ignored.yaml");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_link_in_steps_config_env_and_cli_precedence() {
+        assert!(!Config::default().link_in_steps);
+
+        let dir = std::env::temp_dir().join(format!("cook_docs_lis_cfg_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+
+        let toml_cfg = dir.join(".cookdocs.toml");
+        fs::write(&toml_cfg, "link_in_steps = true\n").unwrap();
+        let from_toml =
+            load_config_with(&["cook-docs"], std::slice::from_ref(&toml_cfg), |_| None).unwrap();
+        assert!(from_toml.link_in_steps);
+
+        let yaml_cfg = dir.join(".cookdocs.yaml");
+        fs::write(&yaml_cfg, "linkInSteps: true\n").unwrap();
+        let from_yaml =
+            load_config_with(&["cook-docs"], std::slice::from_ref(&yaml_cfg), |_| None).unwrap();
+        assert!(from_yaml.link_in_steps);
+
+        let json_cfg = dir.join(".cookdocs.json");
+        fs::write(&json_cfg, r#"{"link-in-steps": true}"#).unwrap();
+        let from_json =
+            load_config_with(&["cook-docs"], std::slice::from_ref(&json_cfg), |_| None).unwrap();
+        assert!(from_json.link_in_steps);
+
+        // Env overrides config file
+        let from_env = load_config_with(
+            &["cook-docs"],
+            std::slice::from_ref(&toml_cfg),
+            |k| match k {
+                "COOK_DOCS_LINK_IN_STEPS" => Some("false".to_string()),
+                _ => None,
+            },
+        )
+        .unwrap();
+        assert!(!from_env.link_in_steps);
+
+        // CLI overrides env
+        let from_cli = load_config_with(
+            &["cook-docs", "--link-in-steps"],
+            std::slice::from_ref(&toml_cfg),
+            |k| match k {
+                "COOK_DOCS_LINK_IN_STEPS" => Some("false".to_string()),
+                _ => None,
+            },
+        )
+        .unwrap();
+        assert!(from_cli.link_in_steps);
 
         let _ = fs::remove_dir_all(&dir);
     }

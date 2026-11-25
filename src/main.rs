@@ -36,13 +36,19 @@ fn main() {
         Ok(cook_docs::config::CliAction::Doctor {
             json,
             check_recipes,
+            strict,
+            only,
             config_path,
             config_result,
         }) => {
             let report = cook_docs::doctor::run_doctor_with_options(
                 config_path.as_deref(),
                 &config_result,
-                cook_docs::doctor::DoctorOptions { check_recipes },
+                cook_docs::doctor::DoctorOptions {
+                    check_recipes,
+                    strict,
+                    only,
+                },
             );
             if json {
                 match serde_json::to_string_pretty(&report) {

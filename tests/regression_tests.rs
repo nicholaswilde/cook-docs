@@ -2075,3 +2075,310 @@ Fold in @flour{1/4%cup}.
     let toast_md = fs::read_to_string(dir.path().join("docs/misc/toast.md")).unwrap();
     assert!(!toast_md.contains("tags:"), "toast:\n{toast_md}");
 }
+
+#[test]
+fn regression_config_discovered_in_user_home_dir() {
+    let Some(bin) = bin_if_runnable() else {
+        return;
+    };
+    let dir = TempDir::new("home_dir_cfg");
+    let fake_home = dir.path().join("home");
+    let work_dir = dir.path().join("work");
+    fs::create_dir_all(fake_home.join(".config")).unwrap();
+    fs::create_dir_all(&work_dir).unwrap();
+
+    fs::write(fake_home.join(".config/.cookdocs.toml"), "word_wrap = 42\n").unwrap();
+    fs::write(work_dir.join("Toast.cook"), "Toast @bread{1%slice}.\n").unwrap();
+
+    let mut cmd = Command::new(bin);
+    cmd.current_dir(&work_dir).args(["--dry-run", "--jsonify"]);
+    for (k, _) in std::env::vars() {
+        if k.starts_with("COOK_DOCS_") {
+            cmd.env_remove(k);
+        }
+    }
+    cmd.env_remove("HOME").env_remove("USERPROFILE");
+    #[cfg(windows)]
+    cmd.env("USERPROFILE", &fake_home);
+    #[cfg(not(windows))]
+    cmd.env("HOME", &fake_home);
+
+    let out = cmd.output().unwrap();
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let parsed: Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(parsed["Config"]["WordWrap"], 42);
+}
+
+#[test]
+fn regression_doctor_only_strict_and_ignored_ingredients() {
+    let Some(bin) = bin_if_runnable() else {
+        return;
+    };
+    let dir = TempDir::new("doctor_only_strict");
+    let cook_dir = dir.path().join("cook");
+    fs::create_dir_all(&cook_dir).unwrap();
+
+    let ignored_file = dir.path().join("ignored_ingredients.yaml");
+    fs::write(&ignored_file, "---\n- nonstick baking spray\n").unwrap();
+
+    // Recipe with legacy `>>` syntax warning, missing image, and ignored ingredient
+    let recipe = cook_dir.join("Muffins.cook");
+    fs::write(
+        &recipe,
+        ">> title: Muffins\nSpray pan with @nonstick baking spray{} and add @flour{1%cup}.\n",
+    )
+    .unwrap();
+
+    // 1. --only images without --strict: warnings present, still healthy (exit 0), only recipe_images reported
+    let out_images = run_cli(
+        bin,
+        Some(dir.path()),
+        &[
+            "-c",
+            "cook",
+            "doctor",
+            "--check-recipes",
+            "--only",
+            "images",
+            "--json",
+        ],
+        &[],
+    );
+    assert!(
+        out_images.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out_images.stderr)
+    );
+    let rep_images: Value = serde_json::from_slice(&out_images.stdout).unwrap();
+    assert_eq!(rep_images["healthy"], true);
+    let cats: Vec<&str> = rep_images["checks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|c| c["category"].as_str())
+        .collect();
+    assert!(cats.contains(&"recipe_images"), "cats: {cats:?}");
+    assert!(!cats.contains(&"recipe_syntax"), "cats: {cats:?}");
+    assert!(!cats.contains(&"recipe_ignored"), "cats: {cats:?}");
+
+    // 2. Same check with --strict: exits non-zero and healthy == false
+    let out_strict = run_cli(
+        bin,
+        Some(dir.path()),
+        &[
+            "-c",
+            "cook",
+            "doctor",
+            "--check-recipes",
+            "--only",
+            "images",
+            "--strict",
+            "--json",
+        ],
+        &[],
+    );
+    assert!(!out_strict.status.success());
+    let rep_strict: Value = serde_json::from_slice(&out_strict.stdout).unwrap();
+    assert_eq!(rep_strict["healthy"], false);
+    assert_eq!(rep_strict["errors"], 0);
+    assert!(rep_strict["warnings"].as_u64().unwrap() > 0);
+
+    // 3. --only ignored with --ignored-ingredients-file + --strict flags the ignored item and exits non-zero
+    let out_ignored = run_cli(
+        bin,
+        Some(dir.path()),
+        &[
+            "-c",
+            "cook",
+            "--ignored-ingredients-file",
+            "ignored_ingredients.yaml",
+            "doctor",
+            "--only",
+            "ignored",
+            "--strict",
+            "--json",
+        ],
+        &[],
+    );
+    assert!(!out_ignored.status.success());
+    let rep_ignored: Value = serde_json::from_slice(&out_ignored.stdout).unwrap();
+    assert_eq!(rep_ignored["healthy"], false);
+    assert!(
+        rep_ignored["checks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|c| c["category"] == "recipe_ignored"
+                && c["severity"] == "warning"
+                && c["message"]
+                    .as_str()
+                    .unwrap_or("")
+                    .contains("nonstick baking spray")),
+        "report: {rep_ignored}"
+    );
+
+    // 4. Clean recipe passes --only ignored --strict with exit 0
+    let clean = cook_dir.join("Clean.cook");
+    fs::write(&clean, "---\ntitle: Clean\n---\nMix @flour{1%cup}.\n").unwrap();
+    let out_clean = run_cli(
+        bin,
+        Some(dir.path()),
+        &[
+            "-c",
+            "cook",
+            "--ignored-ingredients-file",
+            "ignored_ingredients.yaml",
+            "doctor",
+            "--only",
+            "ignored",
+            "--strict",
+            "--json",
+            "cook/Clean.cook",
+        ],
+        &[],
+    );
+    assert!(
+        out_clean.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&out_clean.stdout),
+        String::from_utf8_lossy(&out_clean.stderr)
+    );
+    let rep_clean: Value = serde_json::from_slice(&out_clean.stdout).unwrap();
+    assert_eq!(rep_clean["healthy"], true);
+
+    // 5. Invalid --only category exits non-zero with error message
+    let out_bad = run_cli(
+        bin,
+        Some(dir.path()),
+        &["-c", "cook", "doctor", "--only", "unknown"],
+        &[],
+    );
+    assert!(!out_bad.status.success());
+    let stderr = String::from_utf8_lossy(&out_bad.stderr);
+    assert!(stderr.contains("unknown"), "stderr: {stderr}");
+}
+
+#[test]
+fn regression_link_in_steps_cli_word_wrap_and_default_off() {
+    let Some(bin) = bin_if_runnable() else {
+        return;
+    };
+    let dir = TempDir::new("link_in_steps_cli");
+    let cook_dir = dir.path().join("cook");
+    let sauces = cook_dir.join("sauces");
+    let mains = cook_dir.join("mains");
+    fs::create_dir_all(&sauces).unwrap();
+    fs::create_dir_all(&mains).unwrap();
+
+    fs::write(
+        sauces.join("Salsa Verde.cook"),
+        "Blend @tomatillos{4} and extra @salsa verde{} if desired.\n",
+    )
+    .unwrap();
+    fs::write(
+        mains.join("Tacos.cook"),
+        "Spoon plenty of fresh warm @Salsa Verde{1/2%cup} over warm tortillas, skip [custom @Salsa Verde{}](https://example.com), and serve extra salsa verde on the side.\n",
+    )
+    .unwrap();
+
+    // 1. Default off: Ingredients links Salsa Verde, Instructions does NOT
+    let out_off = run_cli(
+        bin,
+        Some(dir.path()),
+        &["-c", "cook", "-o", "docs", "--link-dirs", "sauces"],
+        &[],
+    );
+    assert!(
+        out_off.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out_off.stderr)
+    );
+    let tacos_off = fs::read_to_string(dir.path().join("docs/mains/tacos.md")).unwrap();
+    let (_, steps_off) = tacos_off.split_once("## :pencil: Instructions").unwrap();
+    assert!(
+        tacos_off.contains("[Salsa Verde](../sauces/salsa-verde.md)"),
+        "expected ingredient link in:\n{tacos_off}"
+    );
+    assert!(
+        !steps_off.contains("../sauces/salsa-verde.md"),
+        "expected steps unlinked by default:\n{steps_off}"
+    );
+
+    // 2. --link-in-steps with tight word-wrap keeps link unbroken, preserves already-linked & prose, skips self-link
+    let out_on = run_cli(
+        bin,
+        Some(dir.path()),
+        &[
+            "-c",
+            "cook",
+            "-o",
+            "docs",
+            "--link-dirs",
+            "sauces",
+            "--link-in-steps",
+            "-w",
+            "45",
+        ],
+        &[],
+    );
+    assert!(
+        out_on.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out_on.stderr)
+    );
+    let tacos_on = fs::read_to_string(dir.path().join("docs/mains/tacos.md")).unwrap();
+    let (_, steps_on) = tacos_on.split_once("## :pencil: Instructions").unwrap();
+    assert!(
+        steps_on
+            .lines()
+            .any(|l| l.contains("[Salsa Verde](../sauces/salsa-verde.md)")),
+        "expected unbroken step link in:\n{steps_on}"
+    );
+    assert!(
+        steps_on.contains("[custom Salsa Verde](https://example.com)"),
+        "expected already-linked span preserved in:\n{steps_on}"
+    );
+    assert!(
+        steps_on.contains("extra salsa verde"),
+        "expected plain prose unlinked in:\n{steps_on}"
+    );
+
+    let salsa_on = fs::read_to_string(dir.path().join("docs/sauces/salsa-verde.md")).unwrap();
+    assert!(
+        !salsa_on.contains("salsa-verde.md"),
+        "expected self-link excluded in:\n{salsa_on}"
+    );
+
+    // 3. --jsonify reflects linked step directions when --link-in-steps is enabled
+    let out_json = run_cli(
+        bin,
+        Some(dir.path()),
+        &[
+            "-c",
+            "cook",
+            "-o",
+            "docs",
+            "--link-dirs",
+            "sauces",
+            "--link-in-steps",
+            "--jsonify",
+            "cook/mains/Tacos.cook",
+        ],
+        &[],
+    );
+    assert!(
+        out_json.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out_json.stderr)
+    );
+    let parsed: Value = serde_json::from_slice(&out_json.stdout).unwrap();
+    let json_dir = parsed["Steps"][0]["Directions"].as_str().unwrap();
+    assert!(
+        json_dir.contains("[Salsa Verde](../sauces/salsa-verde.md)"),
+        "expected linked step in jsonify output: {json_dir}"
+    );
+}

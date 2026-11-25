@@ -24,9 +24,8 @@ pub fn resolve_search_root(recipe_search_root: &str) -> PathBuf {
 
 /// Parse and render a single `.cook` recipe file.
 pub fn render_recipe(path: &str, config: &types::Config) -> Result<(), String> {
-    let recipe = cook::parse_file(path, config)?;
-    document::print_documentation(&recipe);
-    Ok(())
+    let resources = Arc::new(enrichment::RenderResources::from_config(config));
+    render_recipe_with_resources(path, config, &resources)
 }
 
 fn render_recipe_with_resources(
@@ -34,7 +33,8 @@ fn render_recipe_with_resources(
     config: &types::Config,
     resources: &Arc<enrichment::RenderResources>,
 ) -> Result<(), String> {
-    let recipe = cook::parse_file(path, config)?;
+    let link_index = config.link_in_steps.then_some(&resources.links);
+    let recipe = cook::parse_file_with_links(path, config, link_index)?;
     document::print_documentation_with_resources(&recipe, resources);
     Ok(())
 }
@@ -48,11 +48,14 @@ pub fn render_recipes(recipe_paths: &[PathBuf], config: &types::Config) -> (usiz
         .collect();
 
     if config.jsonify {
+        let link_index = config
+            .link_in_steps
+            .then(|| enrichment::RecipeLinkIndex::build(config));
         let mut recipes = Vec::with_capacity(recipe_paths_strs.len());
         let mut ok = 0;
         let mut failed = 0;
         for path_str in recipe_paths_strs {
-            match cook::parse_file(&path_str, config) {
+            match cook::parse_file_with_links(&path_str, config, link_index.as_ref()) {
                 Ok(recipe) => {
                     recipes.push(recipe);
                     ok += 1;

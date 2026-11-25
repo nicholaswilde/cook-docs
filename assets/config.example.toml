@@ -83,9 +83,23 @@
 # CLI: --link-dirs <DIRS> (comma-separated) | Env: COOK_DOCS_LINK_DIRS
 # link_dirs = []
 
+# Cross-link matching @ingredient references inside step directions (.Steps[*].Directions)
+# using RecipeLinkIndex (default false for backwards compatibility).
+# CLI: --link-in-steps | Env: COOK_DOCS_LINK_IN_STEPS
+# link_in_steps = false
+
 # Optional metadata keys required by `cook-docs doctor --check-recipes`.
 # CLI: --required-metadata <KEYS> (comma-separated) | Env: COOK_DOCS_REQUIRED_METADATA
 # required_metadata = []
+
+# Optional YAML/TOML/JSON list of ingredients that should not be tagged with '@'
+# (compatible with Cooklang config/ignored_ingredients.yaml; checked by `cook-docs doctor --check-recipes`).
+# CLI: --ignored-ingredients-file <PATH> | Env: COOK_DOCS_IGNORED_INGREDIENTS_FILE
+# ignored_ingredients_file = ""
+
+# Optional inline list of ignored ingredients (merged with ignored_ingredients_file when both are set).
+# Env: COOK_DOCS_IGNORED_INGREDIENTS (comma-separated)
+# ignored_ingredients = []
 
 # Inline emoji mappings may also be configured directly under [emoji]:
 # [emoji.ingredients]

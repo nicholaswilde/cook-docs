@@ -1043,13 +1043,27 @@ impl RecipeLinkIndex {
     /// Resolve `name` to a relative Markdown link `[name](relative/path.md)` if found
     /// (excluding self-links), otherwise return plain `name`.
     pub fn link(&self, name: &str, current_output_path: &Path) -> String {
-        if self.entries.is_empty() || name.trim().is_empty() {
-            return name.to_string();
+        self.link_with_display(name, name, current_output_path)
+    }
+
+    /// Resolve `lookup_name` to a relative Markdown link `[display_text](relative/path.md)` if found
+    /// (excluding self-links), preserving `display_text` casing/alias text.
+    pub fn link_with_display(
+        &self,
+        lookup_name: &str,
+        display_text: &str,
+        current_output_path: &Path,
+    ) -> String {
+        if self.entries.is_empty()
+            || lookup_name.trim().is_empty()
+            || display_text.trim().is_empty()
+        {
+            return display_text.to_string();
         }
-        let target = self.lookup(name);
+        let target = self.lookup(lookup_name);
         match target.and_then(|p| relative_markdown_path(current_output_path, p)) {
-            Some(rel) => format!("[{name}]({rel})"),
-            None => name.to_string(),
+            Some(rel) => format!("[{display_text}]({rel})"),
+            None => display_text.to_string(),
         }
     }
 

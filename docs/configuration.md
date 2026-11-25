@@ -24,8 +24,11 @@ Here is a list of the supported parameters:
 | N/A                             | N/A                          | emoji            | N/A                | inline ingredient, cookware, title, and category emoji mappings in `.cookdocs.{yaml,toml,json}`  |
 | --weights-file path             | COOK_DOCS_WEIGHTS_FILE       | weights_file     | ""                 | optional YAML/TOML/JSON ingredient density table for `toGrams` volume-to-weight conversion       |
 | --link-dirs strings             | COOK_DOCS_LINK_DIRS          | link_dirs        | `[]`               | comma-separated recipe subdirectories eligible for `linkRecipe` cross-linking                    |
+| --link-in-steps                 | COOK_DOCS_LINK_IN_STEPS      | link_in_steps    | false              | cross-link matching `@ingredient` AST references inside step directions                          |
 | N/A                             | N/A                          | category_tags    | `{}`               | mapping of relative category directory paths to default tag lists (`Info.DefaultTags`/`Info.Tags`) |
 | --required-metadata strings     | COOK_DOCS_REQUIRED_METADATA  | required_metadata | `[]`              | comma-separated metadata keys required by `cook-docs doctor --check-recipes`                     |
+| --ignored-ingredients-file path | COOK_DOCS_IGNORED_INGREDIENTS_FILE | ignored_ingredients_file | ""         | optional YAML/TOML/JSON list of ingredients warned on when tagged with `@` in `doctor`           |
+| N/A                             | COOK_DOCS_IGNORED_INGREDIENTS | ignored_ingredients | `[]`            | inline list of ignored ingredients (merged with `ignored_ingredients_file`)                      |
 | --merge                         | COOK_DOCS_MERGE              | merge            | false              | non-destructively merge generated content into existing Markdown files                           |
 | --force                         | COOK_DOCS_FORCE              | N/A              | false              | force full overwrite of existing Markdown files even when `--merge` / `merge` is enabled         |
 | -c, --recipe-search-root string | COOK_DOCS_RECIPE_SEARCH_ROOT | recipe_search_root | .                | directory to search recursively within for recipes (and base root for mirrored output paths)     |
@@ -50,7 +53,7 @@ cook-docs -C path/to/config.toml
 When no explicit config path is provided, `cook-docs` looks for `.cookdocs.toml`, `.cookdocs.yaml`, `.cookdocs.yml`, or `.cookdocs.json` in the following locations (in order):
 
 - `/etc/cook-docs/`
-- `~/.config/`
+- `~/.config/` (resolved via the OS user home directory: `$HOME` on Unix, `%USERPROFILE%` on Windows)
 - `./`
 
 ```toml title=".cookdocs.toml"
@@ -58,9 +61,12 @@ assets_dir = ""
 dry_run = false
 emoji_file = ""
 ignore_file = ".cookdocsignore"
+ignored_ingredients = []
+ignored_ingredients_file = ""
 image_ext = ""
 jsonify = false
 link_dirs = []
+link_in_steps = false
 log_level = "info"
 merge = false
 output_dir = ""
@@ -77,9 +83,12 @@ assetsDir: ""
 dryRun: false
 emojiFile: ""
 ignoreFile: .cookdocsignore
+ignoredIngredients: []
+ignoredIngredientsFile: ""
 imageExt: ""
 jsonify: false
 linkDirs: []
+linkInSteps: false
 logLevel: info
 merge: false
 outputDir: ""
@@ -97,9 +106,12 @@ wordWrap: 120
   "dry_run": false,
   "emoji_file": "",
   "ignore_file": ".cookdocsignore",
+  "ignored_ingredients": [],
+  "ignored_ingredients_file": "",
   "image_ext": "",
   "jsonify": false,
   "link_dirs": [],
+  "link_in_steps": false,
   "log_level": "info",
   "merge": false,
   "output_dir": "",
@@ -199,8 +211,21 @@ desserts = ["dessert"]
 "desserts/cake" = ["dessert", "cake"]
 ```
 
+## Ignored Ingredients (`ignored_ingredients_file` / `ignored_ingredients`)
+
+Configure ingredients that should not be tagged with `@` in `.cook` recipes so `cook-docs doctor --check-recipes` (or `--only ignored`) emits a warning when they appear. Both Cooklang's top-level YAML list (`config/ignored_ingredients.yaml`) and TOML/JSON list or keyed object (`ignored_ingredients`) formats are supported:
+
+```yaml title="config/ignored_ingredients.yaml"
+---
+- nonstick baking spray
+```
+
+```toml title=".cookdocs.toml (inline)"
+ignored_ingredients = ["nonstick baking spray"]
+```
+
 ## Environment Variables
 
 Environment variables are also supported. They start with the prefix `COOK_DOCS_` and use
 underscores instead of dashes (e.g., `COOK_DOCS_DRY_RUN`, `COOK_DOCS_CONFIG`).
-Comma-separated values are supported for `COOK_DOCS_TEMPLATE_FILES`, `COOK_DOCS_LINK_DIRS`, and `COOK_DOCS_REQUIRED_METADATA`.
+Comma-separated values are supported for `COOK_DOCS_TEMPLATE_FILES`, `COOK_DOCS_LINK_DIRS`, `COOK_DOCS_REQUIRED_METADATA`, and `COOK_DOCS_IGNORED_INGREDIENTS`.
