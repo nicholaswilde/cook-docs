@@ -36,8 +36,10 @@ Render one or more specific recipes while keeping `--recipe-search-root` as the 
 
 ```bash
 cook-docs -c ./cook -o ./docs --assets-dir ./docs/assets/images ./cook/breads/Bagels.cook
-# Override Info.ImageSlug extension when running external WebP conversion afterwards:
-cook-docs -c ./cook -o ./docs --assets-dir ./docs/assets/images --image-ext webp ./cook/breads/Bagels.cook
+# Override Info.ImageSlug selectively by source extension (keeps .png untouched):
+cook-docs -c ./cook -o ./docs --assets-dir ./docs/assets/images --image-ext-map jpg=webp,jpeg=webp ./cook/breads/Bagels.cook
+# Convert .jpg/.jpeg assets directly to WebP on copy (uses cwebp, leaves .png/.webp untouched):
+cook-docs -c ./cook -o ./docs --assets-dir ./docs/assets/images --convert-images webp --image-quality 80 ./cook/breads/Bagels.cook
 # Enrich output with emojis, gram weights, and internal recipe cross-links (ingredients + step directions):
 cook-docs -c ./cook -o ./docs --emoji-file ./includes/emoji.yaml --weights-file ./includes/weights.yaml --link-dirs sauces-and-dressings,ingredients --link-in-steps ./cook/mains/Tacos.cook
 ```
@@ -94,6 +96,26 @@ cook-docs watch --recipe-search-root ./recipes --output-dir ./docs --debounce 50
 ```
 
 Editing a single `.cook` file re-renders only that recipe; editing a template file re-renders recipes in that directory and nested subdirectories; editing a shared/external template re-renders all discovered recipes. Press `Ctrl+C` to stop.
+
+## :compass: Navigation Sync
+
+Automatically insert and alphabetically maintain rendered recipes in Zensical (`zensical.toml`) or MkDocs (`mkdocs.yml` / `mkdocs.yaml`) navigation trees using `--nav-file` (or `nav_file` in `.cookdocs.toml` / `COOK_DOCS_NAV_FILE`):
+
+```bash
+# Sync rendered recipes into zensical.toml
+cook-docs -c ./cook -o ./docs --nav-file ./zensical.toml ./cook/cookies-and-bars/Date\ Brownies.cook
+
+# Sync rendered recipes into mkdocs.yml
+cook-docs -c ./cook -o ./docs --nav-file ./mkdocs.yml
+
+# Preview planned nav changes without modifying the nav file or writing Markdown
+cook-docs -c ./cook -o ./docs --nav-file ./zensical.toml --dry-run
+
+# Keep navigation synchronized automatically in watch mode
+cook-docs watch -c ./cook -o ./docs --nav-file ./zensical.toml
+```
+
+`cook-docs` locates the most specific matching category or subcategory list (matching existing leaf paths first, then section names, then parent categories), deduplicates repeated entries, sorts leaves alphabetically, and preserves comments and unrelated configuration sections.
 
 ## :stethoscope: Doctor Diagnostics
 

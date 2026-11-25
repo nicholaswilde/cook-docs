@@ -20,6 +20,9 @@ Here is a list of the supported parameters:
 | -o, --output-dir string         | COOK_DOCS_OUTPUT_DIR         | output_dir       | ""                 | custom output directory to write generated markdown documentation                                |
 | --assets-dir string             | COOK_DOCS_ASSETS_DIR         | assets_dir       | ""                 | optional directory to copy companion recipe images into (slug-named)                             |
 | --image-ext string              | COOK_DOCS_IMAGE_EXT          | image_ext        | ""                 | optional image extension override for `Info.ImageSlug` (e.g. `webp`)                             |
+| --image-ext-map pairs           | COOK_DOCS_IMAGE_EXT_MAP      | image_ext_map    | `{}`               | per-extension `src=dst` mapping for `Info.ImageSlug` (e.g. `jpg=webp,jpeg=webp`)                 |
+| --convert-images format         | COOK_DOCS_CONVERT_IMAGES     | convert_images   | ""                 | convert matching companion images into `--assets-dir` (`webp` via `cwebp`; `.png`/`.webp` kept)  |
+| --image-quality int             | COOK_DOCS_IMAGE_QUALITY      | image_quality    | 80                 | output quality (`1`–`100`) for `--convert-images`                                                |
 | --emoji-file path               | COOK_DOCS_EMOJI_FILE         | emoji_file       | ""                 | optional YAML/TOML/JSON file mapping ingredients, cookware, titles, and categories to emojis     |
 | N/A                             | N/A                          | emoji            | N/A                | inline ingredient, cookware, title, and category emoji mappings in `.cookdocs.{yaml,toml,json}`  |
 | --weights-file path             | COOK_DOCS_WEIGHTS_FILE       | weights_file     | ""                 | optional YAML/TOML/JSON ingredient density table for `toGrams` volume-to-weight conversion       |
@@ -29,6 +32,7 @@ Here is a list of the supported parameters:
 | --required-metadata strings     | COOK_DOCS_REQUIRED_METADATA  | required_metadata | `[]`              | comma-separated metadata keys required by `cook-docs doctor --check-recipes`                     |
 | --ignored-ingredients-file path | COOK_DOCS_IGNORED_INGREDIENTS_FILE | ignored_ingredients_file | ""         | optional YAML/TOML/JSON list of ingredients warned on when tagged with `@` in `doctor`           |
 | N/A                             | COOK_DOCS_IGNORED_INGREDIENTS | ignored_ingredients | `[]`            | inline list of ignored ingredients (merged with `ignored_ingredients_file`)                      |
+| --nav-file path                 | COOK_DOCS_NAV_FILE           | nav_file         | ""                 | optional Zensical (`zensical.toml`) or MkDocs (`mkdocs.yml`) nav file to sync rendered recipes into |
 | --merge                         | COOK_DOCS_MERGE              | merge            | false              | non-destructively merge generated content into existing Markdown files                           |
 | --force                         | COOK_DOCS_FORCE              | N/A              | false              | force full overwrite of existing Markdown files even when `--merge` / `merge` is enabled         |
 | -c, --recipe-search-root string | COOK_DOCS_RECIPE_SEARCH_ROOT | recipe_search_root | .                | directory to search recursively within for recipes (and base root for mirrored output paths)     |
@@ -58,17 +62,20 @@ When no explicit config path is provided, `cook-docs` looks for `.cookdocs.toml`
 
 ```toml title=".cookdocs.toml"
 assets_dir = ""
+convert_images = ""
 dry_run = false
 emoji_file = ""
 ignore_file = ".cookdocsignore"
 ignored_ingredients = []
 ignored_ingredients_file = ""
 image_ext = ""
+image_quality = 80
 jsonify = false
 link_dirs = []
 link_in_steps = false
 log_level = "info"
 merge = false
+nav_file = ""
 output_dir = ""
 recipe_search_root = "."
 required_metadata = []
@@ -80,17 +87,20 @@ word_wrap = 120
 ```yaml title=".cookdocs.yaml"
 ---
 assetsDir: ""
+convertImages: ""
 dryRun: false
 emojiFile: ""
 ignoreFile: .cookdocsignore
 ignoredIngredients: []
 ignoredIngredientsFile: ""
 imageExt: ""
+imageQuality: 80
 jsonify: false
 linkDirs: []
 linkInSteps: false
 logLevel: info
 merge: false
+navFile: ""
 outputDir: ""
 recipeSearchRoot: .
 requiredMetadata: []
@@ -103,17 +113,20 @@ wordWrap: 120
 ```json title=".cookdocs.json"
 {
   "assets_dir": "",
+  "convert_images": "",
   "dry_run": false,
   "emoji_file": "",
   "ignore_file": ".cookdocsignore",
   "ignored_ingredients": [],
   "ignored_ingredients_file": "",
   "image_ext": "",
+  "image_quality": 80,
   "jsonify": false,
   "link_dirs": [],
   "link_in_steps": false,
   "log_level": "info",
   "merge": false,
+  "nav_file": "",
   "output_dir": "",
   "recipe_search_root": ".",
   "required_metadata": [],
@@ -223,6 +236,20 @@ Configure ingredients that should not be tagged with `@` in `.cook` recipes so `
 ```toml title=".cookdocs.toml (inline)"
 ignored_ingredients = ["nonstick baking spray"]
 ```
+
+## Navigation Sync (`nav_file`)
+
+Set `nav_file` (or pass `--nav-file <PATH>` / `COOK_DOCS_NAV_FILE`) to a Zensical (`zensical.toml`) or MkDocs (`mkdocs.yml` / `mkdocs.yaml`) config file to automatically insert, deduplicate, and alphabetically maintain rendered recipes in the matching category or subcategory navigation list while preserving surrounding formatting, comments, and YAML tags:
+
+```toml title=".cookdocs.toml"
+output_dir = "docs"
+nav_file = "zensical.toml"
+```
+
+- **Zensical (`zensical.toml`)**: supports both `[[project.nav]]` array-of-tables and `[project] nav = [...]` inline arrays, including nested subcategories (e.g. `Ingredients` > `Butter`) and flattened parent categories (e.g. `desserts/cake/*.md` inside `Desserts`).
+- **MkDocs (`mkdocs.yml` / `mkdocs.yaml`)**: updates only the top-level `nav:` block so comments, blank lines, and custom tags such as `!!python/name:...` outside `nav:` remain untouched.
+- **Dry-run safety**: when combined with `--dry-run`, planned additions, updates, and deduplications are printed to stdout without modifying `nav_file`.
+- **Doctor checks**: `cook-docs doctor` validates that a configured `nav_file` exists and parses cleanly.
 
 ## Environment Variables
 

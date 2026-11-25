@@ -108,6 +108,22 @@ pub fn build_cli() -> Command {
             .long("image-ext")
             .global(true)
             .help("optional image extension override for Info.ImageSlug (e.g. webp)"))
+        .arg(Arg::new("image-ext-map")
+            .long("image-ext-map")
+            .global(true)
+            .action(ArgAction::Append)
+            .value_name("PAIRS")
+            .help("comma-separated source=target image extension mappings for Info.ImageSlug (e.g. jpg=webp,jpeg=webp)"))
+        .arg(Arg::new("convert-images")
+            .long("convert-images")
+            .global(true)
+            .value_name("FORMAT")
+            .help("convert matching companion images when copying to --assets-dir (supports 'webp' via cwebp)"))
+        .arg(Arg::new("image-quality")
+            .long("image-quality")
+            .global(true)
+            .value_name("1-100")
+            .help("output image quality (1-100) for --convert-images (default 80)"))
         .arg(Arg::new("emoji-file")
             .long("emoji-file")
             .global(true)
@@ -133,6 +149,11 @@ pub fn build_cli() -> Command {
             .long("ignored-ingredients-file")
             .global(true)
             .help("optional YAML/TOML/JSON list of ingredients that should not be tagged with '@' (checked by doctor --check-recipes)"))
+        .arg(Arg::new("nav-file")
+            .long("nav-file")
+            .global(true)
+            .value_name("PATH")
+            .help("optional Zensical (zensical.toml) or MkDocs (mkdocs.yml) nav file to sync rendered recipes into"))
         .arg(Arg::new("merge")
             .long("merge")
             .global(true)
@@ -276,6 +297,24 @@ struct ConfigFile {
     pub assets_dir: Option<String>,
     #[serde(alias = "image-ext", alias = "image_ext", alias = "imageExt")]
     pub image_ext: Option<String>,
+    #[serde(
+        alias = "image-ext-map",
+        alias = "image_ext_map",
+        alias = "imageExtMap"
+    )]
+    pub image_ext_map: Option<std::collections::BTreeMap<String, String>>,
+    #[serde(
+        alias = "convert-images",
+        alias = "convert_images",
+        alias = "convertImages"
+    )]
+    pub convert_images: Option<String>,
+    #[serde(
+        alias = "image-quality",
+        alias = "image_quality",
+        alias = "imageQuality"
+    )]
+    pub image_quality: Option<u8>,
     #[serde(alias = "emoji-file", alias = "emoji_file", alias = "emojiFile")]
     pub emoji_file: Option<String>,
     #[serde(alias = "emoji")]
@@ -316,6 +355,8 @@ struct ConfigFile {
         alias = "ignoredIngredients"
     )]
     pub ignored_ingredients: Option<Vec<String>>,
+    #[serde(alias = "nav-file", alias = "nav_file", alias = "navFile")]
+    pub nav_file: Option<String>,
     #[serde(alias = "merge")]
     pub merge: Option<bool>,
 }
@@ -603,6 +644,15 @@ where
         if let Some(val) = config_file.image_ext {
             config.image_ext = val;
         }
+        if let Some(val) = config_file.image_ext_map {
+            config.image_ext_map = val;
+        }
+        if let Some(val) = config_file.convert_images {
+            config.convert_images = val;
+        }
+        if let Some(val) = config_file.image_quality {
+            config.image_quality = val;
+        }
         if let Some(val) = config_file.emoji_file {
             config.emoji_file = val;
         }
@@ -629,6 +679,9 @@ where
         }
         if let Some(val) = config_file.ignored_ingredients {
             config.ignored_ingredients = val;
+        }
+        if let Some(val) = config_file.nav_file {
+            config.nav_file = val;
         }
         if let Some(val) = config_file.merge {
             config.merge = val;
@@ -666,6 +719,29 @@ where
     if let Some(val) = env_get("COOK_DOCS_IMAGE_EXT") {
         config.image_ext = val;
     }
+    if let Some(val) = env_get("COOK_DOCS_IMAGE_EXT_MAP") {
+        match parse_ext_map(&val) {
+            Ok(map) => config.image_ext_map = map,
+            Err(e) => return (resolved_path, Err(e)),
+        }
+    }
+    if let Some(val) = env_get("COOK_DOCS_CONVERT_IMAGES") {
+        config.convert_images = val;
+    }
+    if let Some(val) = env_get("COOK_DOCS_IMAGE_QUALITY") {
+        match val.trim().parse::<u8>() {
+            Ok(q) => config.image_quality = q,
+            Err(_) => {
+                return (
+                    resolved_path,
+                    Err(format!(
+                        "Invalid COOK_DOCS_IMAGE_QUALITY '{}': expected an integer between 1 and 100",
+                        val
+                    )),
+                );
+            }
+        }
+    }
     if let Some(val) = env_get("COOK_DOCS_EMOJI_FILE") {
         config.emoji_file = val;
     }
@@ -686,6 +762,9 @@ where
     }
     if let Some(val) = env_get("COOK_DOCS_IGNORED_INGREDIENTS") {
         config.ignored_ingredients = parse_csv_list(&val);
+    }
+    if let Some(val) = env_get("COOK_DOCS_NAV_FILE") {
+        config.nav_file = val;
     }
     if let Some(val) = env_get("COOK_DOCS_MERGE") {
         config.merge = val.parse().unwrap_or(config.merge);
@@ -728,6 +807,33 @@ where
     if let Some(val) = matches.get_one::<String>("image-ext") {
         config.image_ext = val.clone();
     }
+    if let Some(vals) = matches.get_many::<String>("image-ext-map") {
+        let mut combined = std::collections::BTreeMap::new();
+        for raw in vals {
+            match parse_ext_map(raw) {
+                Ok(parsed) => combined.extend(parsed),
+                Err(e) => return (resolved_path, Err(e)),
+            }
+        }
+        config.image_ext_map = combined;
+    }
+    if let Some(val) = matches.get_one::<String>("convert-images") {
+        config.convert_images = val.clone();
+    }
+    if let Some(val) = matches.get_one::<String>("image-quality") {
+        match val.trim().parse::<u8>() {
+            Ok(q) => config.image_quality = q,
+            Err(_) => {
+                return (
+                    resolved_path,
+                    Err(format!(
+                        "Invalid image_quality '{}': expected an integer between 1 and 100",
+                        val
+                    )),
+                );
+            }
+        }
+    }
     if let Some(val) = matches.get_one::<String>("emoji-file") {
         config.emoji_file = val.clone();
     }
@@ -746,6 +852,9 @@ where
     if let Some(val) = matches.get_one::<String>("ignored-ingredients-file") {
         config.ignored_ingredients_file = val.clone();
     }
+    if let Some(val) = matches.get_one::<String>("nav-file") {
+        config.nav_file = val.clone();
+    }
     if matches.value_source("merge") == Some(clap::parser::ValueSource::CommandLine) {
         config.merge = matches.get_flag("merge");
     }
@@ -755,13 +864,62 @@ where
     if let Some(files) = matches.get_many::<String>("files") {
         config.recipe_files = files.cloned().collect();
     }
-    config.image_ext = config
-        .image_ext
-        .trim()
-        .trim_start_matches('.')
-        .to_ascii_lowercase();
+    config.image_ext = normalize_ext(&config.image_ext);
+    config.convert_images = normalize_ext(&config.convert_images);
+    config.image_ext_map = config
+        .image_ext_map
+        .into_iter()
+        .filter_map(|(k, v)| {
+            let nk = normalize_ext(&k);
+            let nv = normalize_ext(&v);
+            (!nk.is_empty() && !nv.is_empty()).then_some((nk, nv))
+        })
+        .collect();
+
+    if !config.convert_images.is_empty() && config.convert_images != "webp" {
+        return (
+            resolved_path,
+            Err(format!(
+                "Unsupported convert_images value '{}': currently only 'webp' is supported",
+                config.convert_images
+            )),
+        );
+    }
+    if !(1..=100).contains(&config.image_quality) {
+        return (
+            resolved_path,
+            Err(format!(
+                "Invalid image_quality '{}': expected an integer between 1 and 100",
+                config.image_quality
+            )),
+        );
+    }
 
     (resolved_path, Ok(config))
+}
+
+fn normalize_ext(raw: &str) -> String {
+    raw.trim().trim_start_matches('.').to_ascii_lowercase()
+}
+
+fn parse_ext_map(raw: &str) -> Result<std::collections::BTreeMap<String, String>, String> {
+    let mut map = std::collections::BTreeMap::new();
+    for entry in raw.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+        let Some((src, dst)) = entry.split_once('=') else {
+            return Err(format!(
+                "Invalid image_ext_map entry '{entry}': expected 'src=dst' (e.g. jpg=webp)"
+            ));
+        };
+        let src_norm = normalize_ext(src);
+        let dst_norm = normalize_ext(dst);
+        if src_norm.is_empty() || dst_norm.is_empty() {
+            return Err(format!(
+                "Invalid image_ext_map entry '{entry}': expected 'src=dst' (e.g. jpg=webp)"
+            ));
+        }
+        map.insert(src_norm, dst_norm);
+    }
+    Ok(map)
 }
 
 #[cfg(test)]
@@ -1064,6 +1222,8 @@ output_dir = \"toml_out\"
                         || rest.starts_with("output_dir =")
                         || rest.starts_with("assets_dir =")
                         || rest.starts_with("image_ext =")
+                        || rest.starts_with("convert_images =")
+                        || rest.starts_with("image_quality =")
                         || rest.starts_with("emoji_file =")
                         || rest.starts_with("weights_file =")
                         || rest.starts_with("link_dirs =")
@@ -1097,6 +1257,8 @@ output_dir = \"toml_out\"
         assert_eq!(parsed.output_dir.as_deref(), Some(""));
         assert_eq!(parsed.assets_dir.as_deref(), Some(""));
         assert_eq!(parsed.image_ext.as_deref(), Some(""));
+        assert_eq!(parsed.convert_images.as_deref(), Some(""));
+        assert_eq!(parsed.image_quality, Some(80));
         assert_eq!(parsed.emoji_file.as_deref(), Some(""));
         assert_eq!(parsed.weights_file.as_deref(), Some(""));
         assert_eq!(parsed.link_dirs.as_deref(), Some(&[][..]));
@@ -1698,6 +1860,199 @@ ignored_ingredients = ["nonstick baking spray", "cooking spray"]
         )
         .unwrap();
         assert!(from_cli.link_in_steps);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_image_ext_map_convert_images_and_quality_config() {
+        let def = Config::default();
+        assert!(def.image_ext_map.is_empty());
+        assert!(def.convert_images.is_empty());
+        assert_eq!(def.image_quality, 80);
+
+        let dir = std::env::temp_dir().join(format!("cook_docs_img_cfg_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+
+        let toml_cfg = dir.join(".cookdocs.toml");
+        fs::write(
+            &toml_cfg,
+            r#"
+convert_images = "WEBP"
+image_quality = 85
+
+[image_ext_map]
+".JPG" = ".WEBP"
+jpeg = "webp"
+"#,
+        )
+        .unwrap();
+        let from_toml =
+            load_config_with(&["cook-docs"], std::slice::from_ref(&toml_cfg), |_| None).unwrap();
+        assert_eq!(from_toml.convert_images, "webp");
+        assert_eq!(from_toml.image_quality, 85);
+        assert_eq!(
+            from_toml.image_ext_map.get("jpg").map(String::as_str),
+            Some("webp")
+        );
+        assert_eq!(
+            from_toml.image_ext_map.get("jpeg").map(String::as_str),
+            Some("webp")
+        );
+
+        let yaml_cfg = dir.join(".cookdocs.yaml");
+        fs::write(
+            &yaml_cfg,
+            "convertImages: webp\nimageQuality: 70\nimageExtMap:\n  jpg: webp\n",
+        )
+        .unwrap();
+        let from_yaml =
+            load_config_with(&["cook-docs"], std::slice::from_ref(&yaml_cfg), |_| None).unwrap();
+        assert_eq!(from_yaml.convert_images, "webp");
+        assert_eq!(from_yaml.image_quality, 70);
+        assert_eq!(
+            from_yaml.image_ext_map.get("jpg").map(String::as_str),
+            Some("webp")
+        );
+
+        let json_cfg = dir.join(".cookdocs.json");
+        fs::write(
+            &json_cfg,
+            r#"{"convert-images": "webp", "image-quality": 92, "image-ext-map": {"jpeg": "webp"}}"#,
+        )
+        .unwrap();
+        let from_json =
+            load_config_with(&["cook-docs"], std::slice::from_ref(&json_cfg), |_| None).unwrap();
+        assert_eq!(from_json.convert_images, "webp");
+        assert_eq!(from_json.image_quality, 92);
+        assert_eq!(
+            from_json.image_ext_map.get("jpeg").map(String::as_str),
+            Some("webp")
+        );
+
+        // Env overrides config file
+        let from_env = load_config_with(
+            &["cook-docs"],
+            std::slice::from_ref(&toml_cfg),
+            |k| match k {
+                "COOK_DOCS_IMAGE_EXT_MAP" => Some("png=webp".to_string()),
+                "COOK_DOCS_CONVERT_IMAGES" => Some("".to_string()),
+                "COOK_DOCS_IMAGE_QUALITY" => Some("65".to_string()),
+                _ => None,
+            },
+        )
+        .unwrap();
+        assert_eq!(from_env.convert_images, "");
+        assert_eq!(from_env.image_quality, 65);
+        assert_eq!(from_env.image_ext_map.len(), 1);
+        assert_eq!(
+            from_env.image_ext_map.get("png").map(String::as_str),
+            Some("webp")
+        );
+
+        // CLI overrides env
+        let from_cli = load_config_with(
+            &[
+                "cook-docs",
+                "--image-ext-map",
+                "jpg=webp,jpeg=webp",
+                "--convert-images",
+                "webp",
+                "--image-quality",
+                "90",
+            ],
+            std::slice::from_ref(&toml_cfg),
+            |k| match k {
+                "COOK_DOCS_IMAGE_QUALITY" => Some("65".to_string()),
+                _ => None,
+            },
+        )
+        .unwrap();
+        assert_eq!(from_cli.convert_images, "webp");
+        assert_eq!(from_cli.image_quality, 90);
+        assert_eq!(
+            from_cli.image_ext_map.get("jpg").map(String::as_str),
+            Some("webp")
+        );
+
+        // Validation errors
+        assert!(
+            load_config_with(&["cook-docs", "--convert-images", "avif"], &[], |_| None).is_err()
+        );
+        assert!(load_config_with(&["cook-docs", "--image-quality", "0"], &[], |_| None).is_err());
+        assert!(load_config_with(&["cook-docs", "--image-quality", "101"], &[], |_| None).is_err());
+        assert!(
+            load_config_with(&["cook-docs", "--image-ext-map", "malformed"], &[], |_| {
+                None
+            })
+            .is_err()
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_nav_file_config_env_cli_and_watch_precedence() {
+        let dir = std::env::temp_dir().join(format!(
+            "cook_docs_nav_file_cfg_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+
+        let toml_cfg = dir.join(".cookdocs.toml");
+        fs::write(&toml_cfg, "nav_file = \"zensical.toml\"\n").unwrap();
+        let from_toml =
+            load_config_with(&["cook-docs"], std::slice::from_ref(&toml_cfg), |_| None).unwrap();
+        assert_eq!(from_toml.nav_file, "zensical.toml");
+
+        let yaml_cfg = dir.join(".cookdocs.yaml");
+        fs::write(&yaml_cfg, "navFile: mkdocs.yml\n").unwrap();
+        let from_yaml =
+            load_config_with(&["cook-docs"], std::slice::from_ref(&yaml_cfg), |_| None).unwrap();
+        assert_eq!(from_yaml.nav_file, "mkdocs.yml");
+
+        let json_cfg = dir.join(".cookdocs.json");
+        fs::write(&json_cfg, r#"{"nav-file": "docs/mkdocs.yaml"}"#).unwrap();
+        let from_json =
+            load_config_with(&["cook-docs"], std::slice::from_ref(&json_cfg), |_| None).unwrap();
+        assert_eq!(from_json.nav_file, "docs/mkdocs.yaml");
+
+        let from_env = load_config_with(
+            &["cook-docs"],
+            std::slice::from_ref(&toml_cfg),
+            |k| match k {
+                "COOK_DOCS_NAV_FILE" => Some("env-mkdocs.yml".to_string()),
+                _ => None,
+            },
+        )
+        .unwrap();
+        assert_eq!(from_env.nav_file, "env-mkdocs.yml");
+
+        let from_cli = load_config_with(
+            &["cook-docs", "--nav-file", "cli-zensical.toml"],
+            std::slice::from_ref(&toml_cfg),
+            |k| match k {
+                "COOK_DOCS_NAV_FILE" => Some("env-mkdocs.yml".to_string()),
+                _ => None,
+            },
+        )
+        .unwrap();
+        assert_eq!(from_cli.nav_file, "cli-zensical.toml");
+
+        let watch_action = load_action_with(
+            &["cook-docs", "watch", "--nav-file", "zensical.toml"],
+            &[],
+            |_| None,
+        )
+        .unwrap();
+        match watch_action {
+            CliAction::Watch { config, .. } => assert_eq!(config.nav_file, "zensical.toml"),
+            other => panic!("Expected Watch action, got {:?}", other),
+        }
 
         let _ = fs::remove_dir_all(&dir);
     }

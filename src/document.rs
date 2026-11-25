@@ -1333,17 +1333,26 @@ pub(crate) fn build_documentation_template(
     Ok(doc_template)
 }
 
-fn copy_recipe_asset(recipe: &Recipe) {
-    if recipe.config.assets_dir.is_empty() || recipe.info.image_file_path.is_empty() {
-        return;
+fn should_convert_to_webp(src_ext: &str, config: &crate::types::Config) -> bool {
+    if config.convert_images != "webp" || src_ext.is_empty() || src_ext == "webp" {
+        return false;
     }
-
-    let src = Path::new(&recipe.info.image_file_path);
-    if !src.is_file() {
-        return;
+    if !config.image_ext_map.is_empty() {
+        return config
+            .image_ext_map
+            .get(src_ext)
+            .is_some_and(|target| target == "webp");
     }
+    matches!(src_ext, "jpg" | "jpeg")
+}
 
-    let dest_dir = Path::new(&recipe.config.assets_dir);
+fn copy_or_convert_asset_with(
+    src: &Path,
+    dest_dir: &Path,
+    image_file_name: &str,
+    config: &crate::types::Config,
+    cwebp_bin: &str,
+) {
     if let Err(e) = fs::create_dir_all(dest_dir) {
         log::warn!(
             "Could not create assets directory {}: {}",
@@ -1353,8 +1362,49 @@ fn copy_recipe_asset(recipe: &Recipe) {
         return;
     }
 
-    // Preserve actual source file extension when copying bytes
-    let dest_name = crate::cook::build_image_slug(&recipe.info.image_file_name, "");
+    let src_ext = Path::new(image_file_name)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.trim().trim_start_matches('.').to_ascii_lowercase())
+        .unwrap_or_default();
+
+    if should_convert_to_webp(&src_ext, config) {
+        let dest_name = crate::cook::build_image_slug(image_file_name, "webp");
+        if !dest_name.is_empty() {
+            let dest = dest_dir.join(&dest_name);
+            let quality = config.image_quality.to_string();
+            // ponytail: delegates lossy WebP encoding to cwebp to avoid libwebp-sys C cross-compile bloat -> swap to pure-Rust lossy WebP encoder crate once mature
+            match std::process::Command::new(cwebp_bin)
+                .args(["-q", &quality, "-metadata", "all"])
+                .arg(src)
+                .arg("-o")
+                .arg(&dest)
+                .output()
+            {
+                Ok(out) if out.status.success() => return,
+                Ok(out) => {
+                    let stderr = String::from_utf8_lossy(&out.stderr);
+                    log::warn!(
+                        "Failed converting {} to WebP via {} ({}); copying original file instead",
+                        src.display(),
+                        cwebp_bin,
+                        stderr.trim()
+                    );
+                }
+                Err(e) => {
+                    log::warn!(
+                        "Could not run {} to convert {} to WebP ({}); copying original file instead",
+                        cwebp_bin,
+                        src.display(),
+                        e
+                    );
+                }
+            }
+        }
+    }
+
+    // Preserve actual source file extension when copying raw bytes
+    let dest_name = crate::cook::build_image_slug(image_file_name, "");
     if dest_name.is_empty() {
         return;
     }
@@ -1376,17 +1426,43 @@ fn copy_recipe_asset(recipe: &Recipe) {
     }
 }
 
+fn copy_recipe_asset(recipe: &Recipe) {
+    if recipe.config.assets_dir.is_empty() || recipe.info.image_file_path.is_empty() {
+        return;
+    }
+
+    let src = Path::new(&recipe.info.image_file_path);
+    if !src.is_file() {
+        return;
+    }
+
+    copy_or_convert_asset_with(
+        src,
+        Path::new(&recipe.config.assets_dir),
+        &recipe.info.image_file_name,
+        &recipe.config,
+        "cwebp",
+    );
+}
+
 pub fn print_documentation(recipe: &Recipe) {
     let resources = Arc::new(RenderResources::from_config(&recipe.config));
     print_documentation_with_resources(recipe, &resources);
 }
 
 pub fn print_documentation_with_resources(recipe: &Recipe, resources: &Arc<RenderResources>) {
+    let _ = try_print_documentation_with_resources(recipe, resources);
+}
+
+pub(crate) fn try_print_documentation_with_resources(
+    recipe: &Recipe,
+    resources: &Arc<RenderResources>,
+) -> bool {
     if recipe.config.jsonify {
         if let Ok(j) = serde_json::to_string_pretty(recipe) {
             println!("{}", j);
         }
-        return;
+        return true;
     }
 
     log::info!(
@@ -1406,7 +1482,7 @@ pub fn print_documentation_with_resources(recipe: &Recipe, resources: &Arc<Rende
                 recipe.info.recipe_file_path,
                 e
             );
-            return;
+            return false;
         }
     };
 
@@ -1419,7 +1495,7 @@ pub fn print_documentation_with_resources(recipe: &Recipe, resources: &Arc<Rende
                 recipe.info.recipe_file_path,
                 e
             );
-            return;
+            return false;
         }
     };
     let gtmpl_context_value = json_to_gtmpl(json_val);
@@ -1438,7 +1514,7 @@ pub fn print_documentation_with_resources(recipe: &Recipe, resources: &Arc<Rende
                 recipe.info.recipe_file_path,
                 e
             );
-            return;
+            return false;
         }
     };
 
@@ -1470,7 +1546,7 @@ pub fn print_documentation_with_resources(recipe: &Recipe, resources: &Arc<Rende
                 recipe.info.new_recipe_file_path,
                 e
             );
-            return;
+            return false;
         }
         if let Err(e) = fs::write(out_path, final_output) {
             log::warn!(
@@ -1478,10 +1554,11 @@ pub fn print_documentation_with_resources(recipe: &Recipe, resources: &Arc<Rende
                 recipe.info.new_recipe_file_path,
                 e
             );
-            return;
+            return false;
         }
         copy_recipe_asset(recipe);
     }
+    true
 }
 
 #[cfg(test)]
@@ -2446,6 +2523,99 @@ Add @flour{1/4%cup}.
         assert!(
             out_bare.contains('\n'),
             "expected bare brackets to wrap:\n{out_bare}"
+        );
+    }
+
+    #[test]
+    fn test_copy_or_convert_asset_extension_aware() {
+        const TINY_JPEG: &[u8] = &[
+            0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x01,
+            0x00, 0x48, 0x00, 0x48, 0x00, 0x00, 0xFF, 0xDB, 0x00, 0x43, 0x00, 0xFF, 0xFF, 0xFF,
+            0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+            0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+            0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+            0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+            0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xC0, 0x00, 0x0B, 0x08, 0x00, 0x01, 0x00, 0x01,
+            0x01, 0x01, 0x11, 0x00, 0xFF, 0xC4, 0x00, 0x14, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x09, 0xFF, 0xC4,
+            0x00, 0x14, 0x10, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xDA, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00,
+            0x3F, 0x00, 0xD2, 0xCF, 0x20, 0xFF, 0xD9,
+        ];
+
+        let dir = TempDir::new("copy_convert_asset");
+        let src_dir = dir.0.join("src");
+        let assets_raw = dir.0.join("assets_raw");
+        let assets_conv = dir.0.join("assets_conv");
+        let assets_fallback = dir.0.join("assets_fallback");
+        fs::create_dir_all(&src_dir).unwrap();
+
+        let jpg_src = src_dir.join("My Pie.jpg");
+        let png_src = src_dir.join("My Cake.png");
+        let webp_src = src_dir.join("My Bread.webp");
+        fs::write(&jpg_src, TINY_JPEG).unwrap();
+        fs::write(&png_src, b"raw-png-bytes").unwrap();
+        fs::write(&webp_src, b"raw-webp-bytes").unwrap();
+
+        // 1. Slug-only image_ext_map copies raw bytes with original extensions
+        let mut map = std::collections::BTreeMap::new();
+        map.insert("jpg".to_string(), "webp".to_string());
+        let cfg_raw = crate::types::Config {
+            assets_dir: assets_raw.to_string_lossy().to_string(),
+            image_ext_map: map,
+            ..crate::types::Config::default()
+        };
+        copy_or_convert_asset_with(&jpg_src, &assets_raw, "My Pie.jpg", &cfg_raw, "cwebp");
+        copy_or_convert_asset_with(&png_src, &assets_raw, "My Cake.png", &cfg_raw, "cwebp");
+        assert!(assets_raw.join("my-pie.jpg").is_file());
+        assert!(!assets_raw.join("my-pie.webp").exists());
+        assert_eq!(
+            fs::read(assets_raw.join("my-cake.png")).unwrap(),
+            b"raw-png-bytes"
+        );
+
+        // 2. convert_images = "webp" leaves .png and .webp untouched; converts .jpg if cwebp present
+        let cfg_conv = crate::types::Config {
+            assets_dir: assets_conv.to_string_lossy().to_string(),
+            convert_images: "webp".to_string(),
+            image_quality: 82,
+            ..crate::types::Config::default()
+        };
+        copy_or_convert_asset_with(&png_src, &assets_conv, "My Cake.png", &cfg_conv, "cwebp");
+        copy_or_convert_asset_with(&webp_src, &assets_conv, "My Bread.webp", &cfg_conv, "cwebp");
+        assert_eq!(
+            fs::read(assets_conv.join("my-cake.png")).unwrap(),
+            b"raw-png-bytes"
+        );
+        assert_eq!(
+            fs::read(assets_conv.join("my-bread.webp")).unwrap(),
+            b"raw-webp-bytes"
+        );
+
+        let has_cwebp = std::process::Command::new("cwebp")
+            .arg("-version")
+            .output()
+            .is_ok_and(|o| o.status.success());
+        if has_cwebp {
+            copy_or_convert_asset_with(&jpg_src, &assets_conv, "My Pie.jpg", &cfg_conv, "cwebp");
+            let webp_out = fs::read(assets_conv.join("my-pie.webp")).unwrap();
+            assert!(webp_out.len() >= 12);
+            assert_eq!(&webp_out[..4], b"RIFF");
+            assert_eq!(&webp_out[8..12], b"WEBP");
+            assert!(!assets_conv.join("my-pie.jpg").exists());
+        }
+
+        // 3. Missing converter binary falls back to copying raw source file safely
+        copy_or_convert_asset_with(
+            &jpg_src,
+            &assets_fallback,
+            "My Pie.jpg",
+            &cfg_conv,
+            "__nonexistent_cwebp_bin__",
+        );
+        assert_eq!(
+            fs::read(assets_fallback.join("my-pie.jpg")).unwrap(),
+            TINY_JPEG
         );
     }
 }

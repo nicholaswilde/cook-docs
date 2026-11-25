@@ -2382,3 +2382,391 @@ fn regression_link_in_steps_cli_word_wrap_and_default_off() {
         "expected linked step in jsonify output: {json_dir}"
     );
 }
+
+#[test]
+fn regression_image_ext_map_and_convert_images_cli() {
+    let Some(bin) = bin_if_runnable() else {
+        return;
+    };
+    const TINY_JPEG: &[u8] = &[
+        0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x01, 0x00,
+        0x48, 0x00, 0x48, 0x00, 0x00, 0xFF, 0xDB, 0x00, 0x43, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xC0, 0x00, 0x0B, 0x08, 0x00, 0x01, 0x00, 0x01, 0x01, 0x01, 0x11, 0x00, 0xFF, 0xC4, 0x00,
+        0x14, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x09, 0xFF, 0xC4, 0x00, 0x14, 0x10, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xDA, 0x00, 0x08,
+        0x01, 0x01, 0x00, 0x00, 0x3F, 0x00, 0xD2, 0xCF, 0x20, 0xFF, 0xD9,
+    ];
+
+    let dir = TempDir::new("image_ext_map_cli");
+    let cook_dir = dir.path().join("cook");
+    fs::create_dir_all(&cook_dir).unwrap();
+    fs::write(
+        cook_dir.join("recipe.md.gotmpl"),
+        "slug={{ .Info.ImageSlug }}\n",
+    )
+    .unwrap();
+
+    for (name, ext, data) in [
+        ("Pie", "jpg", TINY_JPEG),
+        ("Tart", "jpeg", TINY_JPEG),
+        ("Cake", "png", b"png-bytes".as_slice()),
+        ("Bread", "webp", b"webp-bytes".as_slice()),
+    ] {
+        fs::write(
+            cook_dir.join(format!("{name}.cook")),
+            "Mix @flour{1%cup}.\n",
+        )
+        .unwrap();
+        fs::write(cook_dir.join(format!("{name}.{ext}")), data).unwrap();
+    }
+
+    // 1. --image-ext-map rewrites jpg/jpeg slugs only and leaves png/webp untouched
+    let out_map = run_cli(
+        bin,
+        Some(dir.path()),
+        &[
+            "-c",
+            "cook",
+            "-o",
+            "docs_map",
+            "--assets-dir",
+            "assets_map",
+            "--image-ext-map",
+            "jpg=webp,jpeg=webp",
+        ],
+        &[],
+    );
+    assert!(
+        out_map.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out_map.stderr)
+    );
+    assert_eq!(
+        fs::read_to_string(dir.path().join("docs_map/pie.md")).unwrap(),
+        "slug=pie.webp\n"
+    );
+    assert_eq!(
+        fs::read_to_string(dir.path().join("docs_map/tart.md")).unwrap(),
+        "slug=tart.webp\n"
+    );
+    assert_eq!(
+        fs::read_to_string(dir.path().join("docs_map/cake.md")).unwrap(),
+        "slug=cake.png\n"
+    );
+    assert_eq!(
+        fs::read_to_string(dir.path().join("docs_map/bread.md")).unwrap(),
+        "slug=bread.webp\n"
+    );
+    assert!(dir.path().join("assets_map/pie.jpg").is_file());
+    assert!(dir.path().join("assets_map/tart.jpeg").is_file());
+    assert!(dir.path().join("assets_map/cake.png").is_file());
+    assert!(dir.path().join("assets_map/bread.webp").is_file());
+
+    // 2. --convert-images webp converts jpg/jpeg (when cwebp available) and keeps png/webp untouched
+    let out_conv = run_cli(
+        bin,
+        Some(dir.path()),
+        &[
+            "-c",
+            "cook",
+            "-o",
+            "docs_conv",
+            "--assets-dir",
+            "assets_conv",
+            "--convert-images",
+            "webp",
+            "--image-quality",
+            "82",
+        ],
+        &[],
+    );
+    assert!(
+        out_conv.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out_conv.stderr)
+    );
+    assert_eq!(
+        fs::read_to_string(dir.path().join("docs_conv/pie.md")).unwrap(),
+        "slug=pie.webp\n"
+    );
+    assert_eq!(
+        fs::read_to_string(dir.path().join("docs_conv/tart.md")).unwrap(),
+        "slug=tart.webp\n"
+    );
+    assert_eq!(
+        fs::read_to_string(dir.path().join("docs_conv/cake.md")).unwrap(),
+        "slug=cake.png\n"
+    );
+    assert_eq!(
+        fs::read_to_string(dir.path().join("docs_conv/bread.md")).unwrap(),
+        "slug=bread.webp\n"
+    );
+    assert_eq!(
+        fs::read(dir.path().join("assets_conv/cake.png")).unwrap(),
+        b"png-bytes"
+    );
+    assert_eq!(
+        fs::read(dir.path().join("assets_conv/bread.webp")).unwrap(),
+        b"webp-bytes"
+    );
+
+    let has_cwebp = Command::new("cwebp")
+        .arg("-version")
+        .output()
+        .is_ok_and(|o| o.status.success());
+    if has_cwebp {
+        for stem in ["pie", "tart"] {
+            let bytes = fs::read(dir.path().join(format!("assets_conv/{stem}.webp"))).unwrap();
+            assert!(bytes.len() >= 12);
+            assert_eq!(&bytes[..4], b"RIFF");
+            assert_eq!(&bytes[8..12], b"WEBP");
+        }
+        assert!(!dir.path().join("assets_conv/pie.jpg").exists());
+        assert!(!dir.path().join("assets_conv/tart.jpeg").exists());
+    }
+}
+
+#[test]
+fn regression_nav_file_sync_zensical_and_mkdocs_dry_run_and_doctor() {
+    let Some(bin) = bin_if_runnable() else {
+        return;
+    };
+
+    let dir = TempDir::new("nav_file_sync");
+    fs::create_dir_all(dir.path().join("cook/cookies-and-bars")).unwrap();
+    fs::create_dir_all(dir.path().join("cook/ingredients/butter")).unwrap();
+    fs::create_dir_all(dir.path().join("cook/desserts/pie")).unwrap();
+    fs::create_dir_all(dir.path().join("docs")).unwrap();
+
+    fs::write(
+        dir.path().join("cook/cookies-and-bars/Date Brownies.cook"),
+        "Mix @dates{1%cup} and @cocoa{2%tbsp}.\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.path()
+            .join("cook/ingredients/butter/Clarified Butter.cook"),
+        "Melt @butter{1%cup}.\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("cook/desserts/pie/Key Lime Pie.cook"),
+        "Whisk @lime juice{1/2%cup}.\n",
+    )
+    .unwrap();
+
+    // 1. Zensical TOML (`[[project.nav]]`) with nested subcategories, flattened category, duplicates, and comments
+    let zensical_path = dir.path().join("zensical.toml");
+    let zensical_initial = r#"[project]
+site_name = "Recipes"
+
+# Preserved nav comment
+[[project.nav]]
+Home = "index.md"
+
+[[project.nav]]
+"Cookies & Bars" = [
+  { "Snickerdoodles" = "cookies-and-bars/snickerdoodles.md" },
+  { "Almond Biscotti" = "cookies-and-bars/almond-biscotti.md" },
+  { "Almond Biscotti" = "cookies-and-bars/almond-biscotti.md" },
+]
+
+[[project.nav]]
+Desserts = [
+  { "Apple Cake" = "desserts/cake/apple-cake.md" },
+  { "Banana Pudding" = "desserts/banana-pudding.md" },
+]
+
+[[project.nav]]
+Ingredients = [
+  { "Butter" = [
+    { "Almond Butter" = "ingredients/butter/almond-butter.md" },
+    { "Ghee" = "ingredients/butter/ghee.md" },
+  ] },
+  { "Apple Butter" = "ingredients/apple-butter.md" },
+]
+
+[project.theme]
+name = "material"
+"#;
+    fs::write(&zensical_path, zensical_initial).unwrap();
+
+    // 1a. --dry-run prints planned nav additions without modifying zensical.toml or writing .md
+    let dry_out = run_cli(
+        bin,
+        Some(dir.path()),
+        &[
+            "-c",
+            "cook",
+            "-o",
+            "docs",
+            "--nav-file",
+            "zensical.toml",
+            "--dry-run",
+        ],
+        &[],
+    );
+    assert!(
+        dry_out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&dry_out.stderr)
+    );
+    let dry_stdout = String::from_utf8_lossy(&dry_out.stdout);
+    assert!(
+        dry_stdout.contains("[dry-run] nav (zensical.toml): add \"Date Brownies\" = \"cookies-and-bars/date-brownies.md\" in Cookies & Bars"),
+        "dry_stdout:\n{dry_stdout}"
+    );
+    assert!(
+        dry_stdout.contains("[dry-run] nav (zensical.toml): add \"Clarified Butter\" = \"ingredients/butter/clarified-butter.md\" in Ingredients > Butter"),
+        "dry_stdout:\n{dry_stdout}"
+    );
+    assert!(
+        dry_stdout.contains("[dry-run] nav (zensical.toml): add \"Key Lime Pie\" = \"desserts/pie/key-lime-pie.md\" in Desserts"),
+        "dry_stdout:\n{dry_stdout}"
+    );
+    assert_eq!(
+        fs::read_to_string(&zensical_path).unwrap(),
+        zensical_initial,
+        "--dry-run must not modify nav_file"
+    );
+    assert!(
+        !dir.path()
+            .join("docs/cookies-and-bars/date-brownies.md")
+            .exists()
+    );
+
+    // 1b. Real run updates zensical.toml alphabetically, preserves comments & nested sub-sections, and deduplicates
+    let real_out = run_cli(
+        bin,
+        Some(dir.path()),
+        &["-c", "cook", "-o", "docs", "--nav-file", "zensical.toml"],
+        &[],
+    );
+    assert!(
+        real_out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&real_out.stderr)
+    );
+    let zensical_after = fs::read_to_string(&zensical_path).unwrap();
+    assert!(zensical_after.contains("# Preserved nav comment"));
+    assert!(zensical_after.contains("[project.theme]\nname = \"material\""));
+    assert_eq!(
+        zensical_after
+            .matches("cookies-and-bars/almond-biscotti.md")
+            .count(),
+        1
+    );
+    let idx_almond = zensical_after.find("Almond Biscotti").unwrap();
+    let idx_brownies = zensical_after.find("Date Brownies").unwrap();
+    let idx_snicker = zensical_after.find("Snickerdoodles").unwrap();
+    assert!(idx_almond < idx_brownies && idx_brownies < idx_snicker);
+    assert!(zensical_after.contains(
+        "  { \"Butter\" = [\n    { \"Almond Butter\" = \"ingredients/butter/almond-butter.md\" },\n    { \"Clarified Butter\" = \"ingredients/butter/clarified-butter.md\" },\n    { \"Ghee\" = \"ingredients/butter/ghee.md\" },\n  ] },"
+    ));
+    assert!(zensical_after.contains("{ \"Key Lime Pie\" = \"desserts/pie/key-lime-pie.md\" },"));
+
+    // 1c. Re-running with COOK_DOCS_NAV_FILE is idempotent
+    let rerun_out = run_cli(
+        bin,
+        Some(dir.path()),
+        &["-c", "cook", "-o", "docs"],
+        &[("COOK_DOCS_NAV_FILE", "zensical.toml")],
+    );
+    assert!(rerun_out.status.success());
+    assert_eq!(fs::read_to_string(&zensical_path).unwrap(), zensical_after);
+
+    // 2. MkDocs YAML (`nav:`) preserving comments & !!python/name tags
+    let mkdocs_path = dir.path().join("mkdocs.yml");
+    let mkdocs_initial = r#"site_name: Recipes
+markdown_extensions:
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+
+# Navigation tree
+nav:
+  - Home: index.md
+  - Cookies & Bars:
+      - Snickerdoodles: cookies-and-bars/snickerdoodles.md
+      - Almond Biscotti: cookies-and-bars/almond-biscotti.md
+  - Desserts:
+      - Apple Cake: desserts/cake/apple-cake.md
+  - Ingredients:
+      - Butter:
+          - Almond Butter: ingredients/butter/almond-butter.md
+          - Ghee: ingredients/butter/ghee.md
+      - Apple Butter: ingredients/apple-butter.md
+
+theme:
+  name: material
+"#;
+    fs::write(&mkdocs_path, mkdocs_initial).unwrap();
+
+    // 2a. --dry-run against mkdocs.yml via .cookdocs.toml config file
+    fs::write(
+        dir.path().join(".cookdocs.toml"),
+        "recipe_search_root = \"cook\"\noutput_dir = \"docs\"\nnav_file = \"mkdocs.yml\"\n",
+    )
+    .unwrap();
+    let mk_dry = run_cli(bin, Some(dir.path()), &["--dry-run"], &[]);
+    assert!(mk_dry.status.success());
+    let mk_dry_stdout = String::from_utf8_lossy(&mk_dry.stdout);
+    assert!(
+        mk_dry_stdout.contains("[dry-run] nav (mkdocs.yml): add \"Date Brownies\" = \"cookies-and-bars/date-brownies.md\" in Cookies & Bars"),
+        "mk_dry_stdout:\n{mk_dry_stdout}"
+    );
+    assert_eq!(fs::read_to_string(&mkdocs_path).unwrap(), mkdocs_initial);
+
+    // 2b. Real run updates mkdocs.yml cleanly and stays idempotent
+    let mk_real = run_cli(bin, Some(dir.path()), &[], &[]);
+    assert!(mk_real.status.success());
+    let mkdocs_after = fs::read_to_string(&mkdocs_path).unwrap();
+    assert!(mkdocs_after.contains("!!python/name:material.extensions.emoji.twemoji"));
+    assert!(mkdocs_after.contains("# Navigation tree"));
+    assert!(mkdocs_after.contains("theme:\n  name: material"));
+    assert!(mkdocs_after.contains(
+        "      - Almond Biscotti: cookies-and-bars/almond-biscotti.md\n      - Date Brownies: cookies-and-bars/date-brownies.md\n      - Snickerdoodles: cookies-and-bars/snickerdoodles.md"
+    ));
+    assert!(mkdocs_after.contains(
+        "          - Almond Butter: ingredients/butter/almond-butter.md\n          - Clarified Butter: ingredients/butter/clarified-butter.md\n          - Ghee: ingredients/butter/ghee.md"
+    ));
+    assert!(mkdocs_after.contains("      - Key Lime Pie: desserts/pie/key-lime-pie.md"));
+
+    let mk_rerun = run_cli(bin, Some(dir.path()), &[], &[]);
+    assert!(mk_rerun.status.success());
+    assert_eq!(fs::read_to_string(&mkdocs_path).unwrap(), mkdocs_after);
+
+    // 3. Doctor validates nav_file (ok on valid file, error on missing/invalid file)
+    let doc_ok = run_cli(bin, Some(dir.path()), &["doctor", "--json"], &[]);
+    assert!(doc_ok.status.success());
+    let ok_json: Value = serde_json::from_slice(&doc_ok.stdout).unwrap();
+    assert_eq!(ok_json["healthy"], true);
+    assert!(
+        ok_json["checks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|c| c["category"] == "nav_file" && c["severity"] == "ok")
+    );
+
+    let doc_bad = run_cli(
+        bin,
+        Some(dir.path()),
+        &["--nav-file", "missing.toml", "doctor", "--json"],
+        &[],
+    );
+    assert!(!doc_bad.status.success());
+    let bad_json: Value = serde_json::from_slice(&doc_bad.stdout).unwrap();
+    assert_eq!(bad_json["healthy"], false);
+    assert!(
+        bad_json["checks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|c| c["category"] == "nav_file" && c["severity"] == "error")
+    );
+}

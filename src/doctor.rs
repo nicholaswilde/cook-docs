@@ -166,6 +166,8 @@ pub fn run_doctor_with_options(
             let emoji_table = check_emoji_config(config, &mut checks);
             check_weights_file(&config.weights_file, &mut checks);
             let ignored_ingredients = check_ignored_ingredients_config(config, &mut checks);
+            check_convert_images(&config.convert_images, &mut checks);
+            check_nav_file(&config.nav_file, &mut checks);
 
             if options.check_recipes || !options.only.is_empty() {
                 checks.extend(check_recipes(
@@ -352,6 +354,51 @@ fn load_ignored_ingredients_file(path: &Path) -> Result<Vec<String>, String> {
     };
 
     extract_string_list(&value, path)
+}
+
+fn check_convert_images(convert_images: &str, checks: &mut Vec<DoctorCheck>) {
+    if convert_images != "webp" {
+        return;
+    }
+    match std::process::Command::new("cwebp").arg("-version").output() {
+        Ok(out) if out.status.success() => checks.push(DoctorCheck {
+            category: "convert_images".into(),
+            severity: CheckSeverity::Ok,
+            message: "WebP converter available (cwebp)".into(),
+            path: None,
+        }),
+        _ => checks.push(DoctorCheck {
+            category: "convert_images".into(),
+            severity: CheckSeverity::Warning,
+            message: "convert_images = \"webp\" requires 'cwebp' on PATH (will fall back to raw image copy)".into(),
+            path: None,
+        }),
+    }
+}
+
+fn check_nav_file(nav_file: &str, checks: &mut Vec<DoctorCheck>) {
+    if nav_file.trim().is_empty() {
+        return;
+    }
+    let path = PathBuf::from(nav_file.trim());
+    match crate::nav::validate_nav_file(&path) {
+        Ok(sections) => checks.push(DoctorCheck {
+            category: "nav_file".into(),
+            severity: CheckSeverity::Ok,
+            message: format!(
+                "Nav file valid: {} ({} section(s))",
+                path.display(),
+                sections
+            ),
+            path: Some(path),
+        }),
+        Err(err) => checks.push(DoctorCheck {
+            category: "nav_file".into(),
+            severity: CheckSeverity::Error,
+            message: format!("Invalid nav file: {err}"),
+            path: Some(path),
+        }),
+    }
 }
 
 fn check_ignored_ingredients_config(

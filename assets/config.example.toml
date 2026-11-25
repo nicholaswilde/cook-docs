@@ -39,6 +39,22 @@
 # CLI: --image-ext <EXT> | Env: COOK_DOCS_IMAGE_EXT
 # image_ext = ""
 
+# Optional per-extension mapping for Info.ImageSlug (only rewrites matching extensions,
+# leaving unlisted extensions such as .png untouched):
+# CLI: --image-ext-map jpg=webp,jpeg=webp | Env: COOK_DOCS_IMAGE_EXT_MAP
+# [image_ext_map]
+# jpg = "webp"
+# jpeg = "webp"
+
+# Optional image conversion when copying assets into assets_dir (supports "webp" via cwebp).
+# Defaults to converting .jpg/.jpeg while leaving .png/.webp untouched unless overridden by image_ext_map.
+# CLI: --convert-images <FORMAT> | Env: COOK_DOCS_CONVERT_IMAGES
+# convert_images = ""
+
+# Output quality (1-100) used when convert_images is enabled.
+# CLI: --image-quality <1-100> | Env: COOK_DOCS_IMAGE_QUALITY
+# image_quality = 80
+
 # Do not write any Markdown files to disk; print rendered output to stdout instead.
 # CLI: -d, --dry-run | Env: COOK_DOCS_DRY_RUN
 # dry_run = false
@@ -52,6 +68,11 @@
 # Override per-run with --force to perform a full overwrite.
 # CLI: --merge | Env: COOK_DOCS_MERGE
 # merge = false
+
+# Optional Zensical (zensical.toml) or MkDocs (mkdocs.yml / mkdocs.yaml) navigation file
+# to automatically sync rendered recipes into (sorted alphabetically and deduplicated).
+# CLI: --nav-file <PATH> | Env: COOK_DOCS_NAV_FILE
+# nav_file = ""
 
 # -----------------------------------------------------------------------------
 # Templates & Formatting

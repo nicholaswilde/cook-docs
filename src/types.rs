@@ -1,6 +1,16 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 
+pub const DEFAULT_IMAGE_QUALITY: u8 = 80;
+
+fn default_image_quality() -> u8 {
+    DEFAULT_IMAGE_QUALITY
+}
+
+fn is_default_image_quality(q: &u8) -> bool {
+    *q == DEFAULT_IMAGE_QUALITY
+}
+
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum StringOrVec {
@@ -117,6 +127,33 @@ pub struct Config {
     )]
     pub image_ext: String,
     #[serde(
+        rename = "ImageExtMap",
+        alias = "image-ext-map",
+        alias = "image_ext_map",
+        alias = "imageExtMap",
+        default,
+        skip_serializing_if = "BTreeMap::is_empty"
+    )]
+    pub image_ext_map: BTreeMap<String, String>,
+    #[serde(
+        rename = "ConvertImages",
+        alias = "convert-images",
+        alias = "convert_images",
+        alias = "convertImages",
+        default,
+        skip_serializing_if = "String::is_empty"
+    )]
+    pub convert_images: String,
+    #[serde(
+        rename = "ImageQuality",
+        alias = "image-quality",
+        alias = "image_quality",
+        alias = "imageQuality",
+        default = "default_image_quality",
+        skip_serializing_if = "is_default_image_quality"
+    )]
+    pub image_quality: u8,
+    #[serde(
         rename = "EmojiFile",
         alias = "emoji-file",
         alias = "emoji_file",
@@ -197,6 +234,15 @@ pub struct Config {
     )]
     pub ignored_ingredients: Vec<String>,
     #[serde(
+        rename = "NavFile",
+        alias = "nav-file",
+        alias = "nav_file",
+        alias = "navFile",
+        default,
+        skip_serializing_if = "String::is_empty"
+    )]
+    pub nav_file: String,
+    #[serde(
         rename = "Merge",
         alias = "merge",
         default,
@@ -234,6 +280,9 @@ impl Default for Config {
             output_dir: String::new(),
             assets_dir: String::new(),
             image_ext: String::new(),
+            image_ext_map: BTreeMap::new(),
+            convert_images: String::new(),
+            image_quality: DEFAULT_IMAGE_QUALITY,
             emoji_file: String::new(),
             emoji: None,
             weights_file: String::new(),
@@ -243,6 +292,7 @@ impl Default for Config {
             required_metadata: Vec::new(),
             ignored_ingredients_file: String::new(),
             ignored_ingredients: Vec::new(),
+            nav_file: String::new(),
             merge: false,
             force: false,
             recipe_files: Vec::new(),

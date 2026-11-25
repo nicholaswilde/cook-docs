@@ -4,6 +4,7 @@ pub mod doctor;
 pub mod document;
 pub mod enrichment;
 pub mod merge;
+pub mod nav;
 pub mod types;
 pub mod update;
 pub mod watch;
@@ -25,18 +26,64 @@ pub fn resolve_search_root(recipe_search_root: &str) -> PathBuf {
 /// Parse and render a single `.cook` recipe file.
 pub fn render_recipe(path: &str, config: &types::Config) -> Result<(), String> {
     let resources = Arc::new(enrichment::RenderResources::from_config(config));
-    render_recipe_with_resources(path, config, &resources)
+    let _ = render_recipe_with_resources(path, config, &resources)?;
+    Ok(())
 }
 
 fn render_recipe_with_resources(
     path: &str,
     config: &types::Config,
     resources: &Arc<enrichment::RenderResources>,
-) -> Result<(), String> {
+) -> Result<Option<types::Recipe>, String> {
     let link_index = config.link_in_steps.then_some(&resources.links);
     let recipe = cook::parse_file_with_links(path, config, link_index)?;
-    document::print_documentation_with_resources(&recipe, resources);
-    Ok(())
+    let wrote = document::try_print_documentation_with_resources(&recipe, resources);
+    Ok(wrote.then_some(recipe))
+}
+
+fn sync_rendered_recipes_to_nav(rendered: &[types::Recipe], config: &types::Config) {
+    if config.nav_file.trim().is_empty() || rendered.is_empty() {
+        return;
+    }
+    let nav_path = Path::new(config.nav_file.trim());
+    match nav::sync_nav_file(nav_path, rendered, config.dry_run) {
+        Ok(report) => {
+            for entry in &report.unmatched {
+                log::warn!(
+                    "No matching nav section for '{}' ({}) in {}",
+                    entry.title,
+                    entry.rel_path,
+                    nav_path.display()
+                );
+            }
+            if config.dry_run {
+                for change in &report.changes {
+                    println!(
+                        "[dry-run] nav ({}): {} \"{}\" = \"{}\" in {}",
+                        nav_path.display(),
+                        change.kind.verb(),
+                        change.title,
+                        change.rel_path,
+                        change.section
+                    );
+                }
+            } else if report.modified {
+                for change in &report.changes {
+                    log::info!(
+                        "Nav ({}): {} \"{}\" = \"{}\" in {}",
+                        nav_path.display(),
+                        change.kind.verb(),
+                        change.title,
+                        change.rel_path,
+                        change.section
+                    );
+                }
+            }
+        }
+        Err(e) => {
+            log::warn!("Failed to sync nav file {}: {}", nav_path.display(), e);
+        }
+    }
 }
 
 /// Render a batch of recipe paths (serially on `--dry-run`, threaded otherwise).
@@ -86,18 +133,26 @@ pub fn render_recipes(recipe_paths: &[PathBuf], config: &types::Config) -> (usiz
     if config.dry_run {
         let mut ok = 0;
         let mut failed = 0;
+        let mut rendered = Vec::new();
         for path_str in recipe_paths_strs {
-            if let Err(e) = render_recipe_with_resources(&path_str, config, &resources) {
-                log::warn!(
-                    "Error parsing file for recipe {}, skipping: {}",
-                    path_str,
-                    e
-                );
-                failed += 1;
-            } else {
-                ok += 1;
+            match render_recipe_with_resources(&path_str, config, &resources) {
+                Ok(maybe_recipe) => {
+                    if let Some(recipe) = maybe_recipe {
+                        rendered.push(recipe);
+                    }
+                    ok += 1;
+                }
+                Err(e) => {
+                    log::warn!(
+                        "Error parsing file for recipe {}, skipping: {}",
+                        path_str,
+                        e
+                    );
+                    failed += 1;
+                }
             }
         }
+        sync_rendered_recipes_to_nav(&rendered, config);
         return (ok, failed);
     }
 
@@ -105,29 +160,36 @@ pub fn render_recipes(recipe_paths: &[PathBuf], config: &types::Config) -> (usiz
     for path_str in recipe_paths_strs {
         let config_clone = config.clone();
         let resources_clone = Arc::clone(&resources);
-        handles.push(std::thread::spawn(move || {
-            if let Err(e) = render_recipe_with_resources(&path_str, &config_clone, &resources_clone)
-            {
-                log::warn!(
-                    "Error parsing file for recipe {}, skipping: {}",
-                    path_str,
-                    e
-                );
-                false
-            } else {
-                true
-            }
-        }));
+        handles.push(std::thread::spawn(
+            move || match render_recipe_with_resources(&path_str, &config_clone, &resources_clone) {
+                Ok(maybe_recipe) => Ok(maybe_recipe),
+                Err(e) => {
+                    log::warn!(
+                        "Error parsing file for recipe {}, skipping: {}",
+                        path_str,
+                        e
+                    );
+                    Err(())
+                }
+            },
+        ));
     }
 
     let mut ok = 0;
     let mut failed = 0;
+    let mut rendered = Vec::new();
     for handle in handles {
         match handle.join() {
-            Ok(true) => ok += 1,
-            Ok(false) | Err(_) => failed += 1,
+            Ok(Ok(maybe_recipe)) => {
+                if let Some(recipe) = maybe_recipe {
+                    rendered.push(recipe);
+                }
+                ok += 1;
+            }
+            Ok(Err(())) | Err(_) => failed += 1,
         }
     }
+    sync_rendered_recipes_to_nav(&rendered, config);
     (ok, failed)
 }
 

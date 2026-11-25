@@ -59,6 +59,26 @@ pub fn build_image_slug(image_file_name: &str, image_ext_override: &str) -> Stri
     format!("{stem}.{ext}")
 }
 
+/// Resolve `Info.ImageSlug` honoring per-extension `image_ext_map`, `convert_images`, and legacy `image_ext`.
+pub fn resolve_image_slug(image_file_name: &str, config: &crate::types::Config) -> String {
+    if image_file_name.is_empty() {
+        return String::new();
+    }
+    let src_ext = Path::new(image_file_name)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.trim().trim_start_matches('.').to_ascii_lowercase())
+        .unwrap_or_default();
+
+    if let Some(mapped) = config.image_ext_map.get(&src_ext) {
+        return build_image_slug(image_file_name, mapped);
+    }
+    if config.convert_images == "webp" && matches!(src_ext.as_str(), "jpg" | "jpeg") {
+        return build_image_slug(image_file_name, "webp");
+    }
+    build_image_slug(image_file_name, &config.image_ext)
+}
+
 fn relative_recipe_dir(recipe_path: &str, config: &crate::types::Config) -> Option<PathBuf> {
     let search_root = if config.recipe_search_root.is_empty() {
         "."
@@ -718,7 +738,7 @@ pub fn parse_file_with_links(
             .and_then(|f| f.to_str())
             .unwrap_or("")
             .to_string();
-        info.image_slug = build_image_slug(&info.image_file_name, &config.image_ext);
+        info.image_slug = resolve_image_slug(&info.image_file_name, config);
     }
 
     let content = fs::read_to_string(recipe_path)
@@ -1692,5 +1712,50 @@ Bake at 180°C for ~{10-15%minutes}.
             "expected self-link excluded in: {}",
             parsed_self.steps[0].directions
         );
+    }
+
+    #[test]
+    fn test_resolve_image_slug_with_ext_map_and_convert_images() {
+        let mut map = std::collections::BTreeMap::new();
+        map.insert("jpg".to_string(), "webp".to_string());
+        map.insert("jpeg".to_string(), "webp".to_string());
+
+        // 1. image_ext_map only rewrites matching extensions
+        let cfg_map = Config {
+            image_ext_map: map,
+            ..default_config()
+        };
+        assert_eq!(resolve_image_slug("My Pie.JPG", &cfg_map), "my-pie.webp");
+        assert_eq!(resolve_image_slug("My Pie.jpeg", &cfg_map), "my-pie.webp");
+        assert_eq!(resolve_image_slug("My Pie.png", &cfg_map), "my-pie.png");
+        assert_eq!(resolve_image_slug("My Pie.webp", &cfg_map), "my-pie.webp");
+
+        // 2. convert_images = "webp" without image_ext_map rewrites jpg/jpeg only
+        let cfg_conv = Config {
+            convert_images: "webp".to_string(),
+            ..default_config()
+        };
+        assert_eq!(resolve_image_slug("My Pie.jpg", &cfg_conv), "my-pie.webp");
+        assert_eq!(resolve_image_slug("My Pie.JPEG", &cfg_conv), "my-pie.webp");
+        assert_eq!(resolve_image_slug("My Pie.png", &cfg_conv), "my-pie.png");
+        assert_eq!(resolve_image_slug("My Pie.webp", &cfg_conv), "my-pie.webp");
+
+        // 3. Legacy image_ext overrides unconditionally when image_ext_map doesn't match
+        let cfg_legacy = Config {
+            image_ext: "webp".to_string(),
+            ..default_config()
+        };
+        assert_eq!(resolve_image_slug("My Pie.png", &cfg_legacy), "my-pie.webp");
+
+        // 4. image_ext_map takes precedence over global image_ext (allows exempting png)
+        let mut exempt = std::collections::BTreeMap::new();
+        exempt.insert("png".to_string(), "png".to_string());
+        let cfg_exempt = Config {
+            image_ext: "webp".to_string(),
+            image_ext_map: exempt,
+            ..default_config()
+        };
+        assert_eq!(resolve_image_slug("My Pie.png", &cfg_exempt), "my-pie.png");
+        assert_eq!(resolve_image_slug("My Pie.jpg", &cfg_exempt), "my-pie.webp");
     }
 }

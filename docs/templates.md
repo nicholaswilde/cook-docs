@@ -174,7 +174,7 @@ See [mkdocs-material][14] for reference.
 
 Companion images matching `<Recipe Name>.<ext>` are detected automatically in priority order `.webp`, `.jpg`, `.jpeg`, `.png`. Output Markdown and image slugs are lowercased with spaces replaced by hyphens, e.g. `My Recipe Name.cook -> my-recipe-name.md` and `My Recipe Name.png -> my-recipe-name.png` (`.Info.ImageSlug`).
 
-Pass `--assets-dir <DIR>` to copy companion images (slug-named, keeping their original source extension) during rendering, and optionally `--image-ext webp` to override the extension in `.Info.ImageSlug` when an external tool converts images after rendering.
+Pass `--assets-dir <DIR>` to copy companion images (slug-named) during rendering. Use `--image-ext-map jpg=webp,jpeg=webp` (or `[image_ext_map]` in config) to selectively rewrite matching extensions in `.Info.ImageSlug` while leaving `.png`/`.webp` untouched, `--convert-images webp` (with optional `--image-quality 80`) to convert `.jpg`/`.jpeg` assets directly to `.webp` via `cwebp` on copy, or legacy `--image-ext webp` to override every extension unconditionally.
 
 ## Emojis, Weight Conversion & Cross-Linking
 
