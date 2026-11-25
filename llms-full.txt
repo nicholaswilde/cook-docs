@@ -2,33 +2,31 @@
 
 > Rust CLI for automatically generating standardized Markdown documentation from Cooklang (`.cook`) recipes using Go-compatible templates (`gtmpl-ng`).
 
-`cook-docs` recursively scans directories (respecting `.cookdocsignore`), parses `.cook` recipes with `cooklang`, resolves optional `.jpg`/`.png` recipe images, and renders Markdown documentation (in-place or mirrored into `--output-dir`) using built-in or custom `recipe.md.gotmpl` templates, with `--dry-run` and `--jsonify` modes.
+`cook-docs` recursively scans directories (or explicit `.cook` file/directory targets), respects `.cookdocsignore`, parses Cooklang recipes via `cooklang-rs`, copies or WebP-converts companion images, enriches templates with emojis, gram weights, category tags, cross-links, and batch scaling, merges non-destructively into existing Markdown, syncs Zensical/MkDocs navigation trees, watches for live edits, and validates projects via `cook-docs doctor`.
 
 ---
 
 ## Table of Contents
 
-1. [Overview & Mode of Operation](#overview--mode-of-operation)
-2. [Architecture & Repository Layout](#architecture--repository-layout)
-3. [Installation & Building](#installation--building)
-4. [CLI Options, Config Files & Environment Variables](#cli-options-config-files--environment-variables)
-5. [Ignore Rules & Output Directory Mapping](#ignore-rules--output-directory-mapping)
-6. [Templating System (`gtmpl-ng`)](#templating-system-gtmpl-ng)
-7. [Recipe Data Model & JSON Output](#recipe-data-model--json-output)
-8. [Development, Testing & Quality Gates](#development-testing--quality-gates)
-9. [License & Maintainer](#license--maintainer)
+- [Overview & Mode of Operation](#overview--mode-of-operation)
+- [Architecture & Repository Layout](#architecture--repository-layout)
+- [Installation & Building](#installation--building)
+- [CLI Commands, Options, Config Files & Environment Variables](#cli-commands-options-config-files--environment-variables)
+- [Merge Mode, Navigation Sync, Watch & Doctor](#merge-mode-navigation-sync-watch--doctor)
+- [Templating System (`gtmpl-ng`)](#templating-system-gtmpl-ng)
+- [Recipe Data Model & JSON Output](#recipe-data-model--json-output)
+- [Development, Testing & Quality Gates](#development-testing--quality-gates)
+- [License & Maintainer](#license--maintainer)
 
 ---
 
 ## Overview & Mode of Operation
 
-Inspired by `helm-docs`, `cook-docs` automates generating clean, standardized Markdown documentation from [Cooklang](https://cooklang.org/) (`.cook`) recipe collections for static site generators (such as MkDocs Material / Zensical, Hugo, or Jekyll).
-
-- **Recursive Discovery:** Crawls `recipe_search_root` (default `.`) for `*.cook` files while excluding `.git` and paths matched by `.cookdocsignore`.
-- **Parallel Rendering:** In normal mode, spawns a thread per discovered recipe; in `--dry-run` mode, renders serially to `stdout`.
-- **Slugified Outputs:** Converts `<Recipe Name>.cook` into `<recipe-name>.md` (lowercase with spaces replaced by `-`).
-- **Image Detection:** Checks for matching `<Recipe Name>.jpg` first, then `<Recipe Name>.png` in the recipe directory.
-- **JSON Export:** With `--jsonify`, serializes the parsed `Recipe` struct (steps, metadata, config, info) as pretty-printed JSON.
+- Scans `--recipe-search-root` (default `.`) recursively for `*.cook` files (or renders positional `[FILES]...` mirrored relative to `recipe_search_root`), ignoring `.git` directories and patterns matching `.cookdocsignore`.
+- Resolves companion images (`<Recipe Name>.webp`, `.jpg`, `.jpeg`, `.png` in priority order) and optionally copies or converts them (`--assets-dir`, `--image-ext-map`, `--convert-images webp`, `--image-quality`).
+- Generates slugified lowercase hyphenated `.md` files (e.g., `My Test Recipe.cook` -> `my-test-recipe.md`) either alongside each recipe or mirrored under `--output-dir`.
+- Supports `--dry-run` (prints rendered Markdown and planned `--nav-file` changes to stdout without writing files) and `--jsonify` (prints parsed recipe JSON object or array to stdout).
+- Uses serial execution for `--dry-run` and multi-threaded rendering across worker threads for disk output, followed by single-pass `--nav-file` synchronization.
 
 ---
 
@@ -38,35 +36,42 @@ Inspired by `helm-docs`, `cook-docs` automates generating clean, standardized Ma
 
 ```text
 cook-docs/
-├── Cargo.toml                 # Crate manifest (Edition 2024, v0.9.1)
-├── Taskfile.yaml              # Task runner definitions
-├── pyproject.toml             # Zensical docs Python env (uv)
-├── zensical.toml              # Static documentation site config
-├── AGENTS.md                  # Agentic rules, architecture, and quality gates
-├── .cookdocsignore            # Default ignore patterns
-├── .github/workflows/
-│   ├── ci.yaml                # Test matrix, rustfmt, clippy, docs, yamllint, typos
-│   └── release.yaml           # Multi-arch release builds & draft GitHub release
-├── docs/                      # Zensical documentation pages
+├── Cargo.toml                  # Rust Edition 2024 manifest
+├── build.rs                    # Injects PROJECT_VERSION from git describe / Cargo version
+├── Taskfile.yaml               # go-task automation (test, fmt, lint, completions, man, dist, release)
+├── pyproject.toml              # Zensical docs Python deps (managed with uv)
+├── zensical.toml               # Zensical static site config
+├── assets/
+│   ├── config.example.toml     # Fully documented example configuration
+│   └── cook-docs.1             # Generated UNIX roff man page
+├── completions/                # Generated bash, zsh, fish, powershell, elvish completions
 ├── src/
-│   ├── main.rs                # CLI entrypoint, logger init, serial/threaded dispatch
-│   ├── lib.rs                 # Public library modules
-│   ├── config.rs              # Precedence config loader (defaults < YAML < env < CLI)
-│   ├── cook.rs                # Discovery, .cookdocsignore, path resolution, Cooklang parse
-│   ├── document.rs            # gtmpl-ng templates, custom funcs, formatting, file write
-│   └── types.rs               # Serde data models (Config, Recipe, Info, Step, ...)
-└── tests/
-    └── integration_tests.rs   # Unit & integration tests
+│   ├── main.rs                 # CLI entrypoint, logger init, subcommand dispatch
+│   ├── lib.rs                  # Public library root & batch render orchestration
+│   ├── config.rs               # clap CLI, figment TOML/YAML/JSON config & COOK_DOCS_* env precedence
+│   ├── cook.rs                 # Recipe discovery, path/image slugs, category tags, aggregation & parsing
+│   ├── document.rs             # gtmpl-ng built-ins, template helpers, Markdown formatting & asset copy/WebP
+│   ├── enrichment.rs           # Emoji mappings, ingredient weight/density conversions & recipe link index
+│   ├── merge.rs                # Non-destructive Markdown merge (markers & structure-aware)
+│   ├── nav.rs                  # Format-preserving Zensical (zensical.toml) & MkDocs (mkdocs.yml) nav sync
+│   ├── doctor.rs               # Project & recipe diagnostics (--check-recipes, --only, --strict, --json)
+│   ├── watch.rs                # Debounced filesystem watcher for recipes & templates
+│   ├── update.rs               # GitHub release self-updater (self-update / update)
+│   └── types.rs                # Serializable Config, Recipe, Info, Step, Ingredient, Cookware, Timer
+├── tests/
+│   ├── integration_tests.rs    # Unit & integration tests
+│   └── regression_tests.rs     # End-to-end CLI regression suite
+├── testdata/                   # Sample .cook recipe, image, and .gotmpl template
+└── docs/                       # Zensical documentation site sources
 ```
 
 ### Technology Stack
 
-- **Language & Edition:** Rust (Edition 2024)
-- **CLI & Config:** `clap` `4.6.1` (`derive`, `env`), `figment` `0.10.19` (`toml`, `yaml`, `env`)
-- **Cooklang & Templates:** `cooklang` `0.18.7`, `gtmpl-ng` `0.7.7`
-- **Serialization:** `serde` `1.0.228`, `serde_json` `1.0.150`
-- **Traversal & Logging:** `ignore` `0.4.26`, `walkdir` `2.5.0`, `log` `0.4.32`, `env_logger` `0.11.10`
-- **Docs Site:** Python `>=3.12`, `zensical` `>=0.0.45` managed via `uv`
+- **Language:** Rust (Edition 2024)
+- **CLI & Config:** `clap` v4 (`derive`, `env`), `clap_complete`, `clap_mangen`, `figment` (`toml`, `yaml`, `json`, `env`)
+- **Parsing & Templates:** `cooklang`, `gtmpl-ng`, `toml_edit`, `serde`, `serde_json`
+- **Discovery, Watching & Updates:** `ignore`, `walkdir`, `notify`, `self_update`, `log`, `env_logger`
+- **Docs & Automation:** `zensical` (via `uv`), `go-task` (`Taskfile.yaml`), `rumdl`, `yamllint-rs`, `taplo`, `typos`
 
 ---
 
@@ -75,208 +80,136 @@ cook-docs/
 ### Package Managers
 
 ```bash
-# Homebrew
+# Homebrew (macOS / Linux)
 brew install nicholaswilde/tap/cook-docs
 
+# APT (Debian / Ubuntu via nicholaswilde/apt)
+sudo apt update && sudo apt install cook-docs
+```
+
+```powershell
 # Scoop (Windows)
 scoop bucket add nicholaswilde https://github.com/nicholaswilde/scoop-bucket.git
 scoop install nicholaswilde/cook-docs
 ```
 
-### Build from Source (Cargo)
+### Build or Install from Source
 
 ```bash
+cargo install --git https://github.com/nicholaswilde/cook-docs
+# Or build locally (binary at target/release/cook-docs):
 cargo build --release
-# Binary written to target/release/cook-docs
 ```
-
-### Release Targets (CI / `cross`)
-
-- Linux: `x86_64-unknown-linux-musl`, `aarch64-unknown-linux-musl`, `armv7-unknown-linux-musleabihf`, `arm-unknown-linux-gnueabihf`
-- macOS: `x86_64-apple-darwin`, `aarch64-apple-darwin`
-- Windows: `x86_64-pc-windows-msvc`, `aarch64-pc-windows-msvc`
 
 ---
 
-## CLI Options, Config Files & Environment Variables
+## CLI Commands, Options, Config Files & Environment Variables
 
-Configuration resolves in ascending precedence: **built-in defaults < YAML config file < `COOK_DOCS_*` environment variables < CLI flags**.
+Precedence order (highest to lowest): **CLI Flags** > **Environment Variables (`COOK_DOCS_*`)** > **Config File** > **Defaults**.
+
+### Subcommands
+
+- `cook-docs [OPTIONS] [FILES]...`: Render discovered or targeted `.cook` recipes.
+- `cook-docs watch [--debounce MS]` (or `cook-docs --watch`): Watch recipes/templates and re-render affected files on save.
+- `cook-docs doctor` (alias `doc`): Validate configuration, inputs, templates, nav file, and permissions; pass `--check-recipes`, `--only <syntax,images,metadata,emojis,ignored>`, `--strict`, and/or `--json`.
+- `cook-docs self-update` (alias `update`): Check (`--check`), install (`-y/--yes`), or pin (`--version <TAG>`) GitHub releases.
+- `cook-docs completions <bash|zsh|fish|powershell|elvish>`: Print shell autocompletion script.
+- `cook-docs man`: Print UNIX roff man page.
 
 ### Supported Parameters
 
-| CLI Flag | Env Var | YAML Key(s) | Default | Description |
-|---|---|---|---|---|
-| `-d, --dry-run` | `COOK_DOCS_DRY_RUN` | `dryRun` / `dry-run` / `dry_run` | `false` | Print rendered Markdown to `stdout` without writing files |
-| `-j, --jsonify` | `COOK_DOCS_JSONIFY` | `jsonify` | `false` | Serialize parsed recipe to pretty JSON (logged via `info`) |
-| `-i, --ignore-file <FILE>` | `COOK_DOCS_IGNORE_FILE` | `ignoreFile` / `ignore-file` / `ignore_file` | `.cookdocsignore` | Ignore file name for excluding recipe directories/files |
-| `-c, --recipe-search-root <DIR>` | `COOK_DOCS_RECIPE_SEARCH_ROOT` | `recipeSearchRoot` / `recipe-search-root` / `recipe_search_root` | `.` | Root directory to recursively scan for `.cook` files |
-| `-l, --log-level <LEVEL>` | `COOK_DOCS_LOG_LEVEL` | `logLevel` / `log-level` / `log_level` | `info` | Log filter (`trace`, `debug`, `info`, `warn`/`warning`, `error`) |
-| `-t, --template-files <LIST>` | `COOK_DOCS_TEMPLATE_FILES` | `templateFiles` / `template-files` / `template_files` | `["recipe.md.gotmpl"]` | Comma-separated (CLI/env) or list (YAML) of template paths |
-| `-w, --word-wrap <INT>` | `COOK_DOCS_WORD_WRAP` | `wordWrap` / `word-wrap` / `word_wrap` | `120` | Word-wrap line width for step directions |
-| `-o, --output-dir <DIR>` | `COOK_DOCS_OUTPUT_DIR` | `outputDir` / `output-dir` / `output_dir` | `""` | Custom output root mirroring relative subdirectories |
-| `-v, --version` | — | — | — | Print `cook-docs` version |
-| `-h, --help` | — | — | — | Print CLI help |
+| CLI Flag | Env Var | Config Key | Default | Description |
+| --- | --- | --- | --- | --- |
+| `-C, --config <PATH>` | `COOK_DOCS_CONFIG` | N/A | N/A | Explicit config file (TOML, YAML, or JSON) |
+| `-d, --dry-run` | `COOK_DOCS_DRY_RUN` | `dry_run` | `false` | Print Markdown & planned nav changes without writing |
+| `-j, --jsonify` | `COOK_DOCS_JSONIFY` | `jsonify` | `false` | Print parsed recipe JSON to stdout |
+| `-c, --recipe-search-root <DIR>` | `COOK_DOCS_RECIPE_SEARCH_ROOT` | `recipe_search_root` | `"."` | Base directory for recursive discovery & mirrored output |
+| `-i, --ignore-file <FILE>` | `COOK_DOCS_IGNORE_FILE` | `ignore_file` | `".cookdocsignore"` | Ignore filename (`.gitignore` syntax) |
+| `-o, --output-dir <DIR>` | `COOK_DOCS_OUTPUT_DIR` | `output_dir` | `""` | Custom output root mirroring relative subdirs |
+| `--assets-dir <DIR>` | `COOK_DOCS_ASSETS_DIR` | `assets_dir` | `""` | Copy companion images (slug-named) into directory |
+| `--image-ext <EXT>` | `COOK_DOCS_IMAGE_EXT` | `image_ext` | `""` | Unconditional extension override for `Info.ImageSlug` |
+| `--image-ext-map <PAIRS>` | `COOK_DOCS_IMAGE_EXT_MAP` | `image_ext_map` | `{}` | Per-extension `src=dst` map for `Info.ImageSlug` (e.g. `jpg=webp,jpeg=webp`) |
+| `--convert-images <FORMAT>` | `COOK_DOCS_CONVERT_IMAGES` | `convert_images` | `""` | Convert matching assets on copy (`webp` via `cwebp`; `.png`/`.webp` kept) |
+| `--image-quality <1-100>` | `COOK_DOCS_IMAGE_QUALITY` | `image_quality` | `80` | Quality setting for `--convert-images` |
+| `--emoji-file <PATH>` | `COOK_DOCS_EMOJI_FILE` | `emoji_file` | `""` | YAML/TOML/JSON ingredient, cookware, title, and category emoji mappings |
+| N/A | N/A | `emoji` | N/A | Inline emoji mappings in `.cookdocs.{toml,yaml,json}` |
+| `--weights-file <PATH>` | `COOK_DOCS_WEIGHTS_FILE` | `weights_file` | `""` | YAML/TOML/JSON ingredient density table for `toGrams` (supports `exclude`, `exclude_small_units`, `exclude_small_units_except`) |
+| `--link-dirs <DIRS>` | `COOK_DOCS_LINK_DIRS` | `link_dirs` | `[]` | Comma-separated recipe subdirs eligible for `linkRecipe` cross-linking |
+| `--link-in-steps` | `COOK_DOCS_LINK_IN_STEPS` | `link_in_steps` | `false` | Cross-link AST `@ingredient` spans inside step directions |
+| N/A | N/A | `category_tags` | `{}` | Category path -> default tag lists (`Info.DefaultTags` / `Info.Tags`) |
+| `--required-metadata <KEYS>` | `COOK_DOCS_REQUIRED_METADATA` | `required_metadata` | `[]` | Required metadata keys for `doctor --check-recipes` |
+| `--ignored-ingredients-file <PATH>` | `COOK_DOCS_IGNORED_INGREDIENTS_FILE` | `ignored_ingredients_file` | `""` | Ingredients warned on when tagged with `@` in `doctor` |
+| N/A | `COOK_DOCS_IGNORED_INGREDIENTS` | `ignored_ingredients` | `[]` | Inline list of ignored ingredients (merged with file) |
+| `--nav-file <PATH>` | `COOK_DOCS_NAV_FILE` | `nav_file` | `""` | Zensical (`zensical.toml`) or MkDocs (`mkdocs.yml`) nav file to sync |
+| `--merge` | `COOK_DOCS_MERGE` | `merge` | `false` | Non-destructively merge into existing Markdown files |
+| `--force` | `COOK_DOCS_FORCE` | N/A | `false` | Force full overwrite even when `merge = true` |
+| `-t, --template-files <PATHS>` | `COOK_DOCS_TEMPLATE_FILES` | `template_files` | `["recipe.md.gotmpl"]` | Comma-separated Go template paths |
+| `-w, --word-wrap <N>` | `COOK_DOCS_WORD_WRAP` | `word_wrap` | `120` | Word-wrap column width for recipe steps |
+| `-l, --log-level <LEVEL>` | `COOK_DOCS_LOG_LEVEL` | `log_level` | `"info"` | Log level (`trace`, `debug`, `info`, `warn`/`warning`, `error`) |
 
 ### Config File Discovery Order
 
-`load_config` selects the first existing file from:
-
-1. `/etc/cook-docs/.cookdocs.yaml`
-2. `/etc/cook-docs/.cookdocs.yml`
-3. `$HOME/.config/.cookdocs.yaml`
-4. `$HOME/.config/.cookdocs.yml`
-5. `./.cookdocs.yaml`
-6. `./.cookdocs.yml`
-
-Example `.cookdocs.yaml`:
-
-```yaml
-dryRun: false
-ignoreFile: .cookdocsignore
-jsonify: false
-logLevel: info
-recipeSearchRoot: .
-templateFiles:
-  - recipe.md.gotmpl
-wordWrap: 120
-outputDir: ""
-```
+Auto-discovered (unless `-C/--config` or `COOK_DOCS_CONFIG` is given) in order: `/etc/cook-docs/`, `~/.config/`, `./` for `.cookdocs.toml`, `.cookdocs.yaml`, `.cookdocs.yml`, or `.cookdocs.json`. Keys accept `snake_case`, `kebab-case`, and `camelCase`.
 
 ---
 
-## Ignore Rules & Output Directory Mapping
+## Merge Mode, Navigation Sync, Watch & Doctor
 
-### `.cookdocsignore`
-
-Uses gitignore-style matching (`ignore::gitignore::GitignoreBuilder`) anchored at the git repository root (or `.` if outside a git repo). Supports directory exclusions and individual `<Recipe Name>.cook` exclusions. `.git` is always skipped.
-
-### Output Path Resolution
-
-- When `output_dir` is empty (`""`): `<recipe_dir>/<slugified-recipe-name>.md`.
-- When `output_dir` is set: strips `recipe_search_root` prefix from the canonical recipe path and writes `<output_dir>/<relative_dir>/<slugified-recipe-name>.md` (creating parent directories automatically).
-
-### Quick Usage Examples
-
-```bash
-# Render all recipes under current directory
-cook-docs
-
-# Preview generated Markdown in stdout for testdata
-cook-docs --recipe-search-root testdata --dry-run
-
-# Output into docs/recipes with custom wrap width and debug logs
-cook-docs -c recipes -o docs/recipes -w 80 -l debug
-```
+- **Non-Destructive Merge (`--merge` / `--force`)**: Replaces content inside `<!-- cook-docs:begin -->` ... `<!-- cook-docs:end -->` markers when present; otherwise performs structure-aware merge preserving YAML frontmatter keys/tags, H1 emojis, manual images (dropping orphaned reference links), custom `##` sections, tabs, `## Source` bullets, admonitions, Mermaid blocks, and footnotes.
+- **Navigation Sync (`--nav-file`)**: Updates Zensical `zensical.toml` (`[[project.nav]]` or `[project] nav = [...]`) via `toml_edit` and MkDocs `mkdocs.yml`/`mkdocs.yaml` (`nav:`) while preserving comments, formatting, and YAML tags (`!!python/name:...`). Matches most-specific category/subcategory, preserves nested sub-sections and `index.md`, deduplicates entries, sorts leaves alphabetically, and respects `--dry-run`.
+- **Watch Mode (`cook-docs watch`)**: Debounces `.cook` and template edits (`--debounce`, default `300ms`), re-renders only affected recipes, and syncs `--nav-file` automatically.
+- **Doctor (`cook-docs doctor`)**: Checks config validity, search root, ignore file, templates, output writability, emoji/weights/ignored/nav files, `cwebp` availability, and (with `--check-recipes` / `--only`) recipe syntax, companion images, required metadata, unmapped emojis, and ignored `@` ingredients.
 
 ---
 
 ## Templating System (`gtmpl-ng`)
 
-Templates are evaluated using Go `text/template` syntax via `gtmpl-ng`.
-
 ### Template Resolution Rules
 
-For each entry in `template_files`:
-
-- **Relative path with directory** (starts with `.` and contains path separators, e.g. `./_templates.gotmpl`): resolved relative to `recipe_search_root`.
-- **Base filename only** (e.g. `recipe.md.gotmpl`): resolved relative to each recipe's own directory.
-- **Otherwise**: treated as a direct path.
-
-If any requested template file is missing or `template_files` / combined content is empty, `DEFAULT_DOCUMENTATION_TEMPLATE` is appended/used:
-
-```gotmpl
-{{ template "cook.headerSection" . }}
-
-{{ template "cook.lazyImageSection" . }}
-
-{{ template "cook.tableSection" . }}
-
-{{ template "cook.ingredientsSection" . }}
-
-{{ template "cook.cookwareSection" . }}
-
-{{ template "cook.stepsSection" . -}}
-
-{{ template "cook.sourceSection" . }}
-```
+- Bare filenames (e.g., `recipe.md.gotmpl`) resolve from the recipe's directory upward to `--recipe-search-root` (inclusive), falling back to the built-in default template.
+- Paths starting with `.` or containing a separator resolve relative to `--recipe-search-root` (or directly if absolute).
 
 ### Built-in Named Templates
 
-**Sections:**
-- `cook.headerSection`: `# {{ .Info.RecipeName }}`
-- `cook.imageSection`: Markdown image pointing to `../assets/images/<lowercase-dashed-image>`
-- `cook.lazyImageSection`: Same image with `{ loading=lazy }` attribute (for `attr_list`)
-- `cook.tableSection`: Servings (`Metadata.servings` or `Metadata.serves`) + `sumTimers .Steps` table
-- `cook.ingredientsSection`: `cook.ingredientsHeader` (`## :salt: Ingredients`) + `cook.ingredients`
-- `cook.cookwareSection`: `cook.cookwareHeader` (`## :cooking: Cookware`) + `cook.cookware`
-- `cook.stepsSection`: `cook.stepsHeader` (`## :pencil: Instructions`) + `cook.steps`
-- `cook.stepsWithQuotedCommentsSection`: Steps with block-quoted comments (`> ...`)
-- `cook.stepsWithAdmonishedCommentsSection`: Steps with `!!! note` admonitions
-- `cook.sourceSection`: `cook.sourceHeader` (`## :link: Source`) + `cook.source` (rendered when `.Metadata.source` is set)
-- `cook.metadataSection`: `cook.metadataHeader` (`## Metadata`) + `cook.metadata`
-- `cook.commentsSection`: `cook.commentsHeader` (`## Comments`) + `cook.comments`
+- **Sections:** `cook.headerSection`, `cook.imageSection`, `cook.lazyImageSection`, `cook.tableSection`, `cook.ingredientsSection`, `cook.cookwareSection` (auto-omitted when empty), `cook.stepsSection`, `cook.stepsWithQuotedCommentsSection`, `cook.stepsWithAdmonishedCommentsSection`, `cook.sourceSection`, `cook.commentsSection`, `cook.metadataSection`.
+- **Components:** `cook.ingredientsHeader`, `cook.ingredients`, `cook.cookwareHeader`, `cook.cookware`, `cook.stepsHeader`, `cook.steps`, `cook.stepsWithQuotedCommentsHeader`, `cook.stepsWithQuotedComments`, `cook.stepsWithAdmonishedCommentsHeader`, `cook.stepsWithAdmonishedComments`, `cook.sourceHeader`, `cook.source`, `cook.metadataHeader`, `cook.metadata`, `cook.commentsHeader`, `cook.comments`.
 
 ### Registered Template Functions
 
-| Function | Signature / Behavior |
-|---|---|
-| `getSource` | Wraps `http://` or `https://` URLs (without spaces) in `<...>` |
-| `sumTimers` | Sums `Steps[].Timers[]` (`day`/`days`, `hour`/`hours`, `minute`/`minutes`); formats in `minutes`, `hours`, or `days` |
-| `lower` | Converts string to lowercase |
-| `replace` | `(old, new, input)` — replaces all occurrences of `old` with `new` in `input` |
-| `round` | `(number, decimals)` — rounds float to `decimals` places |
-| `add1` | Increments integer by `1` (used for 1-based step numbering) |
-| `wrap` | `(limit, text)` — wraps lines at word boundaries to `limit` characters |
-| `indent` | `(spaces, text)` — indents non-empty lines by `spaces` spaces |
-
-Post-render normalization (`apply_markdown_format`) trims trailing spaces before `\n` and collapses 3+ consecutive newlines to at most 2.
+`getSource`, `sumTimers`, `totalTime`, `toYaml`, `emoji`, `ingredientEmoji`, `cookwareEmoji`, `titleEmoji`, `toGrams`, `linkRecipe`, `scale`, `lower`, `replace`, `round`, `add1`, `wrap`, `indent`.
 
 ---
 
 ## Recipe Data Model & JSON Output
 
-Structs in `src/types.rs` serialize using PascalCase JSON keys (`serde(rename = "...")`) matching template field access:
+`cook-docs --jsonify` outputs `Recipe` (`Steps`, `Ingredients`, `Cookware`, `Metadata`, `Frontmatter`, `Config`, `Info`):
 
-- **`Recipe`**: `Steps: Vec<Step>`, `Metadata: HashMap<String, String>`, `Config: Config`, `Info: Info`
-- **`Step`**: `Directions: String`, `Timers: Vec<Timer>`, `Ingredients: Vec<Ingredient>`, `Cookware: Vec<Cookware>`, `Comments: Vec<String>`
-- **`Ingredient`**: `Name: String`, `Amount: IngredientAmount` (`IsNumeric`, `Quantity`, `QuantityRaw`, `Unit`)
-- **`Cookware`**: `IsNumeric: bool`, `Name: String`, `Quantity: f64`, `QuantityRaw: String`
-- **`Timer`**: `Name: String`, `Duration: f64`, `Unit: String`
-- **`Info`**: `ImageFileName`, `ImageFilePath`, `NewRecipeFilePath`, `RecipeName`, `RecipeFilePath`
-- **`Config`**: `DryRun`, `Jsonify`, `IgnoreFile`, `RecipeSearchRoot`, `LogLevel`, `TemplateFiles`, `WordWrap`, `OutputDir`
+- **`Info`**: `RecipeName`, `RecipeSlug`, `RecipeFilePath`, `NewRecipeFilePath`, `ImageFileName`, `ImageFilePath`, `ImageSlug`, `RelRoot`, `Categories`, `DefaultTags`, `Tags`.
+- **`Ingredients` / `Cookware`**: Aggregated and deduplicated recipe-wide lists alongside per-step `Steps[*].Ingredients`, `Steps[*].Cookware`, `Steps[*].Timers`, `Steps[*].Directions`, and `Steps[*].Comments`.
+- **`Metadata` / `Frontmatter`**: Flat string map (`Metadata`) plus typed YAML/Cooklang frontmatter (`Frontmatter`).
 
 ---
 
 ## Development, Testing & Quality Gates
 
-### `Taskfile.yaml` Commands
-
 ```bash
-task test         # cargo test
-task fmt          # cargo fmt --all
-task lint         # yamllint-rs . && cargo clippy -- -D warnings
-task spellcheck   # typos
-task dry-run      # cargo run -- --recipe-search-root testdata --dry-run
-task debug        # Dry-run with testdata/recipe.md.gotmpl and --log-level debug
-task jsonify      # cargo run -- --jsonify
-task serve        # uv run zensical serve -a 0.0.0.0:8000
-task dist         # cargo build --release
-task build-all    # Cross-compile Linux, macOS, and Windows release binaries
+task fmt          # Format Rust code (cargo fmt --all)
+task lint         # Run yamllint-rs and cargo clippy (-D warnings)
+task lint:md      # Lint Markdown files with rumdl
+task spellcheck   # Run typos spellcheck
+task test         # Run fmt:check, lint, and cargo test
+task completions  # Regenerate shell completion scripts under completions/
+task man          # Regenerate UNIX man page at assets/cook-docs.1
+task coverage     # Run cargo llvm-cov summary
+task serve        # Serve Zensical docs locally via uv run
+task dist         # Build release binary
+task build-all    # Cross-compile Linux, macOS, and Windows targets
+task release      # Bump version, validate, tag, and push release
 ```
-
-### CI Quality Gates (`.github/workflows/ci.yaml`)
-
-- `cargo build --verbose --workspace` and `cargo test --verbose --workspace` across `stable`, `beta`, `nightly`, `aarch64-unknown-linux-gnu`, `armv7-unknown-linux-gnueabihf`, and `arm-unknown-linux-gnueabihf` (via `cross`).
-- `cargo fmt --all --check`
-- `cargo clippy --workspace --all-targets --all-features -- -D warnings`
-- `RUSTDOCFLAGS=-D warnings cargo doc --no-deps --document-private-items --workspace`
-- `yamllint-rs .`
-- `typos` spellcheck
 
 ---
 
 ## License & Maintainer
 
 - **License:** Apache License 2.0 ([LICENSE](LICENSE))
-- **Author / Maintainer:** Nicholas Wilde ([github.com/nicholaswilde](https://github.com/nicholaswilde))
-- **Repository:** [github.com/nicholaswilde/cook-docs](https://github.com/nicholaswilde/cook-docs)
+- **Author:** Nicholas Wilde (<https://github.com/nicholaswilde>)

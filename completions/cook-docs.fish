@@ -1,6 +1,6 @@
 # Print an optspec for argparse to handle cmd's options that are independent of any subcommand.
 function __fish_cook_docs_global_optspecs
-    string join \n v/version C/config= d/dry-run j/jsonify i/ignore-file= c/recipe-search-root= l/log-level= t/template-files= w/word-wrap= o/output-dir= assets-dir= image-ext= emoji-file= weights-file= link-dirs= required-metadata= merge force watch debounce= h/help
+    string join \n v/version C/config= d/dry-run j/jsonify i/ignore-file= c/recipe-search-root= l/log-level= t/template-files= w/word-wrap= o/output-dir= assets-dir= image-ext= image-ext-map= convert-images= image-quality= emoji-file= weights-file= link-dirs= link-in-steps required-metadata= ignored-ingredients-file= nav-file= merge force watch debounce= h/help
 end
 
 function __fish_cook_docs_needs_command
@@ -33,14 +33,20 @@ complete -c cook-docs -n "__fish_cook_docs_needs_command" -s w -l word-wrap -d '
 complete -c cook-docs -n "__fish_cook_docs_needs_command" -s o -l output-dir -d 'custom output directory to write generated markdown documentation' -r
 complete -c cook-docs -n "__fish_cook_docs_needs_command" -l assets-dir -d 'optional directory to copy companion recipe images into (slug-named)' -r
 complete -c cook-docs -n "__fish_cook_docs_needs_command" -l image-ext -d 'optional image extension override for Info.ImageSlug (e.g. webp)' -r
+complete -c cook-docs -n "__fish_cook_docs_needs_command" -l image-ext-map -d 'comma-separated source=target image extension mappings for Info.ImageSlug (e.g. jpg=webp,jpeg=webp)' -r
+complete -c cook-docs -n "__fish_cook_docs_needs_command" -l convert-images -d 'convert matching companion images when copying to --assets-dir (supports \'webp\' via cwebp)' -r
+complete -c cook-docs -n "__fish_cook_docs_needs_command" -l image-quality -d 'output image quality (1-100) for --convert-images (default 80)' -r
 complete -c cook-docs -n "__fish_cook_docs_needs_command" -l emoji-file -d 'optional YAML/TOML/JSON file mapping ingredients and cookware to emojis' -r
 complete -c cook-docs -n "__fish_cook_docs_needs_command" -l weights-file -d 'optional YAML/TOML/JSON ingredient density file for toGrams volume-to-weight conversion' -r
 complete -c cook-docs -n "__fish_cook_docs_needs_command" -l link-dirs -d 'comma-separated recipe subdirectories eligible for linkRecipe cross-linking' -r
 complete -c cook-docs -n "__fish_cook_docs_needs_command" -l required-metadata -d 'comma-separated metadata keys required by doctor --check-recipes (e.g. source,serves)' -r
+complete -c cook-docs -n "__fish_cook_docs_needs_command" -l ignored-ingredients-file -d 'optional YAML/TOML/JSON list of ingredients that should not be tagged with \'@\' (checked by doctor --check-recipes)' -r
+complete -c cook-docs -n "__fish_cook_docs_needs_command" -l nav-file -d 'optional Zensical (zensical.toml) or MkDocs (mkdocs.yml) nav file to sync rendered recipes into' -r
 complete -c cook-docs -n "__fish_cook_docs_needs_command" -l debounce -d 'debounce delay in milliseconds for watch mode (default 300)' -r
 complete -c cook-docs -n "__fish_cook_docs_needs_command" -s v -l version -d 'version for cook-docs'
 complete -c cook-docs -n "__fish_cook_docs_needs_command" -s d -l dry-run -d 'don\'t actually render any markdown files just print to stdout passed'
 complete -c cook-docs -n "__fish_cook_docs_needs_command" -s j -l jsonify -d 'parse the recipe and display it in json format'
+complete -c cook-docs -n "__fish_cook_docs_needs_command" -l link-in-steps -d 'cross-link matching @ingredient references inside step directions'
 complete -c cook-docs -n "__fish_cook_docs_needs_command" -l merge -d 'merge generated content into existing Markdown files without clobbering manual edits'
 complete -c cook-docs -n "__fish_cook_docs_needs_command" -l force -d 'force full overwrite of existing Markdown files even when --merge / merge is enabled'
 complete -c cook-docs -n "__fish_cook_docs_needs_command" -l watch -d 'watch recipes and templates and re-render automatically on changes'
@@ -61,12 +67,18 @@ complete -c cook-docs -n "__fish_cook_docs_using_subcommand watch" -s w -l word-
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand watch" -s o -l output-dir -d 'custom output directory to write generated markdown documentation' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand watch" -l assets-dir -d 'optional directory to copy companion recipe images into (slug-named)' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand watch" -l image-ext -d 'optional image extension override for Info.ImageSlug (e.g. webp)' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand watch" -l image-ext-map -d 'comma-separated source=target image extension mappings for Info.ImageSlug (e.g. jpg=webp,jpeg=webp)' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand watch" -l convert-images -d 'convert matching companion images when copying to --assets-dir (supports \'webp\' via cwebp)' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand watch" -l image-quality -d 'output image quality (1-100) for --convert-images (default 80)' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand watch" -l emoji-file -d 'optional YAML/TOML/JSON file mapping ingredients and cookware to emojis' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand watch" -l weights-file -d 'optional YAML/TOML/JSON ingredient density file for toGrams volume-to-weight conversion' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand watch" -l link-dirs -d 'comma-separated recipe subdirectories eligible for linkRecipe cross-linking' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand watch" -l required-metadata -d 'comma-separated metadata keys required by doctor --check-recipes (e.g. source,serves)' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand watch" -l ignored-ingredients-file -d 'optional YAML/TOML/JSON list of ingredients that should not be tagged with \'@\' (checked by doctor --check-recipes)' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand watch" -l nav-file -d 'optional Zensical (zensical.toml) or MkDocs (mkdocs.yml) nav file to sync rendered recipes into' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand watch" -s d -l dry-run -d 'don\'t actually render any markdown files just print to stdout passed'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand watch" -s j -l jsonify -d 'parse the recipe and display it in json format'
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand watch" -l link-in-steps -d 'cross-link matching @ingredient references inside step directions'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand watch" -l merge -d 'merge generated content into existing Markdown files without clobbering manual edits'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand watch" -l force -d 'force full overwrite of existing Markdown files even when --merge / merge is enabled'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand watch" -s h -l help -d 'Print help'
@@ -79,12 +91,18 @@ complete -c cook-docs -n "__fish_cook_docs_using_subcommand completions" -s w -l
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand completions" -s o -l output-dir -d 'custom output directory to write generated markdown documentation' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand completions" -l assets-dir -d 'optional directory to copy companion recipe images into (slug-named)' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand completions" -l image-ext -d 'optional image extension override for Info.ImageSlug (e.g. webp)' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand completions" -l image-ext-map -d 'comma-separated source=target image extension mappings for Info.ImageSlug (e.g. jpg=webp,jpeg=webp)' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand completions" -l convert-images -d 'convert matching companion images when copying to --assets-dir (supports \'webp\' via cwebp)' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand completions" -l image-quality -d 'output image quality (1-100) for --convert-images (default 80)' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand completions" -l emoji-file -d 'optional YAML/TOML/JSON file mapping ingredients and cookware to emojis' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand completions" -l weights-file -d 'optional YAML/TOML/JSON ingredient density file for toGrams volume-to-weight conversion' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand completions" -l link-dirs -d 'comma-separated recipe subdirectories eligible for linkRecipe cross-linking' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand completions" -l required-metadata -d 'comma-separated metadata keys required by doctor --check-recipes (e.g. source,serves)' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand completions" -l ignored-ingredients-file -d 'optional YAML/TOML/JSON list of ingredients that should not be tagged with \'@\' (checked by doctor --check-recipes)' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand completions" -l nav-file -d 'optional Zensical (zensical.toml) or MkDocs (mkdocs.yml) nav file to sync rendered recipes into' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand completions" -s d -l dry-run -d 'don\'t actually render any markdown files just print to stdout passed'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand completions" -s j -l jsonify -d 'parse the recipe and display it in json format'
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand completions" -l link-in-steps -d 'cross-link matching @ingredient references inside step directions'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand completions" -l merge -d 'merge generated content into existing Markdown files without clobbering manual edits'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand completions" -l force -d 'force full overwrite of existing Markdown files even when --merge / merge is enabled'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand completions" -s h -l help -d 'Print help'
@@ -97,15 +115,22 @@ complete -c cook-docs -n "__fish_cook_docs_using_subcommand man" -s w -l word-wr
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand man" -s o -l output-dir -d 'custom output directory to write generated markdown documentation' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand man" -l assets-dir -d 'optional directory to copy companion recipe images into (slug-named)' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand man" -l image-ext -d 'optional image extension override for Info.ImageSlug (e.g. webp)' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand man" -l image-ext-map -d 'comma-separated source=target image extension mappings for Info.ImageSlug (e.g. jpg=webp,jpeg=webp)' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand man" -l convert-images -d 'convert matching companion images when copying to --assets-dir (supports \'webp\' via cwebp)' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand man" -l image-quality -d 'output image quality (1-100) for --convert-images (default 80)' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand man" -l emoji-file -d 'optional YAML/TOML/JSON file mapping ingredients and cookware to emojis' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand man" -l weights-file -d 'optional YAML/TOML/JSON ingredient density file for toGrams volume-to-weight conversion' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand man" -l link-dirs -d 'comma-separated recipe subdirectories eligible for linkRecipe cross-linking' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand man" -l required-metadata -d 'comma-separated metadata keys required by doctor --check-recipes (e.g. source,serves)' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand man" -l ignored-ingredients-file -d 'optional YAML/TOML/JSON list of ingredients that should not be tagged with \'@\' (checked by doctor --check-recipes)' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand man" -l nav-file -d 'optional Zensical (zensical.toml) or MkDocs (mkdocs.yml) nav file to sync rendered recipes into' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand man" -s d -l dry-run -d 'don\'t actually render any markdown files just print to stdout passed'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand man" -s j -l jsonify -d 'parse the recipe and display it in json format'
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand man" -l link-in-steps -d 'cross-link matching @ingredient references inside step directions'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand man" -l merge -d 'merge generated content into existing Markdown files without clobbering manual edits'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand man" -l force -d 'force full overwrite of existing Markdown files even when --merge / merge is enabled'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand man" -s h -l help -d 'Print help'
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -l only -d 'Comma-separated recipe check categories to run (syntax,images,metadata,emojis,ignored)' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -s C -l config -d 'path to configuration file (TOML, YAML, or JSON)' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -s i -l ignore-file -d 'filename to use as an ignore file to exclude recipe directories (default ".cookdocsignore")' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -s c -l recipe-search-root -d 'directory to search recursively within for recipes (default ".")' -r
@@ -115,14 +140,21 @@ complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -s w -l word
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -s o -l output-dir -d 'custom output directory to write generated markdown documentation' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -l assets-dir -d 'optional directory to copy companion recipe images into (slug-named)' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -l image-ext -d 'optional image extension override for Info.ImageSlug (e.g. webp)' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -l image-ext-map -d 'comma-separated source=target image extension mappings for Info.ImageSlug (e.g. jpg=webp,jpeg=webp)' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -l convert-images -d 'convert matching companion images when copying to --assets-dir (supports \'webp\' via cwebp)' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -l image-quality -d 'output image quality (1-100) for --convert-images (default 80)' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -l emoji-file -d 'optional YAML/TOML/JSON file mapping ingredients and cookware to emojis' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -l weights-file -d 'optional YAML/TOML/JSON ingredient density file for toGrams volume-to-weight conversion' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -l link-dirs -d 'comma-separated recipe subdirectories eligible for linkRecipe cross-linking' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -l required-metadata -d 'comma-separated metadata keys required by doctor --check-recipes (e.g. source,serves)' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -l ignored-ingredients-file -d 'optional YAML/TOML/JSON list of ingredients that should not be tagged with \'@\' (checked by doctor --check-recipes)' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -l nav-file -d 'optional Zensical (zensical.toml) or MkDocs (mkdocs.yml) nav file to sync rendered recipes into' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -l json -d 'Output doctor report in JSON format'
-complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -l check-recipes -d 'Validate recipe syntax, companion images, required metadata, and emoji mappings'
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -l check-recipes -d 'Validate recipe syntax, companion images, required metadata, emoji mappings, and ignored ingredients'
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -l strict -d 'Treat warnings as unhealthy and exit non-zero'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -s d -l dry-run -d 'don\'t actually render any markdown files just print to stdout passed'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -s j -l jsonify -d 'parse the recipe and display it in json format'
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -l link-in-steps -d 'cross-link matching @ingredient references inside step directions'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -l merge -d 'merge generated content into existing Markdown files without clobbering manual edits'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -l force -d 'force full overwrite of existing Markdown files even when --merge / merge is enabled'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand doctor" -s h -l help -d 'Print help'
@@ -136,14 +168,20 @@ complete -c cook-docs -n "__fish_cook_docs_using_subcommand self-update" -s w -l
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand self-update" -s o -l output-dir -d 'custom output directory to write generated markdown documentation' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand self-update" -l assets-dir -d 'optional directory to copy companion recipe images into (slug-named)' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand self-update" -l image-ext -d 'optional image extension override for Info.ImageSlug (e.g. webp)' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand self-update" -l image-ext-map -d 'comma-separated source=target image extension mappings for Info.ImageSlug (e.g. jpg=webp,jpeg=webp)' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand self-update" -l convert-images -d 'convert matching companion images when copying to --assets-dir (supports \'webp\' via cwebp)' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand self-update" -l image-quality -d 'output image quality (1-100) for --convert-images (default 80)' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand self-update" -l emoji-file -d 'optional YAML/TOML/JSON file mapping ingredients and cookware to emojis' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand self-update" -l weights-file -d 'optional YAML/TOML/JSON ingredient density file for toGrams volume-to-weight conversion' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand self-update" -l link-dirs -d 'comma-separated recipe subdirectories eligible for linkRecipe cross-linking' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand self-update" -l required-metadata -d 'comma-separated metadata keys required by doctor --check-recipes (e.g. source,serves)' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand self-update" -l ignored-ingredients-file -d 'optional YAML/TOML/JSON list of ingredients that should not be tagged with \'@\' (checked by doctor --check-recipes)' -r
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand self-update" -l nav-file -d 'optional Zensical (zensical.toml) or MkDocs (mkdocs.yml) nav file to sync rendered recipes into' -r
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand self-update" -l check -d 'Check for available updates without installing'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand self-update" -s y -l yes -d 'Skip confirmation prompt before installing'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand self-update" -s d -l dry-run -d 'don\'t actually render any markdown files just print to stdout passed'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand self-update" -s j -l jsonify -d 'parse the recipe and display it in json format'
+complete -c cook-docs -n "__fish_cook_docs_using_subcommand self-update" -l link-in-steps -d 'cross-link matching @ingredient references inside step directions'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand self-update" -l merge -d 'merge generated content into existing Markdown files without clobbering manual edits'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand self-update" -l force -d 'force full overwrite of existing Markdown files even when --merge / merge is enabled'
 complete -c cook-docs -n "__fish_cook_docs_using_subcommand self-update" -s h -l help -d 'Print help'

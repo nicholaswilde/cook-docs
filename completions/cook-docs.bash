@@ -59,7 +59,7 @@ _cook__docs() {
 
     case "${cmd}" in
         cook__docs)
-            opts="-v -C -d -j -i -c -l -t -w -o -h --version --config --dry-run --jsonify --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --assets-dir --image-ext --emoji-file --weights-file --link-dirs --required-metadata --merge --force --watch --debounce --help watch completions man doctor self-update help"
+            opts="-v -C -d -j -i -c -l -t -w -o -h --version --config --dry-run --jsonify --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --assets-dir --image-ext --image-ext-map --convert-images --image-quality --emoji-file --weights-file --link-dirs --link-in-steps --required-metadata --ignored-ingredients-file --nav-file --merge --force --watch --debounce --help watch completions man doctor self-update help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 1 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -129,6 +129,18 @@ _cook__docs() {
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
+                --image-ext-map)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --convert-images)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --image-quality)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
                 --emoji-file)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
@@ -142,6 +154,14 @@ _cook__docs() {
                     return 0
                     ;;
                 --required-metadata)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --ignored-ingredients-file)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --nav-file)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
@@ -157,7 +177,7 @@ _cook__docs() {
             return 0
             ;;
         cook__subcmd__docs__subcmd__completions)
-            opts="-C -d -j -i -c -l -t -w -o -h --config --dry-run --jsonify --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --assets-dir --image-ext --emoji-file --weights-file --link-dirs --required-metadata --merge --force --help bash elvish fish powershell zsh"
+            opts="-C -d -j -i -c -l -t -w -o -h --config --dry-run --jsonify --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --assets-dir --image-ext --image-ext-map --convert-images --image-quality --emoji-file --weights-file --link-dirs --link-in-steps --required-metadata --ignored-ingredients-file --nav-file --merge --force --help bash elvish fish powershell zsh"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -227,6 +247,18 @@ _cook__docs() {
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
+                --image-ext-map)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --convert-images)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --image-quality)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
                 --emoji-file)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
@@ -240,6 +272,14 @@ _cook__docs() {
                     return 0
                     ;;
                 --required-metadata)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --ignored-ingredients-file)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --nav-file)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
@@ -251,12 +291,16 @@ _cook__docs() {
             return 0
             ;;
         cook__subcmd__docs__subcmd__doctor)
-            opts="-C -d -j -i -c -l -t -w -o -h --json --check-recipes --config --dry-run --jsonify --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --assets-dir --image-ext --emoji-file --weights-file --link-dirs --required-metadata --merge --force --help"
+            opts="-C -d -j -i -c -l -t -w -o -h --json --check-recipes --only --strict --config --dry-run --jsonify --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --assets-dir --image-ext --image-ext-map --convert-images --image-quality --emoji-file --weights-file --link-dirs --link-in-steps --required-metadata --ignored-ingredients-file --nav-file --merge --force --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
             case "${prev}" in
+                --only)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
                 --config)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
@@ -321,6 +365,18 @@ _cook__docs() {
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
+                --image-ext-map)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --convert-images)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --image-quality)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
                 --emoji-file)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
@@ -334,6 +390,14 @@ _cook__docs() {
                     return 0
                     ;;
                 --required-metadata)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --ignored-ingredients-file)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --nav-file)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
@@ -443,7 +507,7 @@ _cook__docs() {
             return 0
             ;;
         cook__subcmd__docs__subcmd__man)
-            opts="-C -d -j -i -c -l -t -w -o -h --config --dry-run --jsonify --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --assets-dir --image-ext --emoji-file --weights-file --link-dirs --required-metadata --merge --force --help"
+            opts="-C -d -j -i -c -l -t -w -o -h --config --dry-run --jsonify --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --assets-dir --image-ext --image-ext-map --convert-images --image-quality --emoji-file --weights-file --link-dirs --link-in-steps --required-metadata --ignored-ingredients-file --nav-file --merge --force --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -513,6 +577,18 @@ _cook__docs() {
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
+                --image-ext-map)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --convert-images)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --image-quality)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
                 --emoji-file)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
@@ -529,6 +605,14 @@ _cook__docs() {
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
+                --ignored-ingredients-file)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --nav-file)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
                 *)
                     COMPREPLY=()
                     ;;
@@ -537,7 +621,7 @@ _cook__docs() {
             return 0
             ;;
         cook__subcmd__docs__subcmd__self__subcmd__update)
-            opts="-y -C -d -j -i -c -l -t -w -o -h --check --yes --version --config --dry-run --jsonify --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --assets-dir --image-ext --emoji-file --weights-file --link-dirs --required-metadata --merge --force --help"
+            opts="-y -C -d -j -i -c -l -t -w -o -h --check --yes --version --config --dry-run --jsonify --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --assets-dir --image-ext --image-ext-map --convert-images --image-quality --emoji-file --weights-file --link-dirs --link-in-steps --required-metadata --ignored-ingredients-file --nav-file --merge --force --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -611,6 +695,18 @@ _cook__docs() {
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
+                --image-ext-map)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --convert-images)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --image-quality)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
                 --emoji-file)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
@@ -627,6 +723,14 @@ _cook__docs() {
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
+                --ignored-ingredients-file)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --nav-file)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
                 *)
                     COMPREPLY=()
                     ;;
@@ -635,7 +739,7 @@ _cook__docs() {
             return 0
             ;;
         cook__subcmd__docs__subcmd__watch)
-            opts="-C -d -j -i -c -l -t -w -o -h --debounce --config --dry-run --jsonify --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --assets-dir --image-ext --emoji-file --weights-file --link-dirs --required-metadata --merge --force --help"
+            opts="-C -d -j -i -c -l -t -w -o -h --debounce --config --dry-run --jsonify --ignore-file --recipe-search-root --log-level --template-files --word-wrap --output-dir --assets-dir --image-ext --image-ext-map --convert-images --image-quality --emoji-file --weights-file --link-dirs --link-in-steps --required-metadata --ignored-ingredients-file --nav-file --merge --force --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -709,6 +813,18 @@ _cook__docs() {
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
+                --image-ext-map)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --convert-images)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --image-quality)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
                 --emoji-file)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
@@ -722,6 +838,14 @@ _cook__docs() {
                     return 0
                     ;;
                 --required-metadata)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --ignored-ingredients-file)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --nav-file)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;

@@ -31,10 +31,15 @@ _cook-docs() {
 '--output-dir=[custom output directory to write generated markdown documentation]: :_default' \
 '--assets-dir=[optional directory to copy companion recipe images into (slug-named)]: :_default' \
 '--image-ext=[optional image extension override for Info.ImageSlug (e.g. webp)]: :_default' \
+'*--image-ext-map=[comma-separated source=target image extension mappings for Info.ImageSlug (e.g. jpg=webp,jpeg=webp)]:PAIRS:_default' \
+'--convert-images=[convert matching companion images when copying to --assets-dir (supports '\''webp'\'' via cwebp)]:FORMAT:_default' \
+'--image-quality=[output image quality (1-100) for --convert-images (default 80)]:1-100:_default' \
 '--emoji-file=[optional YAML/TOML/JSON file mapping ingredients and cookware to emojis]: :_default' \
 '--weights-file=[optional YAML/TOML/JSON ingredient density file for toGrams volume-to-weight conversion]: :_default' \
 '--link-dirs=[comma-separated recipe subdirectories eligible for linkRecipe cross-linking]: :_default' \
 '--required-metadata=[comma-separated metadata keys required by doctor --check-recipes (e.g. source,serves)]: :_default' \
+'--ignored-ingredients-file=[optional YAML/TOML/JSON list of ingredients that should not be tagged with '\''@'\'' (checked by doctor --check-recipes)]: :_default' \
+'--nav-file=[optional Zensical (zensical.toml) or MkDocs (mkdocs.yml) nav file to sync rendered recipes into]:PATH:_default' \
 '--debounce=[debounce delay in milliseconds for watch mode (default 300)]:MS:_default' \
 '-v[version for cook-docs]' \
 '--version[version for cook-docs]' \
@@ -42,6 +47,7 @@ _cook-docs() {
 '--dry-run[don'\''t actually render any markdown files just print to stdout passed]' \
 '-j[parse the recipe and display it in json format]' \
 '--jsonify[parse the recipe and display it in json format]' \
+'--link-in-steps[cross-link matching @ingredient references inside step directions]' \
 '--merge[merge generated content into existing Markdown files without clobbering manual edits]' \
 '--force[force full overwrite of existing Markdown files even when --merge / merge is enabled]' \
 '--watch[watch recipes and templates and re-render automatically on changes]' \
@@ -76,14 +82,20 @@ _arguments "${_arguments_options[@]}" : \
 '--output-dir=[custom output directory to write generated markdown documentation]: :_default' \
 '--assets-dir=[optional directory to copy companion recipe images into (slug-named)]: :_default' \
 '--image-ext=[optional image extension override for Info.ImageSlug (e.g. webp)]: :_default' \
+'*--image-ext-map=[comma-separated source=target image extension mappings for Info.ImageSlug (e.g. jpg=webp,jpeg=webp)]:PAIRS:_default' \
+'--convert-images=[convert matching companion images when copying to --assets-dir (supports '\''webp'\'' via cwebp)]:FORMAT:_default' \
+'--image-quality=[output image quality (1-100) for --convert-images (default 80)]:1-100:_default' \
 '--emoji-file=[optional YAML/TOML/JSON file mapping ingredients and cookware to emojis]: :_default' \
 '--weights-file=[optional YAML/TOML/JSON ingredient density file for toGrams volume-to-weight conversion]: :_default' \
 '--link-dirs=[comma-separated recipe subdirectories eligible for linkRecipe cross-linking]: :_default' \
 '--required-metadata=[comma-separated metadata keys required by doctor --check-recipes (e.g. source,serves)]: :_default' \
+'--ignored-ingredients-file=[optional YAML/TOML/JSON list of ingredients that should not be tagged with '\''@'\'' (checked by doctor --check-recipes)]: :_default' \
+'--nav-file=[optional Zensical (zensical.toml) or MkDocs (mkdocs.yml) nav file to sync rendered recipes into]:PATH:_default' \
 '-d[don'\''t actually render any markdown files just print to stdout passed]' \
 '--dry-run[don'\''t actually render any markdown files just print to stdout passed]' \
 '-j[parse the recipe and display it in json format]' \
 '--jsonify[parse the recipe and display it in json format]' \
+'--link-in-steps[cross-link matching @ingredient references inside step directions]' \
 '--merge[merge generated content into existing Markdown files without clobbering manual edits]' \
 '--force[force full overwrite of existing Markdown files even when --merge / merge is enabled]' \
 '-h[Print help]' \
@@ -108,14 +120,20 @@ _arguments "${_arguments_options[@]}" : \
 '--output-dir=[custom output directory to write generated markdown documentation]: :_default' \
 '--assets-dir=[optional directory to copy companion recipe images into (slug-named)]: :_default' \
 '--image-ext=[optional image extension override for Info.ImageSlug (e.g. webp)]: :_default' \
+'*--image-ext-map=[comma-separated source=target image extension mappings for Info.ImageSlug (e.g. jpg=webp,jpeg=webp)]:PAIRS:_default' \
+'--convert-images=[convert matching companion images when copying to --assets-dir (supports '\''webp'\'' via cwebp)]:FORMAT:_default' \
+'--image-quality=[output image quality (1-100) for --convert-images (default 80)]:1-100:_default' \
 '--emoji-file=[optional YAML/TOML/JSON file mapping ingredients and cookware to emojis]: :_default' \
 '--weights-file=[optional YAML/TOML/JSON ingredient density file for toGrams volume-to-weight conversion]: :_default' \
 '--link-dirs=[comma-separated recipe subdirectories eligible for linkRecipe cross-linking]: :_default' \
 '--required-metadata=[comma-separated metadata keys required by doctor --check-recipes (e.g. source,serves)]: :_default' \
+'--ignored-ingredients-file=[optional YAML/TOML/JSON list of ingredients that should not be tagged with '\''@'\'' (checked by doctor --check-recipes)]: :_default' \
+'--nav-file=[optional Zensical (zensical.toml) or MkDocs (mkdocs.yml) nav file to sync rendered recipes into]:PATH:_default' \
 '-d[don'\''t actually render any markdown files just print to stdout passed]' \
 '--dry-run[don'\''t actually render any markdown files just print to stdout passed]' \
 '-j[parse the recipe and display it in json format]' \
 '--jsonify[parse the recipe and display it in json format]' \
+'--link-in-steps[cross-link matching @ingredient references inside step directions]' \
 '--merge[merge generated content into existing Markdown files without clobbering manual edits]' \
 '--force[force full overwrite of existing Markdown files even when --merge / merge is enabled]' \
 '-h[Print help]' \
@@ -141,14 +159,20 @@ _arguments "${_arguments_options[@]}" : \
 '--output-dir=[custom output directory to write generated markdown documentation]: :_default' \
 '--assets-dir=[optional directory to copy companion recipe images into (slug-named)]: :_default' \
 '--image-ext=[optional image extension override for Info.ImageSlug (e.g. webp)]: :_default' \
+'*--image-ext-map=[comma-separated source=target image extension mappings for Info.ImageSlug (e.g. jpg=webp,jpeg=webp)]:PAIRS:_default' \
+'--convert-images=[convert matching companion images when copying to --assets-dir (supports '\''webp'\'' via cwebp)]:FORMAT:_default' \
+'--image-quality=[output image quality (1-100) for --convert-images (default 80)]:1-100:_default' \
 '--emoji-file=[optional YAML/TOML/JSON file mapping ingredients and cookware to emojis]: :_default' \
 '--weights-file=[optional YAML/TOML/JSON ingredient density file for toGrams volume-to-weight conversion]: :_default' \
 '--link-dirs=[comma-separated recipe subdirectories eligible for linkRecipe cross-linking]: :_default' \
 '--required-metadata=[comma-separated metadata keys required by doctor --check-recipes (e.g. source,serves)]: :_default' \
+'--ignored-ingredients-file=[optional YAML/TOML/JSON list of ingredients that should not be tagged with '\''@'\'' (checked by doctor --check-recipes)]: :_default' \
+'--nav-file=[optional Zensical (zensical.toml) or MkDocs (mkdocs.yml) nav file to sync rendered recipes into]:PATH:_default' \
 '-d[don'\''t actually render any markdown files just print to stdout passed]' \
 '--dry-run[don'\''t actually render any markdown files just print to stdout passed]' \
 '-j[parse the recipe and display it in json format]' \
 '--jsonify[parse the recipe and display it in json format]' \
+'--link-in-steps[cross-link matching @ingredient references inside step directions]' \
 '--merge[merge generated content into existing Markdown files without clobbering manual edits]' \
 '--force[force full overwrite of existing Markdown files even when --merge / merge is enabled]' \
 '-h[Print help]' \
@@ -157,6 +181,7 @@ _arguments "${_arguments_options[@]}" : \
 ;;
 (doctor)
 _arguments "${_arguments_options[@]}" : \
+'*--only=[Comma-separated recipe check categories to run (syntax,images,metadata,emojis,ignored)]:CATEGORIES:_default' \
 '-C+[path to configuration file (TOML, YAML, or JSON)]: :_default' \
 '--config=[path to configuration file (TOML, YAML, or JSON)]: :_default' \
 '-i+[filename to use as an ignore file to exclude recipe directories (default ".cookdocsignore")]: :_default' \
@@ -173,16 +198,23 @@ _arguments "${_arguments_options[@]}" : \
 '--output-dir=[custom output directory to write generated markdown documentation]: :_default' \
 '--assets-dir=[optional directory to copy companion recipe images into (slug-named)]: :_default' \
 '--image-ext=[optional image extension override for Info.ImageSlug (e.g. webp)]: :_default' \
+'*--image-ext-map=[comma-separated source=target image extension mappings for Info.ImageSlug (e.g. jpg=webp,jpeg=webp)]:PAIRS:_default' \
+'--convert-images=[convert matching companion images when copying to --assets-dir (supports '\''webp'\'' via cwebp)]:FORMAT:_default' \
+'--image-quality=[output image quality (1-100) for --convert-images (default 80)]:1-100:_default' \
 '--emoji-file=[optional YAML/TOML/JSON file mapping ingredients and cookware to emojis]: :_default' \
 '--weights-file=[optional YAML/TOML/JSON ingredient density file for toGrams volume-to-weight conversion]: :_default' \
 '--link-dirs=[comma-separated recipe subdirectories eligible for linkRecipe cross-linking]: :_default' \
 '--required-metadata=[comma-separated metadata keys required by doctor --check-recipes (e.g. source,serves)]: :_default' \
+'--ignored-ingredients-file=[optional YAML/TOML/JSON list of ingredients that should not be tagged with '\''@'\'' (checked by doctor --check-recipes)]: :_default' \
+'--nav-file=[optional Zensical (zensical.toml) or MkDocs (mkdocs.yml) nav file to sync rendered recipes into]:PATH:_default' \
 '--json[Output doctor report in JSON format]' \
-'--check-recipes[Validate recipe syntax, companion images, required metadata, and emoji mappings]' \
+'--check-recipes[Validate recipe syntax, companion images, required metadata, emoji mappings, and ignored ingredients]' \
+'--strict[Treat warnings as unhealthy and exit non-zero]' \
 '-d[don'\''t actually render any markdown files just print to stdout passed]' \
 '--dry-run[don'\''t actually render any markdown files just print to stdout passed]' \
 '-j[parse the recipe and display it in json format]' \
 '--jsonify[parse the recipe and display it in json format]' \
+'--link-in-steps[cross-link matching @ingredient references inside step directions]' \
 '--merge[merge generated content into existing Markdown files without clobbering manual edits]' \
 '--force[force full overwrite of existing Markdown files even when --merge / merge is enabled]' \
 '-h[Print help]' \
@@ -209,10 +241,15 @@ _arguments "${_arguments_options[@]}" : \
 '--output-dir=[custom output directory to write generated markdown documentation]: :_default' \
 '--assets-dir=[optional directory to copy companion recipe images into (slug-named)]: :_default' \
 '--image-ext=[optional image extension override for Info.ImageSlug (e.g. webp)]: :_default' \
+'*--image-ext-map=[comma-separated source=target image extension mappings for Info.ImageSlug (e.g. jpg=webp,jpeg=webp)]:PAIRS:_default' \
+'--convert-images=[convert matching companion images when copying to --assets-dir (supports '\''webp'\'' via cwebp)]:FORMAT:_default' \
+'--image-quality=[output image quality (1-100) for --convert-images (default 80)]:1-100:_default' \
 '--emoji-file=[optional YAML/TOML/JSON file mapping ingredients and cookware to emojis]: :_default' \
 '--weights-file=[optional YAML/TOML/JSON ingredient density file for toGrams volume-to-weight conversion]: :_default' \
 '--link-dirs=[comma-separated recipe subdirectories eligible for linkRecipe cross-linking]: :_default' \
 '--required-metadata=[comma-separated metadata keys required by doctor --check-recipes (e.g. source,serves)]: :_default' \
+'--ignored-ingredients-file=[optional YAML/TOML/JSON list of ingredients that should not be tagged with '\''@'\'' (checked by doctor --check-recipes)]: :_default' \
+'--nav-file=[optional Zensical (zensical.toml) or MkDocs (mkdocs.yml) nav file to sync rendered recipes into]:PATH:_default' \
 '--check[Check for available updates without installing]' \
 '-y[Skip confirmation prompt before installing]' \
 '--yes[Skip confirmation prompt before installing]' \
@@ -220,6 +257,7 @@ _arguments "${_arguments_options[@]}" : \
 '--dry-run[don'\''t actually render any markdown files just print to stdout passed]' \
 '-j[parse the recipe and display it in json format]' \
 '--jsonify[parse the recipe and display it in json format]' \
+'--link-in-steps[cross-link matching @ingredient references inside step directions]' \
 '--merge[merge generated content into existing Markdown files without clobbering manual edits]' \
 '--force[force full overwrite of existing Markdown files even when --merge / merge is enabled]' \
 '-h[Print help]' \
