@@ -234,7 +234,7 @@ jobs:
 
       - name: Upload Debian package artifact
         if: startsWith(matrix.build, 'linux')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: deb-${{ matrix.build }}
           path: target/debian/*.deb
