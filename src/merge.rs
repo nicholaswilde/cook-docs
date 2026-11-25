@@ -321,6 +321,55 @@ fn is_image_embed(line: &str) -> bool {
     rest.starts_with('(') || rest.starts_with('[')
 }
 
+fn extract_image_ref_key(line: &str) -> Option<String> {
+    let s = line.trim();
+    if !s.starts_with("![") {
+        return None;
+    }
+    let alt_end = s.find(']')?;
+    let rest = &s[alt_end + 1..];
+    if let Some(after_open) = rest.strip_prefix('[') {
+        let close = after_open.find(']')?;
+        if close > 0 {
+            return Some(format!("[{}]", &after_open[..close]));
+        }
+        let alt = &s[2..alt_end];
+        if !alt.is_empty() {
+            return Some(format!("[{alt}]"));
+        }
+    }
+    None
+}
+
+fn body_references_key(lines: &[String], key: &str) -> bool {
+    let key_lower = key.to_ascii_lowercase();
+    if key_lower.len() <= 2 {
+        return false;
+    }
+    let mut in_fence = false;
+    for line in lines {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
+            in_fence = !in_fence;
+            continue;
+        }
+        if in_fence {
+            continue;
+        }
+        let lower = line.to_ascii_lowercase();
+        let mut search_from = 0;
+        while let Some(rel) = lower[search_from..].find(&key_lower) {
+            let start = search_from + rel;
+            let after = &lower[start + key_lower.len()..];
+            if !after.starts_with('(') && !after.starts_with(':') {
+                return true;
+            }
+            search_from = start + key_lower.len();
+        }
+    }
+    false
+}
+
 fn extract_urls(text: &str) -> Vec<String> {
     let mut urls = Vec::new();
     let mut idx = 0;
@@ -583,11 +632,15 @@ fn merge_structured(existing: &str, compiled: &str) -> String {
     // 1. Preserve H1 emoji and image embed from existing preamble if missing in compiled
     let mut ex_h1_emoji: Option<String> = None;
     let mut ex_image_line: Option<String> = None;
+    let mut ex_image_ref_keys: HashSet<String> = HashSet::new();
     for l in &ex_preamble {
         if let Some((Some(emoji), _)) = parse_h1(l) {
             ex_h1_emoji = Some(emoji.to_string());
         } else if is_image_embed(l) {
             ex_image_line = Some(l.trim().to_string());
+            if let Some(ref_key) = extract_image_ref_key(l) {
+                ex_image_ref_keys.insert(ref_key.to_ascii_lowercase());
+            }
         }
     }
     let co_has_image = co_preamble.iter().any(|l| is_image_embed(l));
@@ -704,14 +757,25 @@ fn merge_structured(existing: &str, compiled: &str) -> String {
     let manual_blocks = extract_manual_blocks(&ex_lines);
     body_lines = preserve_manual_blocks(body_lines, manual_blocks);
 
-    // 5. Merge footer reference / footnote definitions without duplicates
+    // 5. Merge footer reference / footnote definitions without duplicates or orphaned image refs
     let mut merged_defs = co_defs;
-    let mut seen_def_keys: HashSet<String> = merged_defs.iter().map(|(k, _)| k.clone()).collect();
+    let mut seen_def_keys: HashSet<String> = merged_defs
+        .iter()
+        .map(|(k, _)| k.to_ascii_lowercase())
+        .collect();
     for (k, block) in ex_defs {
-        if !seen_def_keys.contains(&k) {
-            seen_def_keys.insert(k.clone());
-            merged_defs.push((k, block));
+        let k_lower = k.to_ascii_lowercase();
+        if seen_def_keys.contains(&k_lower) {
+            continue;
         }
+        if co_has_image
+            && ex_image_ref_keys.contains(&k_lower)
+            && !body_references_key(&body_lines, &k)
+        {
+            continue;
+        }
+        seen_def_keys.insert(k_lower);
+        merged_defs.push((k, block));
     }
 
     // Assemble final document and normalize consecutive blank lines cleanly
@@ -990,5 +1054,135 @@ Serve hot.
         assert!(merged.contains("- 2 cups water"));
         assert!(merged.contains("## Notes\n\nServe hot."));
         assert_eq!(merged, merge_markdown(&merged, compiled));
+    }
+
+    #[test]
+    fn test_merge_drops_orphaned_image_ref_def_and_preserves_referenced() {
+        // 1. Existing [1] ref image + compiled inline image -> drops orphaned [1]: def
+        let existing_ref = "\
+# :bread: Bagels
+
+![Bagels][1]{ loading=lazy }
+
+## :salt: Ingredients
+
+- 500 g flour
+
+## :link: Source
+
+- [King Arthur][2]
+
+[1]: <../assets/images/bagels.webp>
+[2]: https://example.com/bagels
+[^1]: Boiled in barley malt water.
+";
+        let compiled_inline = "\
+# :bread: Bagels
+
+![Bagels](../assets/images/bagels.webp){ loading=lazy }
+
+## :salt: Ingredients
+
+- 500 g bread flour
+
+## :link: Source
+
+- <https://example.com/bagels>
+";
+        let merged_inline = merge_markdown(existing_ref, compiled_inline);
+        assert!(
+            merged_inline.contains("![Bagels](../assets/images/bagels.webp){ loading=lazy }"),
+            "merged:\n{merged_inline}"
+        );
+        assert!(
+            !merged_inline.contains("[1]: <../assets/images/bagels.webp>"),
+            "orphan [1]: should be dropped:\n{merged_inline}"
+        );
+        assert!(
+            merged_inline.contains("[2]: https://example.com/bagels"),
+            "unrelated ref [2]: should be preserved:\n{merged_inline}"
+        );
+        assert!(
+            merged_inline.contains("[^1]: Boiled in barley malt water."),
+            "footnote should be preserved:\n{merged_inline}"
+        );
+        assert_eq!(
+            merged_inline,
+            merge_markdown(&merged_inline, compiled_inline)
+        );
+
+        // 2. Existing [1] ref image + compiled [1] ref image -> updates [1]: cleanly
+        let existing_old_ref = "\
+# Bagels
+
+![Bagels][1]{ loading=lazy }
+
+## :salt: Ingredients
+
+- 500 g flour
+
+[1]: <../assets/images/old-bagels.webp>
+";
+        let compiled_new_ref = "\
+# Bagels
+
+![Bagels][1]{ loading=lazy }
+
+## :salt: Ingredients
+
+- 500 g bread flour
+
+[1]: <../assets/images/new-bagels.webp>
+";
+        let merged_ref = merge_markdown(existing_old_ref, compiled_new_ref);
+        assert!(
+            merged_ref.contains("[1]: <../assets/images/new-bagels.webp>"),
+            "merged:\n{merged_ref}"
+        );
+        assert!(
+            !merged_ref.contains("old-bagels.webp"),
+            "old ref should be replaced:\n{merged_ref}"
+        );
+        assert_eq!(merged_ref.matches("[1]:").count(), 1);
+
+        // 3. Existing [1] ref image + [1] also referenced in body text -> preserves [1]:
+        let existing_shared_ref = "\
+# Bagels
+
+![Bagels][1]{ loading=lazy }
+
+## :salt: Ingredients
+
+- 500 g flour
+
+## :memo: Notes
+
+Compare against [the original photo][1] for crust color.
+
+[1]: <../assets/images/bagels.webp>
+";
+        let merged_shared = merge_markdown(existing_shared_ref, compiled_inline);
+        assert!(
+            merged_shared.contains("[1]: <../assets/images/bagels.webp>"),
+            "referenced [1]: in body must be preserved:\n{merged_shared}"
+        );
+
+        // 4. Existing [1] ref image + compiled without image -> preserves both embed and [1]:
+        let compiled_no_img = "\
+# Bagels
+
+## :salt: Ingredients
+
+- 500 g bread flour
+";
+        let merged_no_img = merge_markdown(existing_old_ref, compiled_no_img);
+        assert!(
+            merged_no_img.contains("![Bagels][1]{ loading=lazy }"),
+            "merged:\n{merged_no_img}"
+        );
+        assert!(
+            merged_no_img.contains("[1]: <../assets/images/old-bagels.webp>"),
+            "merged:\n{merged_no_img}"
+        );
     }
 }

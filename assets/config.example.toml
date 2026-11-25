@@ -92,6 +92,11 @@
 # herb = ["cilantro", "parsley"]
 # [emoji.cookware]
 # bowl_with_spoon = ["bowl"]
+# [emoji.titles]
+# pizza = ["pizza", "calzone"]
+# [emoji.categories]
+# breads = ":bread:"
+# "desserts/cake" = ":birthday:"
 
 # -----------------------------------------------------------------------------
 # Logging

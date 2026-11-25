@@ -135,7 +135,7 @@ pub fn run_doctor_with_options(
                 checks.extend(check_recipes(
                     &recipes,
                     config,
-                    emoji_table.as_ref().filter(|t| !t.is_empty()),
+                    emoji_table.as_ref().filter(|t| t.counts() != (0, 0)),
                 ));
             }
         }

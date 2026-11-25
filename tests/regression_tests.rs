@@ -1789,3 +1789,142 @@ LEGACY_STEP_COUNT={{ range .Steps }}{{ range .Ingredients }}[{{ .Name }}]{{ end 
         "scaled:\n{scaled_md}"
     );
 }
+
+#[test]
+fn regression_title_emoji_merge_orphan_ref_and_weights_except() {
+    let Some(bin) = bin_if_runnable() else {
+        return;
+    };
+
+    let dir = TempDir::new("bundle_79_80_82");
+    fs::create_dir_all(dir.path().join("cook/desserts/cake")).unwrap();
+    fs::create_dir_all(dir.path().join("cook/mains")).unwrap();
+    fs::create_dir_all(dir.path().join("docs/mains")).unwrap();
+
+    fs::write(
+        dir.path().join("cook/mains/Pesto Pasta.cook"),
+        "Toss @basil pesto{2%Tbsp} and @fresh basil{1%tbsp} with @pasta{200%g}.\n",
+    )
+    .unwrap();
+    fs::write(dir.path().join("cook/mains/Pesto Pasta.webp"), b"fake-webp").unwrap();
+
+    fs::write(
+        dir.path().join("cook/desserts/cake/Family Secret.cook"),
+        "Bake @sugar{1%cup}.\n",
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("cook/desserts/cake/Tagged Cake.cook"),
+        "---\ntitle: \":cupcake: Tagged Cake\"\n---\nBake @sugar{1%cup}.\n",
+    )
+    .unwrap();
+
+    fs::write(
+        dir.path().join(".cookdocs.toml"),
+        "\
+weights_file = \"weights.yaml\"
+
+[emoji.titles]
+spaghetti = [\"pasta\"]
+
+[emoji.categories]
+\"desserts/cake\" = \":birthday:\"
+desserts = \":cake:\"
+",
+    )
+    .unwrap();
+
+    fs::write(
+        dir.path().join("weights.yaml"),
+        "\
+exclude_small_units:
+  - basil
+exclude_small_units_except:
+  - pesto
+weights:
+  basil pesto: 224
+  fresh basil: 24
+",
+    )
+    .unwrap();
+
+    // Existing Markdown file uses legacy reference-style image `[1]` + footer `[1]:`
+    let existing_pasta_md = dir.path().join("docs/mains/pesto-pasta.md");
+    fs::write(
+        &existing_pasta_md,
+        "\
+# :spaghetti: Pesto Pasta
+
+![Pesto Pasta][1]{ loading=lazy }
+
+## :salt: Ingredients
+
+- old ingredient
+
+## :memo: Notes
+
+Serve immediately.
+
+[1]: <../assets/images/pesto-pasta.webp>
+",
+    )
+    .unwrap();
+
+    // Run with --merge against inline default template
+    let out = run_cli(
+        bin,
+        Some(dir.path()),
+        &[
+            "-C",
+            ".cookdocs.toml",
+            "-c",
+            "cook",
+            "-o",
+            "docs",
+            "--merge",
+        ],
+        &[],
+    );
+    assert!(
+        out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    // #79 (title word match), #80 (orphaned [1]: dropped), #82 (basil pesto converted, fresh basil skipped)
+    let pasta_md = fs::read_to_string(&existing_pasta_md).unwrap();
+    assert!(
+        pasta_md.starts_with("# :spaghetti: Pesto Pasta\n"),
+        "pasta:\n{pasta_md}"
+    );
+    assert!(
+        !pasta_md.contains("[1]: <../assets/images/pesto-pasta.webp>"),
+        "orphan [1]: must be removed:\n{pasta_md}"
+    );
+    assert!(
+        pasta_md.contains("## :memo: Notes\n\nServe immediately."),
+        "custom section preserved:\n{pasta_md}"
+    );
+    assert!(
+        pasta_md.contains("2 tbsp (28 g) basil pesto"),
+        "basil pesto should convert via exclude_small_units_except:\n{pasta_md}"
+    );
+    assert!(
+        pasta_md.contains("- 1 tbsp fresh basil\n"),
+        "fresh basil should stay excluded on tbsp:\n{pasta_md}"
+    );
+
+    // #79 nested category fallback and explicit title emoji preservation
+    let secret_md =
+        fs::read_to_string(dir.path().join("docs/desserts/cake/family-secret.md")).unwrap();
+    assert!(
+        secret_md.starts_with("# :birthday: Family Secret\n"),
+        "secret:\n{secret_md}"
+    );
+    let tagged_md =
+        fs::read_to_string(dir.path().join("docs/desserts/cake/tagged-cake.md")).unwrap();
+    assert!(
+        tagged_md.starts_with("# :cupcake: Tagged Cake\n"),
+        "tagged:\n{tagged_md}"
+    );
+}

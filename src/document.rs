@@ -55,7 +55,7 @@ const DEFAULT_DOCUMENTATION_TEMPLATE: &str = r#"{{ template "cook.headerSection"
 "#;
 
 fn get_header_template() -> String {
-    r#"{{ define "cook.headerSection" }}# {{ if .Metadata.title }}{{ .Metadata.title }}{{ else }}{{ .Info.RecipeName }}{{ end }}{{ end }}"#.to_string()
+    r#"{{ define "cook.headerSection" }}# {{ with titleEmoji . }}{{ . }} {{ end }}{{ if .Metadata.title }}{{ .Metadata.title }}{{ else }}{{ .Info.RecipeName }}{{ end }}{{ end }}"#.to_string()
 }
 
 fn get_image_template() -> String {
@@ -551,6 +551,10 @@ fn emoji_fn(args: &[Value]) -> Result<Value, FuncError> {
         match category.map(|c| c.to_ascii_lowercase()).as_deref() {
             Some("ingredient" | "ingredients") => ctx.resources.emoji.lookup_ingredient(name),
             Some("cookware") => ctx.resources.emoji.lookup_cookware(name),
+            Some("title" | "titles") => ctx.resources.emoji.lookup_title(name, &[]),
+            Some("category" | "categories") => {
+                ctx.resources.emoji.lookup_category(&[name.to_string()])
+            }
             _ => ctx.resources.emoji.lookup_any(name),
         }
         .map(str::to_string)
@@ -580,6 +584,64 @@ fn cookware_emoji_fn(args: &[Value]) -> Result<Value, FuncError> {
         cell.borrow()
             .as_ref()
             .and_then(|ctx| ctx.resources.emoji.lookup_cookware(name))
+            .map(str::to_string)
+    });
+    Ok(Value::String(found.unwrap_or_default()))
+}
+
+fn extract_string_list(val: &Value) -> Vec<String> {
+    match val {
+        Value::Array(items) => items
+            .iter()
+            .filter_map(|v| match v {
+                Value::String(s) if !s.trim().is_empty() => Some(s.clone()),
+                _ => None,
+            })
+            .collect(),
+        Value::String(s) if !s.trim().is_empty() => vec![s.clone()],
+        _ => Vec::new(),
+    }
+}
+
+fn title_emoji_fn(args: &[Value]) -> Result<Value, FuncError> {
+    let (title, categories) = match args {
+        [Value::Map(root) | Value::Object(root), ..] => {
+            let meta_title = root
+                .get("Metadata")
+                .and_then(|v| match v {
+                    Value::Map(m) | Value::Object(m) => m.get("title"),
+                    _ => None,
+                })
+                .and_then(|v| match v {
+                    Value::String(s) if !s.trim().is_empty() => Some(s.clone()),
+                    _ => None,
+                });
+            let info_map = root.get("Info").and_then(|v| match v {
+                Value::Map(m) | Value::Object(m) => Some(m),
+                _ => None,
+            });
+            let recipe_name = info_map
+                .and_then(|m| m.get("RecipeName"))
+                .and_then(|v| match v {
+                    Value::String(s) => Some(s.clone()),
+                    _ => None,
+                })
+                .unwrap_or_default();
+            let cats = info_map
+                .and_then(|m| m.get("Categories"))
+                .map(extract_string_list)
+                .unwrap_or_default();
+            (meta_title.unwrap_or(recipe_name), cats)
+        }
+        [Value::String(title), cats_val, ..] => (title.clone(), extract_string_list(cats_val)),
+        [Value::String(title)] => (title.clone(), Vec::new()),
+        _ => return Ok(Value::String(String::new())),
+    };
+
+    let found = RENDER_CTX.with(|cell| {
+        cell.borrow()
+            .as_ref()
+            .and_then(|ctx| ctx.resources.emoji.lookup_title(&title, &categories))
             .map(str::to_string)
     });
     Ok(Value::String(found.unwrap_or_default()))
@@ -1123,6 +1185,10 @@ pub(crate) fn build_documentation_template(
         (
             "cookwareEmoji",
             cookware_emoji_fn as fn(&[Value]) -> Result<Value, FuncError>,
+        ),
+        (
+            "titleEmoji",
+            title_emoji_fn as fn(&[Value]) -> Result<Value, FuncError>,
         ),
         (
             "toGrams",
@@ -2022,5 +2088,156 @@ Dust with @flour{1/2%cup} in #bowl{1}.
         assert!(md.contains("- some salt"), "md:\n{md}");
         assert!(md.contains("- 4 cups flour"), "md:\n{md}");
         assert!(md.contains("- 2-4 tbsp butter"), "md:\n{md}");
+    }
+
+    #[test]
+    fn test_title_emoji_helper_and_header_section() {
+        let dir = TempDir::new("title_emoji");
+        let cook_dir = dir.0.join("cook");
+        let out_dir = dir.0.join("docs");
+        fs::create_dir_all(cook_dir.join("desserts/cake")).unwrap();
+        fs::create_dir_all(cook_dir.join("desserts/pie")).unwrap();
+        fs::create_dir_all(cook_dir.join("mains")).unwrap();
+        fs::create_dir_all(cook_dir.join("breads")).unwrap();
+
+        let explicit_cook = cook_dir.join("desserts/pie/Lemon Tart.cook");
+        fs::write(
+            &explicit_cook,
+            "---\ntitle: \":pie: Lemon Tart\"\n---\nBake @lemon{2}.\n",
+        )
+        .unwrap();
+
+        let unicode_cook = cook_dir.join("mains/Margherita.cook");
+        fs::write(
+            &unicode_cook,
+            "---\ntitle: \"🍕 Margherita\"\n---\nBake @flour{2%cups}.\n",
+        )
+        .unwrap();
+
+        let title_word_cook = cook_dir.join("mains/Pepperoni Pizza.cook");
+        fs::write(&title_word_cook, "Bake @flour{2%cups}.\n").unwrap();
+
+        let nested_cat_cook = cook_dir.join("desserts/cake/Grandma Special.cook");
+        fs::write(&nested_cat_cook, "Bake @flour{2%cups}.\n").unwrap();
+
+        let parent_cat_cook = cook_dir.join("desserts/pie/House Favorite.cook");
+        fs::write(&parent_cat_cook, "Bake @flour{2%cups}.\n").unwrap();
+
+        let bread_cook = cook_dir.join("breads/Country Loaf.cook");
+        fs::write(&bread_cook, "Bake @flour{500%g}.\n").unwrap();
+
+        // 1. Unconfigured default: no emoji prefix added
+        let plain_cfg = Config {
+            ignore_file: String::new(),
+            recipe_search_root: cook_dir.to_string_lossy().to_string(),
+            output_dir: out_dir.to_string_lossy().to_string(),
+            ..Config::default()
+        };
+        let plain =
+            crate::cook::parse_file(&title_word_cook.to_string_lossy(), &plain_cfg).unwrap();
+        print_documentation(&plain);
+        let plain_md = fs::read_to_string(out_dir.join("mains/pepperoni-pizza.md")).unwrap();
+        assert!(
+            plain_md.starts_with("# Pepperoni Pizza\n"),
+            "plain:\n{plain_md}"
+        );
+
+        // 2. Configured emoji_file with titles, ingredients, and categories
+        let emoji_path = dir.0.join("emoji.toml");
+        fs::write(
+            &emoji_path,
+            "\
+[emoji.titles]
+pizza = [\"pizza\", \"calzone\"]
+
+[emoji.ingredients]
+lemon = [\"lemon\"]
+
+[emoji.categories]
+breads = \":bread:\"
+desserts = \"cake\"
+\"desserts/cake\" = \":birthday:\"
+",
+        )
+        .unwrap();
+
+        let cfg = Config {
+            emoji_file: emoji_path.to_string_lossy().to_string(),
+            ..plain_cfg.clone()
+        };
+
+        // Explicit leading :shortcode: preserved (no-op, no double emoji)
+        let r_explicit = crate::cook::parse_file(&explicit_cook.to_string_lossy(), &cfg).unwrap();
+        print_documentation(&r_explicit);
+        let md_explicit = fs::read_to_string(out_dir.join("desserts/pie/lemon-tart.md")).unwrap();
+        assert!(
+            md_explicit.starts_with("# :pie: Lemon Tart\n"),
+            "explicit:\n{md_explicit}"
+        );
+
+        // Explicit leading Unicode emoji preserved
+        let r_unicode = crate::cook::parse_file(&unicode_cook.to_string_lossy(), &cfg).unwrap();
+        print_documentation(&r_unicode);
+        let md_unicode = fs::read_to_string(out_dir.join("mains/margherita.md")).unwrap();
+        assert!(
+            md_unicode.starts_with("# 🍕 Margherita\n"),
+            "unicode:\n{md_unicode}"
+        );
+
+        // Title word match ("Pepperoni Pizza" -> :pizza:)
+        let r_word = crate::cook::parse_file(&title_word_cook.to_string_lossy(), &cfg).unwrap();
+        print_documentation(&r_word);
+        let md_word = fs::read_to_string(out_dir.join("mains/pepperoni-pizza.md")).unwrap();
+        assert!(
+            md_word.starts_with("# :pizza: Pepperoni Pizza\n"),
+            "word:\n{md_word}"
+        );
+
+        // Nested category fallback ("desserts/cake" -> :birthday:)
+        let r_nested = crate::cook::parse_file(&nested_cat_cook.to_string_lossy(), &cfg).unwrap();
+        print_documentation(&r_nested);
+        let md_nested =
+            fs::read_to_string(out_dir.join("desserts/cake/grandma-special.md")).unwrap();
+        assert!(
+            md_nested.starts_with("# :birthday: Grandma Special\n"),
+            "nested:\n{md_nested}"
+        );
+
+        // Parent category fallback ("desserts/pie" -> falls back to "desserts" -> :cake:)
+        let r_parent = crate::cook::parse_file(&parent_cat_cook.to_string_lossy(), &cfg).unwrap();
+        print_documentation(&r_parent);
+        let md_parent = fs::read_to_string(out_dir.join("desserts/pie/house-favorite.md")).unwrap();
+        assert!(
+            md_parent.starts_with("# :cake: House Favorite\n"),
+            "parent:\n{md_parent}"
+        );
+
+        // Top-level category fallback ("breads" -> :bread:)
+        let r_bread = crate::cook::parse_file(&bread_cook.to_string_lossy(), &cfg).unwrap();
+        print_documentation(&r_bread);
+        let md_bread = fs::read_to_string(out_dir.join("breads/country-loaf.md")).unwrap();
+        assert!(
+            md_bread.starts_with("# :bread: Country Loaf\n"),
+            "bread:\n{md_bread}"
+        );
+
+        // Direct custom template invocation of titleEmoji with . / RecipeName / Categories
+        let custom_tpl = cook_dir.join("title_custom.gotmpl");
+        fs::write(
+            &custom_tpl,
+            "whole={{ titleEmoji . }}|name={{ titleEmoji .Info.RecipeName }}|pair={{ titleEmoji .Info.RecipeName .Info.Categories }}\n",
+        )
+        .unwrap();
+        let mut custom_cfg = cfg;
+        custom_cfg.template_files = vec!["title_custom.gotmpl".to_string()];
+        let r_custom =
+            crate::cook::parse_file(&nested_cat_cook.to_string_lossy(), &custom_cfg).unwrap();
+        print_documentation(&r_custom);
+        let md_custom =
+            fs::read_to_string(out_dir.join("desserts/cake/grandma-special.md")).unwrap();
+        assert!(
+            md_custom.contains("whole=:birthday:|name=|pair=:birthday:"),
+            "custom:\n{md_custom}"
+        );
     }
 }

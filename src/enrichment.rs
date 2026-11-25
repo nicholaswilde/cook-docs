@@ -217,11 +217,61 @@ fn format_emoji_token(raw: &str) -> String {
     }
 }
 
-/// Ingredient and cookware emoji mapping table (`#11`).
+/// Return `true` when `title` already begins with a `:shortcode:` or Unicode emoji glyph.
+pub fn has_leading_emoji(title: &str) -> bool {
+    let trimmed = title.trim_start();
+    if let Some(after_colon) = trimmed.strip_prefix(':')
+        && let Some(end_colon) = after_colon.find(':')
+        && end_colon > 0
+    {
+        let valid_shortcode = after_colon[..end_colon]
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '+'));
+        if valid_shortcode {
+            return true;
+        }
+    }
+    trimmed.chars().next().is_some_and(|c| {
+        matches!(
+            c as u32,
+            0x2300..=0x23FF | 0x2600..=0x27BF | 0x2B00..=0x2BFF | 0x1F000..=0x1FAFF
+        )
+    })
+}
+
+fn is_explicit_emoji_token(raw: &str) -> bool {
+    let trimmed = raw.trim();
+    (trimmed.starts_with(':') && trimmed.ends_with(':') && trimmed.len() >= 3)
+        || (!trimmed.is_empty() && !trimmed.is_ascii())
+}
+
+fn normalize_category_key(raw: &str) -> String {
+    raw.trim()
+        .replace('\\', "/")
+        .split('/')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_ascii_lowercase)
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+fn title_words(title: &str) -> Vec<String> {
+    normalize_text(title)
+        .split(|c: char| !c.is_alphanumeric() && c != '\'')
+        .map(|w| w.trim_matches('\''))
+        .filter(|w| !w.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+/// Ingredient, cookware, title, and category emoji mapping table (`#11`, `#79`).
 #[derive(Debug, Clone, Default)]
 pub struct EmojiTable {
     ingredients: HashMap<String, String>,
     cookware: HashMap<String, String>,
+    titles: HashMap<String, String>,
+    categories: HashMap<String, String>,
 }
 
 impl EmojiTable {
@@ -260,10 +310,24 @@ impl EmojiTable {
         if let Some(cw) = target.get("cookware") {
             Self::parse_category(cw, &mut self.cookware)?;
         }
+        if let Some(titles) = target.get("titles") {
+            Self::parse_titles(titles, &mut self.titles)?;
+        }
+        if let Some(categories) = target.get("categories") {
+            Self::parse_categories_map(categories, &mut self.categories)?;
+        }
         Ok(())
     }
 
     fn parse_category(val: &JsonValue, out: &mut HashMap<String, String>) -> Result<(), String> {
+        Self::parse_group_list_or_map(val, out, normalize_text)
+    }
+
+    fn parse_group_list_or_map(
+        val: &JsonValue,
+        out: &mut HashMap<String, String>,
+        normalize: fn(&str) -> String,
+    ) -> Result<(), String> {
         match val {
             JsonValue::Array(groups) => {
                 for group in groups {
@@ -274,14 +338,14 @@ impl EmojiTable {
                         );
                     };
                     for (emoji_key, items_val) in map {
-                        Self::insert_items(emoji_key, items_val, out);
+                        Self::insert_items_with(emoji_key, items_val, out, normalize);
                     }
                 }
                 Ok(())
             }
             JsonValue::Object(map) => {
                 for (emoji_key, items_val) in map {
-                    Self::insert_items(emoji_key, items_val, out);
+                    Self::insert_items_with(emoji_key, items_val, out, normalize);
                 }
                 Ok(())
             }
@@ -290,35 +354,91 @@ impl EmojiTable {
         }
     }
 
-    fn insert_items(emoji_key: &str, items_val: &JsonValue, out: &mut HashMap<String, String>) {
+    fn parse_titles(val: &JsonValue, out: &mut HashMap<String, String>) -> Result<(), String> {
+        match val {
+            JsonValue::Array(_) | JsonValue::Null => Self::parse_category(val, out),
+            JsonValue::Object(map) => {
+                for (k, v) in map {
+                    if !v.is_array()
+                        && let Some(s) = json_scalar_to_string(v)
+                        && !is_explicit_emoji_token(k)
+                        && is_explicit_emoji_token(&s)
+                    {
+                        Self::insert_pair(k, &s, out, normalize_text);
+                    } else {
+                        Self::insert_items_with(k, v, out, normalize_text);
+                    }
+                }
+                Ok(())
+            }
+            _ => Err("Emoji titles must be a list or mapping".to_string()),
+        }
+    }
+
+    fn parse_categories_map(
+        val: &JsonValue,
+        out: &mut HashMap<String, String>,
+    ) -> Result<(), String> {
+        match val {
+            JsonValue::Array(_) | JsonValue::Null => {
+                Self::parse_group_list_or_map(val, out, normalize_category_key)
+            }
+            JsonValue::Object(map) => {
+                for (k, v) in map {
+                    if v.is_array() || is_explicit_emoji_token(k) {
+                        Self::insert_items_with(k, v, out, normalize_category_key);
+                    } else if let Some(s) = json_scalar_to_string(v) {
+                        Self::insert_pair(k, &s, out, normalize_category_key);
+                    }
+                }
+                Ok(())
+            }
+            _ => Err("Emoji categories must be a list or mapping".to_string()),
+        }
+    }
+
+    fn insert_pair(
+        raw_key: &str,
+        raw_emoji: &str,
+        out: &mut HashMap<String, String>,
+        normalize: fn(&str) -> String,
+    ) {
+        let norm = normalize(raw_key);
+        let formatted = format_emoji_token(raw_emoji);
+        if !norm.is_empty() && !formatted.is_empty() {
+            out.insert(norm, formatted);
+        }
+    }
+
+    fn insert_items_with(
+        emoji_key: &str,
+        items_val: &JsonValue,
+        out: &mut HashMap<String, String>,
+        normalize: fn(&str) -> String,
+    ) {
         let formatted = format_emoji_token(emoji_key);
         if formatted.is_empty() {
             return;
         }
-        match items_val {
-            JsonValue::Array(items) => {
-                for item in items {
-                    if let Some(s) = json_scalar_to_string(item) {
-                        let norm = normalize_text(&s);
-                        if !norm.is_empty() {
-                            out.insert(norm, formatted.clone());
-                        }
-                    }
-                }
-            }
-            other => {
-                if let Some(s) = json_scalar_to_string(other) {
-                    let norm = normalize_text(&s);
-                    if !norm.is_empty() {
-                        out.insert(norm, formatted);
-                    }
+        let items: &[JsonValue] = match items_val {
+            JsonValue::Array(arr) => arr.as_slice(),
+            other => std::slice::from_ref(other),
+        };
+        for item in items {
+            if let Some(s) = json_scalar_to_string(item) {
+                let norm = normalize(&s);
+                if !norm.is_empty() {
+                    out.insert(norm, formatted.clone());
                 }
             }
         }
     }
 
     pub fn is_empty(&self) -> bool {
-        self.ingredients.is_empty() && self.cookware.is_empty()
+        self.ingredients.is_empty()
+            && self.cookware.is_empty()
+            && self.titles.is_empty()
+            && self.categories.is_empty()
     }
 
     pub fn counts(&self) -> (usize, usize) {
@@ -333,6 +453,59 @@ impl EmojiTable {
         Self::lookup_in(&self.cookware, name)
     }
 
+    pub fn lookup_category(&self, categories: &[String]) -> Option<&str> {
+        if self.categories.is_empty() || categories.is_empty() {
+            return None;
+        }
+        let segs: Vec<String> = categories
+            .iter()
+            .flat_map(|c| {
+                c.replace('\\', "/")
+                    .split('/')
+                    .map(str::to_string)
+                    .collect::<Vec<_>>()
+            })
+            .map(|s| s.trim().to_ascii_lowercase())
+            .filter(|s| !s.is_empty())
+            .collect();
+        if segs.is_empty() {
+            return None;
+        }
+        for start in 0..segs.len() {
+            let key = segs[start..].join("/");
+            if let Some(emoji) = self.categories.get(&key) {
+                return Some(emoji.as_str());
+            }
+        }
+        for end in (1..segs.len()).rev() {
+            let key = segs[..end].join("/");
+            if let Some(emoji) = self.categories.get(&key) {
+                return Some(emoji.as_str());
+            }
+        }
+        for seg in segs.iter().rev() {
+            if let Some(emoji) = Self::lookup_in(&self.categories, seg) {
+                return Some(emoji);
+            }
+        }
+        None
+    }
+
+    pub fn lookup_title(&self, title: &str, categories: &[String]) -> Option<&str> {
+        if has_leading_emoji(title) {
+            return None;
+        }
+        if !title.trim().is_empty() {
+            if let Some(emoji) = Self::lookup_title_in(&self.titles, title) {
+                return Some(emoji);
+            }
+            if let Some(emoji) = Self::lookup_title_in(&self.ingredients, title) {
+                return Some(emoji);
+            }
+        }
+        self.lookup_category(categories)
+    }
+
     pub fn lookup_any(&self, name: &str) -> Option<&str> {
         self.lookup_ingredient(name)
             .or_else(|| self.lookup_cookware(name))
@@ -345,6 +518,37 @@ impl EmojiTable {
         for cand in lookup_candidates(name) {
             if let Some(emoji) = map.get(&cand) {
                 return Some(emoji.as_str());
+            }
+        }
+        None
+    }
+
+    fn lookup_title_in<'a>(map: &'a HashMap<String, String>, title: &str) -> Option<&'a str> {
+        if map.is_empty() {
+            return None;
+        }
+        if let Some(emoji) = Self::lookup_in(map, title) {
+            return Some(emoji);
+        }
+        for raw_tok in normalize_text(title).split_whitespace().rev() {
+            let trimmed = raw_tok.trim_matches(|c: char| !c.is_alphanumeric() && c != '-');
+            if trimmed.contains('-')
+                && let Some(emoji) = Self::lookup_in(map, trimmed)
+            {
+                return Some(emoji);
+            }
+        }
+        let words = title_words(title);
+        if words.is_empty() {
+            return None;
+        }
+        let max_len = words.len().min(4);
+        for len in (1..=max_len).rev() {
+            for start in (0..=words.len() - len).rev() {
+                let phrase = words[start..start + len].join(" ");
+                if let Some(emoji) = Self::lookup_in(map, &phrase) {
+                    return Some(emoji);
+                }
             }
         }
         None
@@ -436,6 +640,7 @@ pub struct WeightsTable {
     grams_per_ml: HashMap<String, f64>,
     exclude: HashSet<String>,
     exclude_small_units: HashSet<String>,
+    exclude_small_units_except: HashSet<String>,
     converter: Converter,
 }
 
@@ -445,6 +650,7 @@ impl Default for WeightsTable {
             grams_per_ml: HashMap::new(),
             exclude: HashSet::new(),
             exclude_small_units: HashSet::new(),
+            exclude_small_units_except: HashSet::new(),
             converter: Converter::bundled(),
         }
     }
@@ -460,6 +666,19 @@ impl WeightsTable {
         Self::from_value(&val)
     }
 
+    fn insert_normalized_strings(val: Option<&JsonValue>, out: &mut HashSet<String>) {
+        if let Some(arr) = val.and_then(JsonValue::as_array) {
+            for item in arr {
+                if let Some(s) = json_scalar_to_string(item) {
+                    let norm = normalize_text(&s);
+                    if !norm.is_empty() {
+                        out.insert(norm);
+                    }
+                }
+            }
+        }
+    }
+
     /// Parse density mappings from a structured JSON/YAML/TOML value.
     pub fn from_value(val: &JsonValue) -> Result<Self, String> {
         let Some(root) = val.as_object() else {
@@ -470,31 +689,19 @@ impl WeightsTable {
             .map(|(ml, _)| ml)
             .unwrap_or(236.588_236);
 
-        if let Some(arr) = root.get("exclude").and_then(JsonValue::as_array) {
-            for item in arr {
-                if let Some(s) = json_scalar_to_string(item) {
-                    let norm = normalize_text(&s);
-                    if !norm.is_empty() {
-                        table.exclude.insert(norm);
-                    }
-                }
-            }
-        }
-        if let Some(arr) = root
-            .get("exclude_small_units")
-            .or_else(|| root.get("exclude-small-units"))
-            .or_else(|| root.get("excludeSmallUnits"))
-            .and_then(JsonValue::as_array)
-        {
-            for item in arr {
-                if let Some(s) = json_scalar_to_string(item) {
-                    let norm = normalize_text(&s);
-                    if !norm.is_empty() {
-                        table.exclude_small_units.insert(norm);
-                    }
-                }
-            }
-        }
+        Self::insert_normalized_strings(root.get("exclude"), &mut table.exclude);
+        Self::insert_normalized_strings(
+            root.get("exclude_small_units")
+                .or_else(|| root.get("exclude-small-units"))
+                .or_else(|| root.get("excludeSmallUnits")),
+            &mut table.exclude_small_units,
+        );
+        Self::insert_normalized_strings(
+            root.get("exclude_small_units_except")
+                .or_else(|| root.get("exclude-small-units-except"))
+                .or_else(|| root.get("excludeSmallUnitsExcept")),
+            &mut table.exclude_small_units_except,
+        );
 
         let entries = root
             .get("weights")
@@ -504,7 +711,13 @@ impl WeightsTable {
         for (raw_name, entry_val) in entries {
             if matches!(
                 raw_name.as_str(),
-                "exclude" | "exclude_small_units" | "exclude-small-units" | "excludeSmallUnits"
+                "exclude"
+                    | "exclude_small_units"
+                    | "exclude-small-units"
+                    | "excludeSmallUnits"
+                    | "exclude_small_units_except"
+                    | "exclude-small-units-except"
+                    | "excludeSmallUnitsExcept"
             ) && entry_val.is_array()
             {
                 continue;
@@ -619,17 +832,22 @@ impl WeightsTable {
             return true;
         }
         if is_small_unit && !self.exclude_small_units.is_empty() {
-            if candidates
-                .iter()
-                .any(|c| self.exclude_small_units.contains(c))
-            {
-                return true;
-            }
             let norm = normalize_text(name);
             let base = norm.split([',', '(']).next().unwrap_or(&norm);
-            if base
-                .split_whitespace()
-                .any(|tok| self.exclude_small_units.contains(tok))
+            let bypassed = !self.exclude_small_units_except.is_empty()
+                && (candidates
+                    .iter()
+                    .any(|c| self.exclude_small_units_except.contains(c))
+                    || base
+                        .split_whitespace()
+                        .any(|tok| self.exclude_small_units_except.contains(tok)));
+            if !bypassed
+                && (candidates
+                    .iter()
+                    .any(|c| self.exclude_small_units.contains(c))
+                    || base
+                        .split_whitespace()
+                        .any(|tok| self.exclude_small_units.contains(tok)))
             {
                 return true;
             }
@@ -984,6 +1202,129 @@ pot = \"dutch oven\"
     }
 
     #[test]
+    fn test_emoji_table_titles_and_categories_lookup() {
+        // Leading emoji detection
+        assert!(has_leading_emoji(":pie: Lemon Tart"));
+        assert!(has_leading_emoji("  :fork_and_knife: Dinner"));
+        assert!(has_leading_emoji("🍕 Margherita"));
+        assert!(has_leading_emoji("☕ Espresso"));
+        assert!(!has_leading_emoji("Éclair"));
+        assert!(!has_leading_emoji("Classic Lemon Tart"));
+        assert!(!has_leading_emoji("Note: Soup"));
+        assert!(!has_leading_emoji(":: Soup"));
+
+        // YAML list-of-maps format for titles & categories
+        let yaml_table = EmojiTable::from_value(&serde_json::json!({
+            "emoji": {
+                "titles": [
+                    { "pizza": ["pizza", "calzone"] },
+                    { "shallow_pan_of_food": ["stir-fry"] },
+                    { "bread": ["bread"] }
+                ],
+                "ingredients": [
+                    { "banana": ["banana"] },
+                    { "shrimp": ["shrimp"] }
+                ],
+                "categories": [
+                    { "cake": ["desserts", "desserts/pie"] },
+                    { "birthday": ["desserts/cake"] }
+                ]
+            }
+        }))
+        .unwrap();
+
+        // Explicit leading emoji -> no-op
+        assert_eq!(
+            yaml_table.lookup_title(":pie: Lemon Tart", &["desserts".to_string()]),
+            None
+        );
+        assert_eq!(
+            yaml_table.lookup_title("🍕 Pepperoni Pizza", &["mains".to_string()]),
+            None
+        );
+        // Title word/phrase match prefers titles over ingredients and head noun
+        assert_eq!(
+            yaml_table.lookup_title("Pepperoni Pizza", &[]),
+            Some(":pizza:")
+        );
+        assert_eq!(
+            yaml_table.lookup_title("Banana Bread", &[]),
+            Some(":bread:")
+        );
+        // Hyphenated title token match
+        assert_eq!(
+            yaml_table.lookup_title("Vegetable Stir-Fry", &[]),
+            Some(":shallow_pan_of_food:")
+        );
+        // Falls back to ingredients word match when not in titles
+        assert_eq!(
+            yaml_table.lookup_title("Garlic Butter Shrimp", &[]),
+            Some(":shrimp:")
+        );
+        // Nested category fallback prefers specific path over parent
+        assert_eq!(
+            yaml_table.lookup_title(
+                "Grandma Special",
+                &["desserts".to_string(), "cake".to_string()]
+            ),
+            Some(":birthday:")
+        );
+        assert_eq!(
+            yaml_table.lookup_title(
+                "House Custard",
+                &["desserts".to_string(), "custard".to_string()]
+            ),
+            Some(":cake:")
+        );
+        assert_eq!(
+            yaml_table.lookup_title("Mystery Dish", &["unknown".to_string()]),
+            None
+        );
+
+        // Direct map format: scalar category->emoji, emoji->list, explicit emoji key, title->emoji
+        let map_table = EmojiTable::from_value(&serde_json::json!({
+            "titles": {
+                "ramen": ":ramen:",
+                "taco": ["taco", "tacos"]
+            },
+            "categories": {
+                "breads": "bread",
+                "soups": "🍲",
+                "desserts/cake": ":birthday:",
+                ":salad:": "salads",
+                "cookie": ["cookies-and-bars", "biscuits"]
+            }
+        }))
+        .unwrap();
+        assert_eq!(map_table.lookup_title("Spicy Ramen", &[]), Some(":ramen:"));
+        assert_eq!(map_table.lookup_title("Street Tacos", &[]), Some(":taco:"));
+        assert_eq!(
+            map_table.lookup_category(&["breads".to_string()]),
+            Some(":bread:")
+        );
+        assert_eq!(
+            map_table.lookup_category(&["soups".to_string()]),
+            Some("🍲")
+        );
+        assert_eq!(
+            map_table.lookup_category(&["salads".to_string()]),
+            Some(":salad:")
+        );
+        assert_eq!(
+            map_table.lookup_category(&["cookies-and-bars".to_string()]),
+            Some(":cookie:")
+        );
+        assert_eq!(
+            map_table.lookup_category(&["desserts/cake".to_string()]),
+            Some(":birthday:")
+        );
+        // Invalid shapes return errors
+        assert!(EmojiTable::from_value(&serde_json::json!({ "titles": 42 })).is_err());
+        assert!(EmojiTable::from_value(&serde_json::json!({ "categories": 42 })).is_err());
+        assert!(EmojiTable::from_value(&serde_json::json!({ "categories": [123] })).is_err());
+    }
+
+    #[test]
     fn test_weights_table_conversions_exclusions_and_formats() {
         let dir = TempDir::new("weights");
         let weights_path = dir.0.join("weights.yaml");
@@ -1039,6 +1380,75 @@ weights:
         assert_eq!(table.to_grams(1.0, "tbsp", "ground cinnamon"), None);
         // Large volume unit of exclude_small_units still converts
         assert_eq!(table.to_grams(1.0, "cup", "salt"), Some(288));
+    }
+
+    #[test]
+    fn test_weights_exclude_small_units_except_guard() {
+        let dir = TempDir::new("weights_except");
+        let weights_path = dir.0.join("weights.yaml");
+        fs::write(
+            &weights_path,
+            "\
+exclude:
+  - chili oil
+exclude_small_units:
+  - basil
+  - cinnamon
+  - ginger
+  - salt
+exclude_small_units_except:
+  - pesto
+  - oil
+  - sugar
+  - crystallized
+weights:
+  basil pesto: 224
+  fresh basil: 24
+  cinnamon sugar: 192
+  ground cinnamon: 125
+  crystallized ginger: 160
+  fresh ginger: 96
+  salt: 288
+  chili oil: 216
+",
+        )
+        .unwrap();
+
+        let table = WeightsTable::load(&weights_path.to_string_lossy()).unwrap();
+        // Compound ingredients matching exclude_small_units_except convert on small units
+        assert_eq!(table.to_grams(2.0, "Tbsp", "basil pesto"), Some(28));
+        assert_eq!(table.to_grams(1.0, "tsp", "cinnamon sugar"), Some(4));
+        assert_eq!(table.to_grams(1.0, "tbsp", "crystallized ginger"), Some(10));
+        // Plain herbs/spices without exception token remain excluded on tsp/tbsp
+        assert_eq!(table.to_grams(2.0, "tbsp", "fresh basil"), None);
+        assert_eq!(table.to_grams(1.0, "tsp", "ground cinnamon"), None);
+        assert_eq!(table.to_grams(1.0, "tsp", "fresh ginger"), None);
+        assert_eq!(table.to_grams(1.0, "tsp", "kosher salt"), None);
+        // Explicit exclude still wins over exclude_small_units_except
+        assert_eq!(table.to_grams(1.0, "tbsp", "chili oil"), None);
+        // Large volume unit still converts
+        assert_eq!(table.to_grams(1.0, "cup", "fresh basil"), Some(24));
+
+        // Kebab-case and camelCase schema aliases also work
+        let kebab = WeightsTable::from_value(&serde_json::json!({
+            "exclude-small-units": ["basil"],
+            "exclude-small-units-except": ["pesto"],
+            "basil pesto": 224,
+            "fresh basil": 24
+        }))
+        .unwrap();
+        assert_eq!(kebab.to_grams(2.0, "tbsp", "basil pesto"), Some(28));
+        assert_eq!(kebab.to_grams(2.0, "tbsp", "fresh basil"), None);
+
+        let camel = WeightsTable::from_value(&serde_json::json!({
+            "excludeSmallUnits": ["cinnamon"],
+            "excludeSmallUnitsExcept": ["sugar"],
+            "cinnamon sugar": 192,
+            "ground cinnamon": 125
+        }))
+        .unwrap();
+        assert_eq!(camel.to_grams(1.0, "tsp", "cinnamon sugar"), Some(4));
+        assert_eq!(camel.to_grams(1.0, "tsp", "ground cinnamon"), None);
     }
 
     #[test]

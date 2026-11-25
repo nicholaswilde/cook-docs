@@ -75,7 +75,7 @@ cook-docs -c ./cook -o ./docs --force ./cook/breads/Bagels.cook
 `--merge` supports two modes automatically:
 
 1. **HTML region markers**: if an existing Markdown file contains `<!-- cook-docs:begin -->` and `<!-- cook-docs:end -->`, only the content between those markers is replaced.
-2. **Structure-aware merge**: when no markers are present, `cook-docs` merges YAML frontmatter (unioning `tags` and preserving manual keys such as `hero`), preserves manual H1 emojis and image embeds, preserves custom `##` sections in relative order, keeps manual `=== "..."` content tabs, merges `## Source` bullets without duplicating URLs, and preserves manual admonitions (`!!!`/`???`), `mermaid` diagrams, reference links, and footnotes.
+2. **Structure-aware merge**: when no markers are present, `cook-docs` merges YAML frontmatter (unioning `tags` and preserving manual keys such as `hero`), preserves manual H1 emojis and image embeds (dropping orphaned reference definitions such as `[1]:` when a compiled template switches a preamble image from reference-style to inline), preserves custom `##` sections in relative order, keeps manual `=== "..."` content tabs, merges `## Source` bullets without duplicating URLs, and preserves manual admonitions (`!!!`/`???`), `mermaid` diagrams, reference links, and footnotes.
 
 ## :eyes: Watch Mode
 

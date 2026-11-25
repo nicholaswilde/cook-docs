@@ -20,8 +20,8 @@ Here is a list of the supported parameters:
 | -o, --output-dir string         | COOK_DOCS_OUTPUT_DIR         | output_dir       | ""                 | custom output directory to write generated markdown documentation                                |
 | --assets-dir string             | COOK_DOCS_ASSETS_DIR         | assets_dir       | ""                 | optional directory to copy companion recipe images into (slug-named)                             |
 | --image-ext string              | COOK_DOCS_IMAGE_EXT          | image_ext        | ""                 | optional image extension override for `Info.ImageSlug` (e.g. `webp`)                             |
-| --emoji-file path               | COOK_DOCS_EMOJI_FILE         | emoji_file       | ""                 | optional YAML/TOML/JSON file mapping ingredients and cookware to emojis                          |
-| N/A                             | N/A                          | emoji            | N/A                | inline ingredient and cookware emoji mappings inside `.cookdocs.{yaml,toml,json}`                |
+| --emoji-file path               | COOK_DOCS_EMOJI_FILE         | emoji_file       | ""                 | optional YAML/TOML/JSON file mapping ingredients, cookware, titles, and categories to emojis     |
+| N/A                             | N/A                          | emoji            | N/A                | inline ingredient, cookware, title, and category emoji mappings in `.cookdocs.{yaml,toml,json}`  |
 | --weights-file path             | COOK_DOCS_WEIGHTS_FILE       | weights_file     | ""                 | optional YAML/TOML/JSON ingredient density table for `toGrams` volume-to-weight conversion       |
 | --link-dirs strings             | COOK_DOCS_LINK_DIRS          | link_dirs        | `[]`               | comma-separated recipe subdirectories eligible for `linkRecipe` cross-linking                    |
 | --required-metadata strings     | COOK_DOCS_REQUIRED_METADATA  | required_metadata | `[]`              | comma-separated metadata keys required by `cook-docs doctor --check-recipes`                     |
@@ -115,7 +115,7 @@ wordWrap: 120
 
 ## Emoji Mapping Schema (`emoji_file` / inline `emoji`)
 
-Configure ingredient and cookware emojis either via `--emoji-file` (`emoji_file`) or inline under `emoji` in `.cookdocs.{yaml,toml,json}`. Both list-of-maps (YAML) and direct map (TOML/YAML/JSON) formats are supported:
+Configure ingredient, cookware, title, and category fallback emojis either via `--emoji-file` (`emoji_file`) or inline under `emoji` in `.cookdocs.{yaml,toml,json}`. Both list-of-maps (YAML) and direct map (TOML/YAML/JSON) formats are supported:
 
 ```yaml title="emoji.yaml"
 ---
@@ -127,6 +127,15 @@ emoji:
   cookware:
     - bowl_with_spoon:
         - bowl
+  titles:
+    - pizza:
+        - pizza
+        - calzone
+  categories:
+    - bread:
+        - breads
+    - birthday:
+        - desserts/cake
 ```
 
 ```toml title=".cookdocs.toml (inline)"
@@ -135,25 +144,39 @@ herb = ["cilantro", "parsley"]
 
 [emoji.cookware]
 bowl_with_spoon = ["bowl"]
+
+[emoji.titles]
+pizza = ["pizza", "calzone"]
+
+[emoji.categories]
+breads = ":bread:"
+desserts = "cake"
+"desserts/cake" = ":birthday:"
 ```
 
-ASCII shortcodes such as `herb` are formatted as `:herb:`; Unicode emojis such as `🌿` are emitted verbatim.
+ASCII shortcodes such as `herb` are formatted as `:herb:`; Unicode emojis such as `🌿` are emitted verbatim. Under `categories`, direct scalar maps use `category = emoji` (matching relative `.Info.Categories` paths from most-specific path to parent fallback), while list-of-maps and array values use `emoji = ["category", ...]`.
 
 ## Ingredient Density Schema (`weights_file`)
 
-Configure volume-to-weight conversions for `toGrams` in YAML, TOML, or JSON. Plain numeric values specify grams per US cup; structured objects support `grams_per_cup`, `grams_per_ml` (`density`), or `grams` + `volume` (e.g. `"1 tbsp"`) along with optional `aliases`. Optional `exclude` and `exclude_small_units` lists skip conversion for specific ingredients (or for `tsp`/`tbsp` amounts of spices/seasonings):
+Configure volume-to-weight conversions for `toGrams` in YAML, TOML, or JSON. Plain numeric values specify grams per US cup; structured objects support `grams_per_cup`, `grams_per_ml` (`density`), or `grams` + `volume` (e.g. `"1 tbsp"`) along with optional `aliases`. Optional `exclude` and `exclude_small_units` lists skip conversion for specific ingredients (or for `tsp`/`tbsp` amounts of spices/seasonings). Optional `exclude_small_units_except` (`exclude-small-units-except`, `excludeSmallUnitsExcept`) lists base-name tokens that bypass `exclude_small_units` (e.g. allowing `basil pesto` or `cinnamon sugar` to convert while keeping `fresh basil` or `ground cinnamon` excluded; explicit `exclude` still applies):
 
 ```yaml title="weights.yaml"
 ---
 exclude_small_units:
   - salt
+  - basil
   - cinnamon
+exclude_small_units_except:
+  - pesto
+  - oil
+  - sugar
 weights:
   all-purpose flour:
     grams_per_cup: 120
     aliases:
       - ap flour
       - flour
+  basil pesto: 224
   granulated sugar: 200
   olive oil:
     grams_per_ml: 0.915

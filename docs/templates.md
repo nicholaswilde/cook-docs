@@ -27,7 +27,7 @@ this:
 {{ template "cook.sourceSection" . }}
 ```
 
-The tool renders Go-compatible templates using [`gtmpl-ng`][5] and provides built-in helper functions (`getSource`, `sumTimers`, `totalTime`, `toYaml`, `emoji`, `ingredientEmoji`, `cookwareEmoji`, `toGrams`, `linkRecipe`, `scale`, `lower`, `replace`, `round`, `add1`, `wrap`, `indent`) for use in custom templates.
+The tool renders Go-compatible templates using [`gtmpl-ng`][5] and provides built-in helper functions (`getSource`, `sumTimers`, `totalTime`, `toYaml`, `emoji`, `ingredientEmoji`, `cookwareEmoji`, `titleEmoji`, `toGrams`, `linkRecipe`, `scale`, `lower`, `replace`, `round`, `add1`, `wrap`, `indent`) for use in custom templates.
 
 ## Built-in Templates
 
@@ -35,7 +35,7 @@ The tool renders Go-compatible templates using [`gtmpl-ng`][5] and provides buil
 
 | Name                                      | Description                                                        |
 |-------------------------------------------|--------------------------------------------------------------------|
-| `cook.headerSection`                      | The main heading (`Metadata.title` when present, otherwise `Info.RecipeName`)   |
+| `cook.headerSection`                      | The main heading (`Metadata.title` when present, otherwise `Info.RecipeName`), optionally prefixed by `titleEmoji` when emoji mappings are configured |
 | `cook.imageSection`                       | The image section                                                               |
 | `cook.lazyImageSection`                   | The lazy-loaded image section (`loading="lazy"`)                                |
 | `cook.tableSection`                       | Servings and total time (`totalTime`: prefers `total time` metadata over timers) |
@@ -89,9 +89,10 @@ The tool renders Go-compatible templates using [`gtmpl-ng`][5] and provides buil
 | `sumTimers` | Sums recipe step timers into a total duration string                          |
 | `totalTime` | Uses `total time` metadata when present, otherwise falls back to `sumTimers`  |
 | `toYaml`    | Formats a structured value (list, map, or scalar) as deterministic YAML       |
-| `emoji`     | Looks up an emoji (`emoji "ingredient" .Name`, `emoji "cookware" .Name`, or `emoji .Name`) |
+| `emoji`     | Looks up an emoji (`emoji "ingredient" .Name`, `emoji "cookware" .Name`, `emoji "title" .Info.RecipeName`, `emoji "category" "breads"`, or `emoji .Name`) |
 | `ingredientEmoji` | Looks up an ingredient emoji shortcode or Unicode glyph (or `""` if unmapped) |
 | `cookwareEmoji` | Looks up a cookware emoji shortcode or Unicode glyph (or `""` if unmapped)  |
+| `titleEmoji` | Resolves a recipe header emoji from title mappings or `[emoji.categories]` fallback (`titleEmoji .`, `titleEmoji .Info.RecipeName`, or `titleEmoji .Info.RecipeName .Info.Categories`); returns `""` when title already starts with an emoji |
 | `toGrams`   | Converts volumetric measurements to rounded grams using `weights_file` (`toGrams .Amount .Name`) |
 | `linkRecipe` | Cross-links an ingredient/recipe name to `[Name](relative/path.md)` (excluding self-links) |
 | `scale`     | Scales a recipe, ingredient list, amount, number, or fraction/range string (`scale 0.5 .Ingredients`) |
@@ -184,6 +185,7 @@ When configured, the built-in `cook.ingredients` and `cook.cookware` templates a
 ```
 
 - **`ingredientEmoji` / `cookwareEmoji` / `emoji`**: Resolves names (case-insensitively, handling prep words and singular/plural variants) against `emoji_file` and inline `emoji` mappings. Returns `""` when unmapped.
+- **`titleEmoji`**: Resolves a header emoji for `cook.headerSection` (`titleEmoji .`, `titleEmoji .Info.RecipeName`, or `titleEmoji .Info.RecipeName .Info.Categories`). Returns `""` when `.Metadata.title` (or the input title) already begins with a `:shortcode:` or Unicode emoji; otherwise matches title phrases/words against `titles` then `ingredients`, falling back to `categories` via `.Info.Categories`.
 - **`toGrams`**: Uses `cooklang::Converter` to normalize volumetric units (`tsp`, `tbsp`, `cup`, `fl oz`, `pt`, `qt`, `gal`, `ml`, `l`) against `weights_file`. Supports `toGrams .Amount .Name`, `toGrams .Amount.Quantity .Amount.Unit .Name`, or `toGrams .`. Returns `""` for already weight-based units (`g`, `kg`, `oz`, `lb`), unknown units, excluded items, or unmapped ingredients.
 - **`linkRecipe`**: Looks up discovered recipes under `--recipe-search-root` (filtered by `--link-dirs` when set) and emits `[Name](relative/path.md)` using forward-slash relative paths between output Markdown files. Excludes self-links and falls back to plain `Name` when unmatched.
 
