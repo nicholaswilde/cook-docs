@@ -328,11 +328,52 @@ pub fn validate_recipe_file(recipe_path: &str) -> Result<RecipeValidation, Strin
     })
 }
 
-fn format_cooklang_number(num: &cooklang::quantity::Number) -> (f64, String) {
+fn approx_kitchen_fraction(val: f64) -> Option<String> {
+    if !val.is_finite() || val <= 0.0 {
+        return None;
+    }
+    let whole = val.floor() as i64;
+    let frac = val - whole as f64;
+    if frac < 1e-4 {
+        return Some(whole.to_string());
+    }
+    if (1.0 - frac) < 1e-4 {
+        return Some((whole + 1).to_string());
+    }
+    for den in [2_i64, 3, 4, 6, 8, 12, 16] {
+        let num = (frac * den as f64).round() as i64;
+        if num > 0 && num < den && (frac - (num as f64 / den as f64)).abs() < 1e-3 {
+            return if whole == 0 {
+                Some(format!("{num}/{den}"))
+            } else {
+                Some(format!("{whole} {num}/{den}"))
+            };
+        }
+    }
+    None
+}
+
+fn quantity_has_fraction(qty: &cooklang::quantity::Quantity) -> bool {
+    match qty.value() {
+        cooklang::quantity::Value::Number(cooklang::quantity::Number::Fraction { .. }) => true,
+        cooklang::quantity::Value::Range { start, end } => {
+            matches!(start, cooklang::quantity::Number::Fraction { .. })
+                || matches!(end, cooklang::quantity::Number::Fraction { .. })
+        }
+        _ => false,
+    }
+}
+
+fn format_cooklang_number(
+    num: &cooklang::quantity::Number,
+    prefer_fraction: bool,
+) -> (f64, String) {
     match num {
         cooklang::quantity::Number::Regular(f) => {
             let raw = if (*f - f.round()).abs() < 1e-6 {
                 format!("{}", f.round() as i64)
+            } else if prefer_fraction && let Some(frac) = approx_kitchen_fraction(*f) {
+                frac
             } else {
                 let s = format!("{:.2}", f);
                 s.trim_end_matches('0').trim_end_matches('.').to_string()
@@ -357,15 +398,16 @@ fn format_cooklang_number(num: &cooklang::quantity::Number) -> (f64, String) {
 
 fn cooklang_quantity_to_amount(
     qty: &cooklang::quantity::Quantity,
+    prefer_fraction: bool,
 ) -> crate::types::IngredientAmount {
     let (is_numeric, quantity, quantity_raw) = match qty.value() {
         cooklang::quantity::Value::Number(num) => {
-            let (v, raw) = format_cooklang_number(num);
+            let (v, raw) = format_cooklang_number(num, prefer_fraction);
             (true, v, raw)
         }
         cooklang::quantity::Value::Range { start, end } => {
-            let (s_val, s_raw) = format_cooklang_number(start);
-            let (_, e_raw) = format_cooklang_number(end);
+            let (s_val, s_raw) = format_cooklang_number(start, prefer_fraction);
+            let (_, e_raw) = format_cooklang_number(end, prefer_fraction);
             (true, s_val, format!("{s_raw}-{e_raw}"))
         }
         cooklang::quantity::Value::Text(t) => (false, 0.0, t.clone()),
@@ -378,6 +420,90 @@ fn cooklang_quantity_to_amount(
     }
 }
 
+fn normalize_category_tag_key(raw: &str) -> String {
+    raw.trim()
+        .replace('\\', "/")
+        .split('/')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_ascii_lowercase)
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+fn push_unique_tag(out: &mut Vec<String>, seen: &mut std::collections::HashSet<String>, raw: &str) {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return;
+    }
+    if seen.insert(trimmed.to_ascii_lowercase()) {
+        out.push(trimmed.to_string());
+    }
+}
+
+fn resolve_category_tags(
+    categories: &[String],
+    category_tags: &BTreeMap<String, Vec<String>>,
+) -> Vec<String> {
+    if categories.is_empty() || category_tags.is_empty() {
+        return Vec::new();
+    }
+    let normalized_map: std::collections::HashMap<String, &Vec<String>> = category_tags
+        .iter()
+        .map(|(k, v)| (normalize_category_tag_key(k), v))
+        .filter(|(k, _)| !k.is_empty())
+        .collect();
+    let segs: Vec<String> = categories
+        .iter()
+        .map(|s| s.trim().to_ascii_lowercase())
+        .filter(|s| !s.is_empty())
+        .collect();
+    for end in (1..=segs.len()).rev() {
+        let prefix = segs[..end].join("/");
+        if let Some(tags) = normalized_map.get(&prefix) {
+            let mut out = Vec::with_capacity(tags.len());
+            let mut seen = std::collections::HashSet::new();
+            for tag in *tags {
+                push_unique_tag(&mut out, &mut seen, tag);
+            }
+            return out;
+        }
+    }
+    Vec::new()
+}
+
+fn merge_recipe_tags(
+    default_tags: &[String],
+    frontmatter: &BTreeMap<String, serde_json::Value>,
+) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for tag in default_tags {
+        push_unique_tag(&mut out, &mut seen, tag);
+    }
+    if let Some((_, val)) = frontmatter
+        .iter()
+        .find(|(k, _)| k.eq_ignore_ascii_case("tags"))
+    {
+        match val {
+            serde_json::Value::Array(items) => {
+                for item in items {
+                    if let Some(s) = item.as_str() {
+                        push_unique_tag(&mut out, &mut seen, s);
+                    }
+                }
+            }
+            serde_json::Value::String(s) => {
+                for part in s.split(',') {
+                    push_unique_tag(&mut out, &mut seen, part);
+                }
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
 fn aggregate_ingredients(
     parsed_recipe: &cooklang::Recipe,
     converter: &cooklang::Converter,
@@ -387,6 +513,7 @@ fn aggregate_ingredients(
         std::collections::HashMap::new();
     let mut grouped: std::collections::HashMap<String, cooklang::quantity::GroupedQuantity> =
         std::collections::HashMap::new();
+    let mut had_fraction: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     for ing in &parsed_recipe.ingredients {
         if ing.name.trim().is_empty() {
@@ -401,6 +528,9 @@ fn aggregate_ingredients(
         if let Some(qty) = &ing.quantity
             && let Some(group) = grouped.get_mut(&key)
         {
+            if quantity_has_fraction(qty) {
+                had_fraction.insert(key.clone());
+            }
             if let Some(u) = qty.unit()
                 && converter.find_unit(u).is_none()
             {
@@ -428,6 +558,7 @@ fn aggregate_ingredients(
     for key in order {
         let name = display_names.remove(&key).unwrap_or_default();
         let group = grouped.remove(&key).unwrap_or_default();
+        let prefer_fraction = had_fraction.contains(&key);
         if group.is_empty() {
             out.push(crate::types::Ingredient {
                 name,
@@ -442,7 +573,7 @@ fn aggregate_ingredients(
             for qty in group.into_vec() {
                 out.push(crate::types::Ingredient {
                     name: name.clone(),
-                    amount: cooklang_quantity_to_amount(&qty),
+                    amount: cooklang_quantity_to_amount(&qty, prefer_fraction),
                 });
             }
         }
@@ -461,7 +592,7 @@ fn aggregate_cookware(parsed_recipe: &cooklang::Recipe) -> Vec<crate::types::Coo
         }
         let key = cw.name.trim().to_ascii_lowercase();
         let (is_numeric, quantity, quantity_raw) = if let Some(qty) = &cw.quantity {
-            let amt = cooklang_quantity_to_amount(qty);
+            let amt = cooklang_quantity_to_amount(qty, false);
             (amt.is_numeric, amt.quantity, amt.quantity_raw)
         } else {
             (false, 1.0, String::new())
@@ -525,6 +656,8 @@ pub fn parse_file(
         image_slug: "".to_string(),
         rel_root,
         categories,
+        default_tags: Vec::new(),
+        tags: Vec::new(),
     };
 
     info.new_recipe_file_path = get_new_recipe_path(recipe_path, &info.recipe_name, config)
@@ -575,6 +708,9 @@ pub fn parse_file(
         }
         metadata.insert(key_str, val_str);
     }
+
+    info.default_tags = resolve_category_tags(&info.categories, &config.category_tags);
+    info.tags = merge_recipe_tags(&info.default_tags, &frontmatter);
 
     let mut steps = Vec::new();
     for section in &parsed_recipe.sections {
@@ -1084,6 +1220,88 @@ Make topping with @All-Purpose Flour{1/2%cup}, @granulated sugar{1/2%cup}, @cinn
         assert_eq!(parsed.cookware.len(), 1);
         assert_eq!(parsed.cookware[0].name, "mixing bowl");
         assert_eq!(parsed.cookware[0].quantity, 2.0);
+    }
+
+    #[test]
+    fn test_aggregate_ingredients_preserves_and_sums_fractions() {
+        let dir = TempDir::new("agg_fractions");
+        let recipe_path = dir.0.join("Fractions.cook");
+        fs::write(
+            &recipe_path,
+            "\
+Mix @flour{1/2%cup}, @sugar{1/3%cup}, @milk{1 1/2%cups}, @oil{0.25%cup}, and @salt{24.6%g}.
+
+Finish with @flour{1/4%cup}, @sugar{1/3%cup}, and @oil{0.5%cup}.
+",
+        )
+        .unwrap();
+
+        let cfg = default_config();
+        let parsed = parse_file(&recipe_path.to_string_lossy(), &cfg).unwrap();
+
+        let raw_of = |name: &str| {
+            parsed
+                .ingredients
+                .iter()
+                .find(|i| i.name == name)
+                .map(|i| i.amount.quantity_raw.clone())
+                .unwrap()
+        };
+
+        // Summed fractions stay clean fractions
+        assert_eq!(raw_of("flour"), "3/4");
+        assert_eq!(raw_of("sugar"), "2/3");
+        // Single mixed fraction preserved
+        assert_eq!(raw_of("milk"), "1 1/2");
+        // Decimal-only inputs stay decimal (not turned into fractions)
+        assert_eq!(raw_of("oil"), "0.75");
+        assert_eq!(raw_of("salt"), "24.6");
+    }
+
+    #[test]
+    fn test_category_tags_resolution_and_deduplication() {
+        let dir = TempDir::new("cat_tags");
+        let root = dir.0.join("cook");
+        fs::create_dir_all(root.join("desserts/cake")).unwrap();
+        fs::create_dir_all(root.join("desserts/pie")).unwrap();
+        fs::create_dir_all(root.join("misc")).unwrap();
+
+        let cake = root.join("desserts/cake/Lemon Cake.cook");
+        fs::write(
+            &cake,
+            "---\ntags:\n  - Dessert\n  - citrus\n---\nBake @sugar{1%cup}.\n",
+        )
+        .unwrap();
+        let pie = root.join("desserts/pie/Cherry Pie.cook");
+        fs::write(&pie, ">> tags: fruit, DESSERT\nBake @cherries{2%cups}.\n").unwrap();
+        let misc = root.join("misc/Toast.cook");
+        fs::write(&misc, "Toast @bread{1%slice}.\n").unwrap();
+
+        let mut category_tags = BTreeMap::new();
+        category_tags.insert("desserts".to_string(), vec!["dessert".to_string()]);
+        category_tags.insert(
+            "Desserts\\Cake/".to_string(),
+            vec!["dessert".to_string(), "cake".to_string()],
+        );
+
+        let cfg = crate::types::Config {
+            recipe_search_root: root.to_string_lossy().to_string(),
+            ignore_file: String::new(),
+            category_tags,
+            ..default_config()
+        };
+
+        let r_cake = parse_file(&cake.to_string_lossy(), &cfg).unwrap();
+        assert_eq!(r_cake.info.default_tags, vec!["dessert", "cake"]);
+        assert_eq!(r_cake.info.tags, vec!["dessert", "cake", "citrus"]);
+
+        let r_pie = parse_file(&pie.to_string_lossy(), &cfg).unwrap();
+        assert_eq!(r_pie.info.default_tags, vec!["dessert"]);
+        assert_eq!(r_pie.info.tags, vec!["dessert", "fruit"]);
+
+        let r_misc = parse_file(&misc.to_string_lossy(), &cfg).unwrap();
+        assert!(r_misc.info.default_tags.is_empty());
+        assert!(r_misc.info.tags.is_empty());
     }
 
     #[test]

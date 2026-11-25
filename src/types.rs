@@ -1,6 +1,52 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum StringOrVec {
+    One(String),
+    Many(Vec<String>),
+}
+
+pub(crate) fn deserialize_category_tags<'de, D>(
+    deserializer: D,
+) -> Result<BTreeMap<String, Vec<String>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let raw = BTreeMap::<String, StringOrVec>::deserialize(deserializer)?;
+    Ok(raw
+        .into_iter()
+        .map(|(k, v)| {
+            let tags = match v {
+                StringOrVec::One(s) => vec![s],
+                StringOrVec::Many(list) => list,
+            };
+            (k, tags)
+        })
+        .collect())
+}
+
+pub(crate) fn deserialize_opt_category_tags<'de, D>(
+    deserializer: D,
+) -> Result<Option<BTreeMap<String, Vec<String>>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let raw = Option::<BTreeMap<String, StringOrVec>>::deserialize(deserializer)?;
+    Ok(raw.map(|map| {
+        map.into_iter()
+            .map(|(k, v)| {
+                let tags = match v {
+                    StringOrVec::One(s) => vec![s],
+                    StringOrVec::Many(list) => list,
+                };
+                (k, tags)
+            })
+            .collect()
+    }))
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     #[serde(
@@ -105,6 +151,16 @@ pub struct Config {
     )]
     pub link_dirs: Vec<String>,
     #[serde(
+        rename = "CategoryTags",
+        alias = "category-tags",
+        alias = "category_tags",
+        alias = "categoryTags",
+        default,
+        deserialize_with = "deserialize_category_tags",
+        skip_serializing_if = "BTreeMap::is_empty"
+    )]
+    pub category_tags: BTreeMap<String, Vec<String>>,
+    #[serde(
         rename = "RequiredMetadata",
         alias = "required-metadata",
         alias = "required_metadata",
@@ -155,6 +211,7 @@ impl Default for Config {
             emoji: None,
             weights_file: String::new(),
             link_dirs: Vec::new(),
+            category_tags: BTreeMap::new(),
             required_metadata: Vec::new(),
             merge: false,
             force: false,
@@ -239,6 +296,10 @@ pub struct Info {
     pub rel_root: String,
     #[serde(rename = "Categories", default)]
     pub categories: Vec<String>,
+    #[serde(rename = "DefaultTags", default)]
+    pub default_tags: Vec<String>,
+    #[serde(rename = "Tags", default)]
+    pub tags: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

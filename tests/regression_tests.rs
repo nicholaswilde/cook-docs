@@ -874,8 +874,12 @@ fn regression_bare_ingredient_quantity_zero_renders_some() {
     assert!(out_md.status.success());
     let md = String::from_utf8_lossy(&out_md.stdout);
     assert!(
-        md.contains("- some salt"),
-        "expected '- some salt' in:\n{md}"
+        md.contains("- salt\n"),
+        "expected '- salt' without 'some ' prefix in:\n{md}"
+    );
+    assert!(
+        !md.contains("- some salt"),
+        "unexpected '- some salt' in:\n{md}"
     );
     assert!(!md.contains("- 1 salt"), "unexpected '- 1 salt' in:\n{md}");
     assert!(md.contains("- 1 bowl"), "expected '- 1 bowl' in:\n{md}");
@@ -1326,7 +1330,7 @@ weights:
     // salsa verde -> emoji + 1/2 cup (120 g) + cross-link across nested directories
     assert!(
         tacos_md.contains(
-            "- :hot_pepper: 0.5 cup (120 g) [salsa verde](../sauces-and-dressings/salsa-verde.md)"
+            "- :hot_pepper: 1/2 cup (120 g) [salsa verde](../sauces-and-dressings/salsa-verde.md)"
         ),
         "tacos:\n{tacos_md}"
     );
@@ -1733,7 +1737,7 @@ Top with @flour{1/2%cup} and @sugar{1/2%cup} using #bowl{1}.
     assert!(default_out.status.success());
     let default_md = String::from_utf8_lossy(&default_out.stdout);
     assert!(
-        default_md.contains("- 3.5 cups flour"),
+        default_md.contains("- 3 1/2 cups flour"),
         "default:\n{default_md}"
     );
     assert!(
@@ -1927,4 +1931,147 @@ Serve immediately.
         tagged_md.starts_with("# :cupcake: Tagged Cake\n"),
         "tagged:\n{tagged_md}"
     );
+}
+
+#[test]
+fn regression_category_tags_and_default_ingredient_cookware_formatting() {
+    let Some(bin) = bin_if_runnable() else {
+        return;
+    };
+
+    let dir = TempDir::new("bundle_74_77");
+    fs::create_dir_all(dir.path().join("cook/desserts/cake")).unwrap();
+    fs::create_dir_all(dir.path().join("cook/desserts/pie")).unwrap();
+    fs::create_dir_all(dir.path().join("cook/breads")).unwrap();
+    fs::create_dir_all(dir.path().join("cook/misc")).unwrap();
+
+    fs::write(
+        dir.path().join(".cookdocs.toml"),
+        "\
+[category_tags]
+breads = \"bread\"
+desserts = [\"dessert\"]
+\"desserts/cake\" = [\"dessert\", \"cake\"]
+",
+    )
+    .unwrap();
+
+    fs::write(
+        dir.path().join("cook/recipe.md.gotmpl"),
+        "\
+---
+{{- if .Info.Tags }}
+tags:
+{{ toYaml .Info.Tags | indent 2 }}
+{{- end }}
+---
+{{ template \"cook.headerSection\" . }}
+
+{{ template \"cook.ingredientsSection\" . }}
+
+{{ template \"cook.cookwareSection\" . }}
+
+{{ template \"cook.stepsSection\" . -}}
+",
+    )
+    .unwrap();
+
+    // Nested exact match + dedupe with Frontmatter.tags (case-insensitive) + #77 formatting
+    fs::write(
+        dir.path().join("cook/desserts/cake/Lemon Cake.cook"),
+        "\
+---
+tags:
+  - Dessert
+  - citrus
+---
+Whisk @flour{1/2%cup}, @agave{0.25 to 0.5%cup}, @salt{pinch}, and @neutral oil{}.
+
+Fold in @flour{1/4%cup}.
+",
+    )
+    .unwrap();
+
+    // Parent prefix fallback ("desserts/pie" -> "desserts")
+    fs::write(
+        dir.path().join("cook/desserts/pie/Apple Pie.cook"),
+        "Bake @apples{3} in #pie dish{1}.\n",
+    )
+    .unwrap();
+
+    // Unmapped category with no frontmatter tags
+    fs::write(
+        dir.path().join("cook/misc/Toast.cook"),
+        "Toast @bread{2%slices}.\n",
+    )
+    .unwrap();
+
+    // 1. Verify --jsonify exposes DefaultTags and deduplicated Tags
+    let json_out = run_cli(
+        bin,
+        Some(dir.path()),
+        &[
+            "-C",
+            ".cookdocs.toml",
+            "-c",
+            "cook",
+            "-j",
+            "cook/desserts/cake/Lemon Cake.cook",
+        ],
+        &[],
+    );
+    assert!(
+        json_out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&json_out.stderr)
+    );
+    let parsed: Value = serde_json::from_slice(&json_out.stdout).unwrap();
+    assert_eq!(
+        parsed["Info"]["DefaultTags"],
+        serde_json::json!(["dessert", "cake"])
+    );
+    assert_eq!(
+        parsed["Info"]["Tags"],
+        serde_json::json!(["dessert", "cake", "citrus"])
+    );
+
+    // 2. Render all recipes and verify frontmatter tags + #77 formatting
+    let render_out = run_cli(
+        bin,
+        Some(dir.path()),
+        &["-C", ".cookdocs.toml", "-c", "cook", "-o", "docs"],
+        &[],
+    );
+    assert!(
+        render_out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&render_out.stderr)
+    );
+
+    let cake_md = fs::read_to_string(dir.path().join("docs/desserts/cake/lemon-cake.md")).unwrap();
+    assert!(
+        cake_md.contains("tags:\n  - dessert\n  - cake\n  - citrus\n"),
+        "cake:\n{cake_md}"
+    );
+    assert!(cake_md.contains("- 3/4 cup flour\n"), "cake:\n{cake_md}");
+    assert!(
+        cake_md.contains("- 0.25 to 0.5 cup agave\n"),
+        "cake:\n{cake_md}"
+    );
+    assert!(cake_md.contains("- salt (pinch)\n"), "cake:\n{cake_md}");
+    assert!(cake_md.contains("- neutral oil\n"), "cake:\n{cake_md}");
+    assert!(
+        !cake_md.contains("## :cooking: Cookware"),
+        "cake:\n{cake_md}"
+    );
+
+    let pie_md = fs::read_to_string(dir.path().join("docs/desserts/pie/apple-pie.md")).unwrap();
+    assert!(pie_md.contains("tags:\n  - dessert\n"), "pie:\n{pie_md}");
+    assert!(
+        pie_md.contains("## :cooking: Cookware\n\n- 1 pie dish\n"),
+        "pie:\n{pie_md}"
+    );
+
+    let toast_md = fs::read_to_string(dir.path().join("docs/misc/toast.md")).unwrap();
+    assert!(!toast_md.contains("tags:"), "toast:\n{toast_md}");
 }

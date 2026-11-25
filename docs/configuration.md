@@ -24,6 +24,7 @@ Here is a list of the supported parameters:
 | N/A                             | N/A                          | emoji            | N/A                | inline ingredient, cookware, title, and category emoji mappings in `.cookdocs.{yaml,toml,json}`  |
 | --weights-file path             | COOK_DOCS_WEIGHTS_FILE       | weights_file     | ""                 | optional YAML/TOML/JSON ingredient density table for `toGrams` volume-to-weight conversion       |
 | --link-dirs strings             | COOK_DOCS_LINK_DIRS          | link_dirs        | `[]`               | comma-separated recipe subdirectories eligible for `linkRecipe` cross-linking                    |
+| N/A                             | N/A                          | category_tags    | `{}`               | mapping of relative category directory paths to default tag lists (`Info.DefaultTags`/`Info.Tags`) |
 | --required-metadata strings     | COOK_DOCS_REQUIRED_METADATA  | required_metadata | `[]`              | comma-separated metadata keys required by `cook-docs doctor --check-recipes`                     |
 | --merge                         | COOK_DOCS_MERGE              | merge            | false              | non-destructively merge generated content into existing Markdown files                           |
 | --force                         | COOK_DOCS_FORCE              | N/A              | false              | force full overwrite of existing Markdown files even when `--merge` / `merge` is enabled         |
@@ -183,6 +184,19 @@ weights:
   honey:
     grams: 21
     volume: "1 tbsp"
+```
+
+## Category Default Tags (`category_tags`)
+
+Map relative recipe directory paths (e.g. `breads`, `desserts/cake`, `cookies-and-bars`) to default tag lists in `.cookdocs.{toml,yaml,json}` (`category_tags`, `category-tags`, or `categoryTags`). `cook-docs` resolves `.Info.DefaultTags` via longest-prefix match against `.Info.Categories` and merges them with `.Frontmatter.tags` (case-insensitively deduplicated) into `.Info.Tags`:
+
+```toml title=".cookdocs.toml"
+[category_tags]
+beverages = ["beverage"]
+breads = ["bread"]
+cookies-and-bars = ["cookie", "bar", "dessert"]
+desserts = ["dessert"]
+"desserts/cake" = ["dessert", "cake"]
 ```
 
 ## Environment Variables

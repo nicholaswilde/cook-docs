@@ -261,6 +261,14 @@ struct ConfigFile {
     #[serde(alias = "link-dirs", alias = "link_dirs", alias = "linkDirs")]
     pub link_dirs: Option<Vec<String>>,
     #[serde(
+        alias = "category-tags",
+        alias = "category_tags",
+        alias = "categoryTags",
+        default,
+        deserialize_with = "crate::types::deserialize_opt_category_tags"
+    )]
+    pub category_tags: Option<std::collections::BTreeMap<String, Vec<String>>>,
+    #[serde(
         alias = "required-metadata",
         alias = "required_metadata",
         alias = "requiredMetadata"
@@ -539,6 +547,9 @@ where
         }
         if let Some(val) = config_file.link_dirs {
             config.link_dirs = val;
+        }
+        if let Some(val) = config_file.category_tags {
+            config.category_tags = val;
         }
         if let Some(val) = config_file.required_metadata {
             config.required_metadata = val;
@@ -1329,6 +1340,73 @@ emoji:
         .unwrap();
         assert!(cfg_env_mf.merge);
         assert!(cfg_env_mf.force);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_category_tags_config_formats() {
+        let dir = std::env::temp_dir().join(format!(
+            "cook_docs_cat_tags_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+
+        let toml_cfg = dir.join(".cookdocs.toml");
+        fs::write(
+            &toml_cfg,
+            "\
+[category_tags]
+beverages = \"beverage\"
+breads = [\"bread\"]
+\"desserts/cake\" = [\"dessert\", \"cake\"]
+",
+        )
+        .unwrap();
+        let cfg_t =
+            load_config_with(&["cook-docs"], std::slice::from_ref(&toml_cfg), |_| None).unwrap();
+        assert_eq!(
+            cfg_t.category_tags.get("beverages"),
+            Some(&vec!["beverage".to_string()])
+        );
+        assert_eq!(
+            cfg_t.category_tags.get("desserts/cake"),
+            Some(&vec!["dessert".to_string(), "cake".to_string()])
+        );
+
+        let yaml_cfg = dir.join(".cookdocs.yaml");
+        fs::write(
+            &yaml_cfg,
+            "\
+categoryTags:
+  cookies-and-bars:
+    - cookie
+    - bar
+",
+        )
+        .unwrap();
+        let cfg_y =
+            load_config_with(&["cook-docs"], std::slice::from_ref(&yaml_cfg), |_| None).unwrap();
+        assert_eq!(
+            cfg_y.category_tags.get("cookies-and-bars"),
+            Some(&vec!["cookie".to_string(), "bar".to_string()])
+        );
+
+        let json_cfg = dir.join(".cookdocs.json");
+        fs::write(
+            &json_cfg,
+            r#"{"category-tags": {"soups": ["soup", "comfort"]}}"#,
+        )
+        .unwrap();
+        let cfg_j =
+            load_config_with(&["cook-docs"], std::slice::from_ref(&json_cfg), |_| None).unwrap();
+        assert_eq!(
+            cfg_j.category_tags.get("soups"),
+            Some(&vec!["soup".to_string(), "comfort".to_string()])
+        );
 
         let _ = fs::remove_dir_all(&dir);
     }

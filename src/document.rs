@@ -75,13 +75,34 @@ fn get_table_template() -> String {
 }
 
 fn get_ingredients_template() -> String {
+    let item = concat!(
+        "- {{ with ingredientEmoji .Name }}{{ . }} {{ end }}",
+        "{{ if .Amount.IsNumeric }}",
+        "{{ if .Amount.QuantityRaw }}{{ .Amount.QuantityRaw }}{{ else }}{{ round .Amount.Quantity 2 }}{{ end }}",
+        "{{ if .Amount.Unit }} {{ .Amount.Unit }}{{ end }}",
+        "{{ with toGrams .Amount .Name }} ({{ . }} g){{ end }} ",
+        "{{ if $.Config.LinkDirs }}{{ linkRecipe .Name }}{{ else }}{{ .Name }}{{ end }}",
+        "{{ else if .Amount.Quantity }}",
+        "{{ round .Amount.Quantity 2 }}",
+        "{{ if .Amount.Unit }} {{ .Amount.Unit }}{{ end }}",
+        "{{ with toGrams .Amount .Name }} ({{ . }} g){{ end }} ",
+        "{{ if $.Config.LinkDirs }}{{ linkRecipe .Name }}{{ else }}{{ .Name }}{{ end }}",
+        "{{ else if .Amount.QuantityRaw }}",
+        "{{ if .Amount.Unit }}{{ .Amount.QuantityRaw }} {{ .Amount.Unit }} {{ if $.Config.LinkDirs }}{{ linkRecipe .Name }}{{ else }}{{ .Name }}{{ end }}",
+        "{{ else }}{{ if $.Config.LinkDirs }}{{ linkRecipe .Name }}{{ else }}{{ .Name }}{{ end }} ({{ .Amount.QuantityRaw }}){{ end }}",
+        "{{ else }}",
+        "{{ if $.Config.LinkDirs }}{{ linkRecipe .Name }}{{ else }}{{ .Name }}{{ end }}",
+        "{{ end }}"
+    );
     let mut s = String::new();
     s.push_str(r#"{{ define "cook.ingredientsHeader" }}## :salt: Ingredients{{ end }}"#);
     s.push_str(r#"{{ define "cook.ingredients" }}{{ if .Ingredients }}{{- range .Ingredients }}"#);
     s.push('\n');
-    s.push_str(r#"- {{ with ingredientEmoji .Name }}{{ . }} {{ end }}{{ if .Amount.Quantity }}{{ round .Amount.Quantity 2 }}{{ if .Amount.Unit }} {{ .Amount.Unit }}{{ end }}{{ with toGrams .Amount .Name }} ({{ . }} g){{ end }}{{ else }}some{{ end }} {{ if $.Config.LinkDirs }}{{ linkRecipe .Name }}{{ else }}{{ .Name }}{{ end }}{{- end }}{{ else }}{{ range .Steps }}{{- range .Ingredients }}"#);
+    s.push_str(item);
+    s.push_str(r#"{{- end }}{{ else }}{{ range .Steps }}{{- range .Ingredients }}"#);
     s.push('\n');
-    s.push_str(r#"- {{ with ingredientEmoji .Name }}{{ . }} {{ end }}{{ if .Amount.Quantity }}{{ round .Amount.Quantity 2 }}{{ if .Amount.Unit }} {{ .Amount.Unit }}{{ end }}{{ with toGrams .Amount .Name }} ({{ . }} g){{ end }}{{ else }}some{{ end }} {{ if $.Config.LinkDirs }}{{ linkRecipe .Name }}{{ else }}{{ .Name }}{{ end }}{{- end }}{{- end }}{{ end }}{{ end }}"#);
+    s.push_str(item);
+    s.push_str(r#"{{- end }}{{- end }}{{ end }}{{ end }}"#);
     s.push_str(
         r#"{{ define "cook.ingredientsSection" }}{{ template "cook.ingredientsHeader" . }}"#,
     );
@@ -98,9 +119,11 @@ fn get_cookware_template() -> String {
     s.push_str(r#"- {{ with cookwareEmoji .Name }}{{ . }} {{ end }}{{.Quantity}} {{.Name}}{{- end }}{{ else }}{{ range .Steps }}{{- range .Cookware }}"#);
     s.push('\n');
     s.push_str(r#"- {{ with cookwareEmoji .Name }}{{ . }} {{ end }}{{.Quantity}} {{.Name}}{{- end }}{{- end }}{{ end }}{{ end }}"#);
-    s.push_str(r#"{{ define "cook.cookwareSection" }}{{ template "cook.cookwareHeader" . }}"#);
+    s.push_str(
+        r#"{{ define "cook.cookwareSection" }}{{ if .Cookware }}{{ template "cook.cookwareHeader" . }}"#,
+    );
     s.push('\n');
-    s.push_str(r#"{{ template "cook.cookware" . }}{{ end }}"#);
+    s.push_str(r#"{{ template "cook.cookware" . }}{{ end }}{{ end }}"#);
     s
 }
 
@@ -1458,7 +1481,12 @@ mod tests {
                 comments: vec!["Stir gently".to_string()],
             }],
             ingredients: Vec::new(),
-            cookware: Vec::new(),
+            cookware: vec![Cookware {
+                is_numeric: false,
+                name: "bowl".to_string(),
+                quantity: 1.0,
+                quantity_raw: "".to_string(),
+            }],
             metadata,
             frontmatter: std::collections::BTreeMap::new(),
             config: Config {
@@ -1478,6 +1506,8 @@ mod tests {
                 recipe_file_path: dir.join("My Recipe.cook").to_string_lossy().to_string(),
                 rel_root: ".".to_string(),
                 categories: Vec::new(),
+                default_tags: Vec::new(),
+                tags: Vec::new(),
             },
         }
     }
@@ -1680,8 +1710,9 @@ mod tests {
         let out_md = fs::read_to_string(&recipe.info.new_recipe_file_path).unwrap();
         assert!(out_md.contains("# My Recipe"));
         assert!(out_md.contains("my-recipe.png"));
-        assert!(out_md.contains("250.26 g flour"));
-        assert!(out_md.contains("some salt"));
+        assert!(out_md.contains("250.256 g flour"));
+        assert!(out_md.contains("- salt\n"));
+        assert!(!out_md.contains("some salt"));
         assert!(out_md.contains("1 bowl"));
         assert!(out_md.contains("1.25 hours"));
         assert!(out_md.contains("<https://example.com/recipe>"));
@@ -1949,7 +1980,8 @@ mod tests {
             rendered.contains("- :tomato: 1 cup (245 g) [pizza sauce](../sauces/pizza-sauce.md)"),
             "rendered:\n{rendered}"
         );
-        assert!(rendered.contains("- some salt"), "rendered:\n{rendered}");
+        assert!(rendered.contains("- salt\n"), "rendered:\n{rendered}");
+        assert!(!rendered.contains("- some salt"), "rendered:\n{rendered}");
         assert!(
             rendered.contains("- :bowl_with_spoon: 1 bowl"),
             "rendered:\n{rendered}"
@@ -2238,6 +2270,70 @@ desserts = \"cake\"
         assert!(
             md_custom.contains("whole=:birthday:|name=|pair=:birthday:"),
             "custom:\n{md_custom}"
+        );
+    }
+
+    #[test]
+    fn test_default_ingredients_and_cookware_formatting() {
+        let dir = TempDir::new("default_fmt_77");
+        let cook_dir = dir.0.join("cook");
+        let out_dir = dir.0.join("docs");
+        fs::create_dir_all(&cook_dir).unwrap();
+
+        // Recipe with fractions, summed fractions, range+unit text, text-only, bare ingredient, and NO cookware
+        let no_cw = cook_dir.join("Dressing.cook");
+        fs::write(
+            &no_cw,
+            "\
+Whisk @olive oil{1/4%cup}, @vinegar{1/3%cup}, @broth{1 1/2%cups}, @flour{1/2%cup}, @agave{0.25 to 0.5%cup}, @salt{pinch}, and @neutral oil{}.
+
+Add @flour{1/4%cup}.
+",
+        )
+        .unwrap();
+
+        // Recipe WITH cookware still renders cookware section
+        let with_cw = cook_dir.join("Soup.cook");
+        fs::write(&with_cw, "Boil @water{2%cups} in #pot{1}.\n").unwrap();
+
+        let cfg = Config {
+            ignore_file: String::new(),
+            recipe_search_root: cook_dir.to_string_lossy().to_string(),
+            output_dir: out_dir.to_string_lossy().to_string(),
+            ..Config::default()
+        };
+
+        let r_no_cw = crate::cook::parse_file(&no_cw.to_string_lossy(), &cfg).unwrap();
+        print_documentation(&r_no_cw);
+        let md_no_cw = fs::read_to_string(out_dir.join("dressing.md")).unwrap();
+        assert!(
+            md_no_cw.contains("- 1/4 cup olive oil\n"),
+            "md:\n{md_no_cw}"
+        );
+        assert!(md_no_cw.contains("- 1/3 cup vinegar\n"), "md:\n{md_no_cw}");
+        assert!(md_no_cw.contains("- 1 1/2 cups broth\n"), "md:\n{md_no_cw}");
+        assert!(md_no_cw.contains("- 3/4 cup flour\n"), "md:\n{md_no_cw}");
+        assert!(
+            md_no_cw.contains("- 0.25 to 0.5 cup agave\n"),
+            "md:\n{md_no_cw}"
+        );
+        assert!(md_no_cw.contains("- salt (pinch)\n"), "md:\n{md_no_cw}");
+        assert!(md_no_cw.contains("- neutral oil\n"), "md:\n{md_no_cw}");
+        assert!(
+            !md_no_cw.contains("- some neutral oil"),
+            "unexpected 'some ' prefix:\n{md_no_cw}"
+        );
+        assert!(
+            !md_no_cw.contains("## :cooking: Cookware"),
+            "empty cookware heading should be omitted:\n{md_no_cw}"
+        );
+
+        let r_with_cw = crate::cook::parse_file(&with_cw.to_string_lossy(), &cfg).unwrap();
+        print_documentation(&r_with_cw);
+        let md_with_cw = fs::read_to_string(out_dir.join("soup.md")).unwrap();
+        assert!(
+            md_with_cw.contains("## :cooking: Cookware\n\n- 1 pot\n"),
+            "md:\n{md_with_cw}"
         );
     }
 }

@@ -40,7 +40,7 @@ The tool renders Go-compatible templates using [`gtmpl-ng`][5] and provides buil
 | `cook.lazyImageSection`                   | The lazy-loaded image section (`loading="lazy"`)                                |
 | `cook.tableSection`                       | Servings and total time (`totalTime`: prefers `total time` metadata over timers) |
 | `cook.ingredientsSection`                 | The ingredients section                                            |
-| `cook.cookwareSection`                    | The cookware section                                               |
+| `cook.cookwareSection`                    | The cookware section (omitted automatically when `.Cookware` is empty) |
 | `cook.stepsSection`                       | The steps section                                                  |
 | `cook.stepsWithQuotedCommentsSection`     | The steps section with comments in [block quotes][8]               |
 | `cook.stepsWithAdmonishedCommentsSection` | The steps section with comments in [admonitions][9]                |
@@ -53,7 +53,7 @@ The tool renders Go-compatible templates using [`gtmpl-ng`][5] and provides buil
 | Name                                     | Description                                                                  |
 |------------------------------------------|------------------------------------------------------------------------------|
 | `cook.ingredientsHeader`                 | The ingredients header                                                       |
-| `cook.ingredients`                       | Unordered list of aggregated ingredients (with optional emojis, gram weights, and cross-links) |
+| `cook.ingredients`                       | Unordered list of aggregated ingredients (preserving fractions, formatting non-numeric quantities cleanly, omitting `"some "` on bare items, with optional emojis, gram weights, and cross-links) |
 | `cook.cookwareHeader`                    | The cookware header                                                          |
 | `cook.cookware`                          | Unordered list of deduplicated cookware (with optional emojis)               |
 | `cook.stepsHeader`                       | The steps header                                                             |
@@ -77,6 +77,8 @@ The tool renders Go-compatible templates using [`gtmpl-ng`][5] and provides buil
 | `.Info.RecipeFilePath`                   | The file path of the recipe file                                             |
 | `.Info.RelRoot`                          | Relative path back to `--recipe-search-root` (`.`, `..`, `../..`, ...)       |
 | `.Info.Categories`                       | Relative directory segments under `--recipe-search-root` (e.g. `["desserts", "cake"]`) |
+| `.Info.DefaultTags`                      | Default tags resolved from `category_tags` for `.Info.Categories` (longest-prefix match) |
+| `.Info.Tags`                             | Deduplicated union of `.Info.DefaultTags` and `.Frontmatter.tags`            |
 | `.Frontmatter`                           | Structured YAML/Cooklang metadata preserving lists, booleans, numbers, and maps |
 | `.Ingredients`                           | Aggregated top-level recipe ingredients (deduplicated and summed across steps) |
 | `.Cookware`                              | Aggregated top-level recipe cookware (deduplicated across steps)             |
@@ -129,9 +131,9 @@ With a single root `recipe.md.gotmpl`, you can emit Markdown frontmatter and dep
 ```go title="cook/recipe.md.gotmpl"
 ---
 comments: true
-{{- if .Frontmatter.tags }}
+{{- if .Info.Tags }}
 tags:
-{{ toYaml .Frontmatter.tags | indent 2 }}
+{{ toYaml .Info.Tags | indent 2 }}
 {{- end }}
 {{- if .Info.ImageSlug }}
 hero: assets/images/{{ .Info.ImageSlug }}
@@ -193,7 +195,7 @@ See [Configuration](./configuration.md) for the `emoji_file` and `weights_file` 
 
 ## Aggregated Ingredients & Scaling (`scale`)
 
-Repeated ingredients and cookware across multiple steps are aggregated into top-level `.Ingredients` and `.Cookware` using `cooklang-rs` unit grouping (e.g., `3 cups flour` in Step 1 + `1/2 cup flour` in Step 2 -> `3.5 cups flour`), while per-step `.Steps[*].Ingredients` and `.Steps[*].Cookware` remain intact for backwards compatibility.
+Repeated ingredients and cookware across multiple steps are aggregated into top-level `.Ingredients` and `.Cookware` using `cooklang-rs` unit grouping (e.g., `3 cups flour` in Step 1 + `1/2 cup flour` in Step 2 -> `3 1/2 cups flour`), while per-step `.Steps[*].Ingredients` and `.Steps[*].Cookware` remain intact for backwards compatibility.
 
 Use the `scale` helper to render multi-serving tabs (fractions, mixed numbers, ranges, and servings metadata are scaled automatically):
 
@@ -357,7 +359,9 @@ Run `cook-docs --jsonify` to inspect the full parsed data structure on stdout:
     "RecipeSlug": "my-test-recipe",
     "RecipeFilePath": "/path/to/cook-docs/testdata/My Test Recipe.cook",
     "RelRoot": ".",
-    "Categories": []
+    "Categories": [],
+    "DefaultTags": [],
+    "Tags": []
   }
 }
 ```

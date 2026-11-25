@@ -98,6 +98,12 @@
 # breads = ":bread:"
 # "desserts/cake" = ":birthday:"
 
+# Optional default tags mapped by relative recipe directory path
+# (exposed as .Info.DefaultTags and merged with .Frontmatter.tags into .Info.Tags):
+# [category_tags]
+# breads = ["bread"]
+# "desserts/cake" = ["dessert", "cake"]
+
 # -----------------------------------------------------------------------------
 # Logging
 # -----------------------------------------------------------------------------
